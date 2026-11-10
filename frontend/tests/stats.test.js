@@ -51,6 +51,7 @@ test('real request usage wins over estimation', () => {
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
     averageTps: 25,
+    recentTps: 25,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
     lastTps: 25,
@@ -87,6 +88,22 @@ test('a persisted visible generation window computes tps without persisting reas
   const stats = sessionStats(session)
   assert.equal(stats.models[0].lastTps, 10)
   assert.equal(stats.live.rawSpeed, true)
+})
+
+test('model tps averages the most recent completed rounds', () => {
+  const values = [10, 20, 30, 40, 50, 60]
+  const requests = values.map((value, index) => ({
+    input: 10, output: value, rawOutput: value, rawTps: value, generationMs: 1000,
+    durationMs: 2000, firstTokenMs: 200, provider: 'Test Provider', model: 'test-model', finishedAt: index,
+  }))
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 10,
+    messages: [user('你好'), assistant('好的', { requests, request: requests.at(-1) })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 60)
+  assert.equal(stats.models[0].recentTps, 40)
 })
 
 test('a raw request without a measured generation window is not turned into fallback tps', () => {

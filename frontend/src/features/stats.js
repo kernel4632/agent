@@ -283,6 +283,9 @@ export function sessionStats(session) {
   // 这类请求没有可测窗口时必须显示 —，不能再用整次请求的 output/duration 兜底。
   const hasRawSpeed = requests.some(item => item.rawOutput !== undefined || item.rawTps !== undefined || item.generationMs !== undefined)
   // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
+  // 模型速度取最近 5 个已完成有效请求的算术平均；当前正在跑的这一笔
+  // 还没完成，不参与平均，也不实时猜速度。
+  const RECENT_TPS_SAMPLES = 5
   const requestTps = item => {
     if (item?.rawOutput !== undefined || item?.rawTps !== undefined) {
       return Math.max(0, Number(item.rawTps || 0))
@@ -327,7 +330,7 @@ export function sessionStats(session) {
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
         provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, generationMs: 0, firstTokenMs: 0, firstTokenCount: 0,
-        lastFirstTokenMs: 0, lastTps: 0, latest: null,
+        lastFirstTokenMs: 0, lastTps: 0, latest: null, recentSamples: [],
       }
       group.count += 1
       const duration = Number(item.durationMs || 0)
@@ -360,7 +363,11 @@ export function sessionStats(session) {
         // 首字时间按字段独立保留；新请求没带这个字段时不能把旧值清成 0。
         group.lastFirstTokenMs = firstToken
       }
-      if (tps > 0) group.lastTps = tps
+      if (tps > 0) {
+        group.lastTps = tps
+        group.recentSamples.push(tps)
+        if (group.recentSamples.length > RECENT_TPS_SAMPLES) group.recentSamples.shift()
+      }
       // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
       // 实时行的数据由 StatsPanel 单独从 live 补齐。
       if (item.status !== 'running' || duration > 0 || firstToken > 0) {
@@ -380,6 +387,9 @@ export function sessionStats(session) {
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
       averageTps: group.generationMs ? group.output / (group.generationMs / 1000) : 0,
+      recentTps: group.recentSamples.length
+        ? group.recentSamples.reduce((sum, value) => sum + value, 0) / group.recentSamples.length
+        : 0,
       lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
       lastTps: group.latest?.tps || group.lastTps || 0,
@@ -392,7 +402,7 @@ export function sessionStats(session) {
   if (cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
   // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
   const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
-  const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
+  const lastTps = currentSpeed?.recentTps || (last ? requestTps(last) : 0)
   return {
     approximate: usedApproximate || usageApproximate,
     context: {

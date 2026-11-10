@@ -51,7 +51,7 @@ test('waiting for the first token keeps the last measured speed', async ({ page 
   expect(mock.errors).toEqual([])
 })
 
-test('speed panel shows the streaming request before it finishes', async ({ page }) => {
+test('streaming does not show a guessed tps before it finishes', async ({ page }) => {
   const mock = await backend(page)
   mock.sessions.set('live-stats', {
     id: 'live-stats',
@@ -74,21 +74,13 @@ test('speed panel shows the streaming request before it finishes', async ({ page
   await mock.emit('live-stats', [
     { type: 'llm-start', startedAt: Date.now() - 3000, provider: 'Test Provider', model: 'test-model' },
   ])
-  // 速度要等两秒窗口里有真实的输出增量；持续喂几段再展开面板。
   for (let index = 0; index < 6; index += 1) {
     await mock.emit('live-stats', [{ type: 'text-delta', text: '正在持续输出的内容'.repeat(4) }])
     await page.waitForTimeout(300)
   }
-  await expect(page.locator('.session-composer__stats')).toBeVisible()
   const stats = page.locator('.session-composer__stats')
-  await stats.getByRole('button', { name: /tok\/s/ }).click()
-  const panel = page.getByRole('dialog', { name: '生成速度' })
-  const liveRow = panel.locator('.stats-panel__speed-row.is-live')
-  await expect(liveRow).toContainText('test-model')
-  await expect(liveRow.locator('.stats-panel__speed-tps')).toContainText(/\d+/)
-  await expect(liveRow.locator('.stats-panel__speed-tps')).not.toContainText('—')
-
-  await mock.emit('live-stats', [{ type: 'text-delta', text: '再追加一段'.repeat(40) }])
-  await expect(liveRow.locator('.stats-panel__speed-tps')).toContainText('tok/s')
+  await expect(stats).toBeVisible()
+  // 流式还没结束，没有可用的完成样本，不显示任何实时 TPS。
+  await expect(stats.getByRole('button', { name: /tok\/s/ })).toHaveCount(0)
   expect(mock.errors).toEqual([])
 })
