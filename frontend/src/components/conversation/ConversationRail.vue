@@ -67,67 +67,57 @@ const answerOf = turn => {
   const stopTool = (stopMessage?.tools || []).find(isFinishedStopTool)
   return String(outputText(stopTool) || '').replace(/\s+/g, ' ').trim()
 }
-// 历史全量在内存里，定位条的轮次直接由消息算，不再向后端要大纲。
-const outline = computed(() => groupMessageTurns(props.messages).map((turn, index) => ({
-  id: turn.id,
-  index,
-  prompt: turn.role === 'user' ? userTextOf(turn) : '',
-  response: turn.role === 'assistant' ? answerOf(turn) : '',
-})))
-
-const nodes = computed(() => {
-  if (outline.value.length) {
-    return outline.value.map(turn => {
-      const prompt = previewText(turn.prompt)
-      const response = previewText(turn.response)
-      return {
-        id: turn.id,
-        index: turn.index,
-        length: prompt.length + response.length,
-        prompt,
-        response,
-        title: `${turn.role === 'user' ? '你' : '回答'}：${prompt || response}`.slice(0, 120),
-      }
-    })
-  }
-  const turns = groupMessageTurns(props.messages).filter(turn => !turn.messages[0].compact)
-  const merged = []
-  for (let index = 0; index < turns.length; index += 1) {
-    const turn = turns[index]
-    if (turn.role === 'user') {
-      const next = turns[index + 1]
-      const prompt = previewText(userTextOf(turn))
-      const response = previewText(answerOf(next))
-      merged.push({
-        id: turn.messages[0].id,
-        index: props.messages.findIndex(message => message.id === turn.messages[0].id),
-        length: prompt.length + response.length,
-        prompt,
-        response,
-        title: `你：${prompt}`.slice(0, 120),
-      })
-      if (next?.role === 'assistant') index += 1
-      continue
-    }
-    // 没有用户问题的助手回合（例如中断后续跑）也保留一条，跳转目标是这条回答。
-    const response = previewText(answerOf(turn))
-    if (!response) continue
-    merged.push({
-      id: turn.messages[0].id,
-      index: props.messages.findIndex(message => message.id === turn.messages[0].id),
-      length: response.length,
-      prompt: '',
-      response,
-      title: `回答：${response}`.slice(0, 120),
-    })
-  }
-  return merged
-})
 const messageIndexById = computed(() => {
   const map = new Map()
   props.messages.forEach((message, index) => map.set(message.id, index))
   return map
 })
+// 一条刻度代表一次“用户提问 + 助手正式回复”，不是每个 assistant 回合各占一条。
+// 同一轮里的多条 assistant 消息已经由 groupMessageTurns 合并成一个 turn。
+const outline = computed(() => {
+  const turns = groupMessageTurns(props.messages).filter(turn => !turn.messages[0]?.compact)
+  const pairs = []
+  for (let index = 0; index < turns.length; index += 1) {
+    const turn = turns[index]
+    if (turn.role === 'user') {
+      const next = turns[index + 1]
+      const answer = next?.role === 'assistant' ? next : null
+      pairs.push({
+        id: turn.id,
+        index: messageIndexById.value.get(turn.id) ?? index,
+        prompt: userTextOf(turn),
+        response: answer ? answerOf(answer) : '',
+      })
+      if (answer) index += 1
+      continue
+    }
+    if (turn.role === 'assistant') {
+      const response = answerOf(turn)
+      // 压缩边界/续跑可能让助手回合前面没有用户消息；保留一条可跳转的回答刻度。
+      if (!response) continue
+      pairs.push({
+        id: turn.id,
+        index: messageIndexById.value.get(turn.id) ?? index,
+        prompt: '',
+        response,
+      })
+    }
+  }
+  return pairs
+})
+
+const nodes = computed(() => outline.value.map(turn => {
+  const prompt = previewText(turn.prompt)
+  const response = previewText(turn.response)
+  return {
+    id: turn.id,
+    index: turn.index,
+    length: prompt.length + response.length,
+    prompt,
+    response,
+    title: `${prompt || response}`.slice(0, 120),
+  }
+}))
 // 大纲里的 index 可能来自回退/压缩前，不能直接和当前 DOM 的消息下标比较；
 // 用当前 messages 的 id 重新定位每个刻度。
 const nodePositions = computed(() => nodes.value.map(node => {
