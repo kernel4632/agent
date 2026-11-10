@@ -26,7 +26,7 @@ import store from '../store.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
 
-// 配置保存由调用方（commands/capabilities.js）负责；本文件只管 store.config.mcp 的内存状态和连接。
+// 配置保存由调用方（commands/admin.js）负责；本文件只管 store.config.mcp 的内存状态和连接。
 
 // 每次配置变化递增。Agent 记住自己创建时的版本，旧 Agent 不会被新配置从脚下改掉。
 let revision = 0

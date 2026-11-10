@@ -120,6 +120,52 @@ CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test
 `AGENT_HOME` 恢复成默认值，那些晚到的写入就落到真实的 `~/.agent` 里了（曾经因此留下几十条垃圾会话）。
 `Path.lock` 锁定之后本进程的路径解析不再看 `process.env`，测试的 `finally` 里解锁。
 
+## 后端分层规则
+
+后端分四层，同一层的文件夹内部不互相引用，这是硬约束，由 `tests/contract.test.js` 把关：
+
+- `commands/` 之间不互相 import；一个接口一个文件，负责把请求变成参数、校验、调用 features/utils、拼响应。
+- `features/` 之间不互相 import；每个文件是一个业务主体，只 import `store.js`、`utils/` 和第三方包。工具执行需要的 features 能力（如 `Tool.snapshot`、`Tool.kind`）由 commands 层通过参数传入，不在 features 里静态 import 别的 feature。
+- `tools/` 只 import `store.js` 和 `utils/`，需要 features 的能力时一律从参数传入。
+- `utils/` 是跨层共用的小工具。
+
+**禁止用 `bind()` 或运行时注入绕开上面这条**：装配材料（Agent 实例需要的 session、tools、mcp、approval 等）由 commands 层传进来，features 不自己 import 别的 feature 来装配。
+
+### 命名
+
+导出函数采用 `主体.动作()`，动作只用一个动词：`Agent.create()`、`History.save()`、`Tool.restore()`。内部辅助函数不导出。
+
+### 函数粒度
+
+一个功能操作写成一个函数。只有被多处共用的逻辑才抽成独立函数，单次调用的直接内联。大函数内部用 `// --- 小标题 ---` 分隔流程段落。
+
+### Agent 装配代码有三份
+
+`commands/chat.js`、`commands/session.js`、`server/tests/agent-helpers.js` 各有一份装配代码（`getAgent` + `checkPermission` + 取 session/settings/tools 的逻辑）。这是有意为之：把它们抽进 `commands/assemble.js` 会让 commands 之间互相引用，违反分层约束。三份重复比一个违反架构的公共模块更好。
+
+## 后端分层规则
+
+后端分四层，同一层的文件夹内部不互相引用，这是硬约束，由 `tests/contract.test.js` 把关：
+
+- `commands/` 之间不互相 import；一个接口一个文件，负责把请求变成参数、校验、调用 features/utils、拼响应。
+- `features/` 之间不互相 import；每个文件是一个业务主体，只 import `store.js`、`utils/` 和第三方包。工具执行需要的 features 能力（如 `Tool.snapshot`、`Tool.kind`）由 commands 层通过参数传入，不在 features 里静态 import 别的 feature。
+- `tools/` 只 import `store.js` 和 `utils/`，需要 features 的能力时一律从参数传入。
+- `utils/` 是跨层共用的小工具。
+
+**禁止用 `bind()` 或运行时注入绕开上面这条**：装配材料（Agent 实例需要的 session、tools、mcp、approval 等）由 commands 层传进来，features 不自己 import 别的 feature 来装配。
+
+### 命名
+
+导出函数采用 `主体.动作()`，动作只用一个动词：`Agent.create()`、`History.save()`、`Tool.restore()`。内部辅助函数不导出。
+
+### 函数粒度
+
+一个功能操作写成一个函数。只有被多处共用的逻辑才抽成独立函数，单次调用的直接内联。大函数内部用 `// --- 小标题 ---` 分隔流程段落。
+
+### Agent 装配代码有三份
+
+`commands/chat.js`、`commands/session.js`、`server/tests/agent-helpers.js` 各有一份装配代码（`getAgent` + `checkPermission` + 取 session/settings/tools 的逻辑）。这是有意为之：把它们抽进 `commands/assemble.js` 会让 commands 之间互相引用，违反分层约束。三份重复比一个违反架构的公共模块更好。
+
 ## Agent 循环来自外部包
 
 模型请求、工具执行、上下文压缩由已发布的 `@kernel4632/agent-core` 负责（[仓库](https://github.com/kernel4632/agent-core)），本项目不再自带实现。

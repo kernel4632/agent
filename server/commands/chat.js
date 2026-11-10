@@ -56,7 +56,7 @@ const getAgent = sessionId => Agent.get({
 })
 
 // 一个会话的运行状态：用一个状态机代替两个独立的 Map/Set，避免竞态窗口。
-// status 可能的值：idle （空闲） | starting （启动中） | running （运行中） | stopping （停止中）。
+// status 可能的值：running（运行中） | stopping（停止中）。idle/starting 未使用，仅供理解状态机。
 // token 是这一轮的标记，只有持有当前 token 的请求才能发终态；旧 token 失效后直接丢弃。
 const sessions = new Map()  // sessionId -> { status, token, agent }
 const saveQueue = new Map() // sessionId -> 上一次保存的 Promise（串成队列）

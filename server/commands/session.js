@@ -6,7 +6,7 @@
  * 这一层只把两边按用户看到的顺序串起来。
  *
  * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
- *   Agent    会话装配与运行状态（create/get/invalidate/readSettings/resolve）
+ *   Agent    会话装配与运行状态（create/get/invalidate/settings/resolve）
  *   History  会话数据的唯一读写口（load/add/save/destroy）
  *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
  *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
@@ -14,7 +14,7 @@
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫', cwd: 'D:/notes' })
  *   const session = await Session.read({ sessionId })
- *   await Session.dir({ sessionId, cwd: 'D:/other' })
+ *   await Session.dir({ sessionId, cwd: 'D:/other' })   // 修改会话的当前工作目录
  *   await Session.rollback({ sessionId, messageId })
  */
 
@@ -411,6 +411,7 @@ const settings = async ({ sessionId }) => {
 }
 
 // --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
+// patch 是 HTTP PATCH 语义：只改传入的字段，其余保持不变。
 const patch = async ({ sessionId, reasoning, provider, model: modelName, cwd }) => {
     // --- 改思考强度：读历史、归一、写回、必要时重建 Agent ---
     if (reasoning !== undefined) {
@@ -543,7 +544,7 @@ const list = async ({ search } = {}) => ({
 // --- 统计会话数量 ---
 const count = () => History.count()
 
-// --- 统计正在运行的任务 ---
+// --- 统计正在运行的任务数（注意：History.running(id, bool) 是设置运行标记，这里是只读计数）---
 const running = () => Agent.count()
 
 export default {

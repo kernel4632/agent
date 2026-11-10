@@ -23,9 +23,9 @@ import Text from '../utils/text.js'
 
 
 const isObject = Text.isObject
-const BACKUP_LIMIT = 20
-const MASK = '••••••'
-const BACKUP_ID = /^config-[A-Za-z0-9-]+\.json$/
+const BACKUP_LIMIT = 20                 // 最多保留 20 个备份，超过就删旧的
+const MASK = '••••••'                 // 导出配置时用它覆盖 apiKey 等敏感字段
+const BACKUP_ID = /^config-[A-Za-z0-9-]+\.json$/  // 备份文件名格式，不匹配的文件被忽略
 
 // --- 按任务的默认模型 ---
 const MODELS = [
@@ -175,8 +175,10 @@ const restoreMaskedSecrets = (next, current) => {
     return next
 }
 
+// 备份 id 包含时间戳和短 UUID，排序时按时间早晚。
 const backupId = () => `config-${new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)}-${crypto.randomUUID().slice(0, 8)}.json`
 
+// 対备份文件按时间排序，就最旧的删掉，保证总数不超过 BACKUP_LIMIT。
 const pruneBackups = async dir => {
     const entries = (await readdir(dir, { withFileTypes: true }))
         .filter(entry => entry.isFile() && BACKUP_ID.test(entry.name))
@@ -226,6 +228,7 @@ const backupList = async () => {
     return list.sort((a, b) => b.createdAt - a.createdAt)
 }
 
+// 读读一个备份的内容；敏感字段用莞樱覆盖，不暴露密钥。
 const backup = async id => {
     const path = backupPath(id)
     if (!await Bun.file(path).exists()) throw fail(404, `config backup not found: ${id}`)
@@ -239,6 +242,7 @@ const backup = async id => {
     return { id, createdAt: stat.mtimeMs, config: maskSecrets(raw) }
 }
 
+// 恢复到某个备份：就叫 set，不特殊处理，读进来的内容也会经过 normalize。
 const restore = async ({ id } = {}) => {
     const path = backupPath(id)
     if (!await Bun.file(path).exists()) throw fail(404, `config backup not found: ${id}`)
@@ -252,15 +256,19 @@ const restore = async ({ id } = {}) => {
     return { ok: true, id }
 }
 
+// 导出配置：secrets=true 时包含敏感字段，默认褶盖。
 const exportConfig = ({ secrets = false } = {}) => secrets === true || secrets === '1'
     ? structuredClone(store.config)
     : maskSecrets(store.config)
 
+// 导入配置：与当前配置合并，读入的 MASK 字段恢复为内存里的实际密钥。
 const importConfig = async ({ config } = {}) => {
     if (!isObject(config)) throw fail(400, 'config must be an object')
     await set(restoreMaskedSecrets(structuredClone(config), store.config))
     return { ok: true }
 }
+// 清掉内存时用 delete 而不是用新对象替换 store.config：其他模块拿的是对象的引用，
+// 如果用新对象替换，它们的引用就指向了旧的对象。
 const read = async (path = Path.config()) => {
     const file = Bun.file(path)                              // 指向磁盘上的配置文件
     const raw = await file.exists() ? await file.json() : {} // 第一次运行时还没有文件，按空配置处理

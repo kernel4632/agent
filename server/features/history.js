@@ -423,12 +423,17 @@ const appendNew = async session => {
 }
 
 // --- 保存一条会话：历史追加，元数据和设置分开写 ---
+// 宽松的追加路径（appendNew / appendSegmented）采用追加，和全量写（writeAll / writeAllSegmented）的第一参照物是
+// history.persistedCount：小于 messages.length 说明有新消息没落盘，大于说明发生了回退。
+// history.rewrite 在回退和正文块换运时置真，话是无法追加只能全量重写。
 const save = async sessionId => {
     const session = store.sessions[sessionId]
     if (!session) throw new Error(`Session not loaded: ${sessionId}`)
     await mkdir(Path.session(sessionId), { recursive: true })
 
     const history = session.history
+    // 左分支：历史里有压缩消息，必须用分段格式。
+    // 右分支：旧格式（legacy）或御尿时工具刘划印置，不能追加只能全写。
     const hasCompact = history.messages.some(record => record?.message?.compact)
     if (hasCompact) {
         if (!history.segmented || history.rewrite || !Number.isInteger(history.persistedCount) || history.persistedCount > history.messages.length) {
@@ -557,7 +562,7 @@ const redo = async ({ sessionId }) => {
     session.updatedAt = Date.now()
 }
 
-// --- 任务开跑 / 结束时更新运行标记 ---
+// --- 任务开跑 / 结束时更新运行标记（注意：Session.running() 是只读计数，这里是写标记）---
 // 这个入口故意只改内存：开跑时落盘由 startRun 的 mark 负责，收尾时的落盘也
 // 用 mark 补一笔（syncHistory 发生在 finishRun 之前，会把 true 一起写下去）。
 // 崩溃时最多留下一个“其实已结束”的脏标记，恢复时能识别。

@@ -17,7 +17,7 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 | --- | --- |
 | `server.js` | 注册路由、统一错误、健康检查、启动 |
 | `store.js` | 全局数据中心：`config` 和 `sessions` 两个纯对象 |
-| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`capabilities.js`；命令文件之间不互相 import，Agent 装配写在 `chat.js` 和 `session.js` 各自的文件里 |
+| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`admin.js`；命令文件之间不互相 import，Agent 装配写在 `chat.js` 和 `session.js` 各自的文件里 |
 | `features/` | 独立业务模块：历史、回退、Agent、审批、上下文、压缩、标题、工具登记、MCP、本机识别（discover）、技能管理（skills）；feature 文件之间不互相 import |
 | `utils/` | 无业务状态的共用小工具：带状态码的错误、数据路径拼接、SSE 服务端、子进程管理、命令分词、上下文用量台账，以及文件与文本的通用判断（`fs.js`、`text.js`）。不依赖任何 feature |
 | `tools/` | 按类别分组的工具，一个文件一组；只依赖 `store.js`、`utils/` 和运行时 context |

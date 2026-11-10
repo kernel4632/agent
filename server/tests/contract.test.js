@@ -85,12 +85,36 @@ describe('项目结构', () => {
 
     test('features 之间不互相引用，也不引用 commands；编排只在 commands 里', async () => {
         const directory = fileURLToPath(new URL('../features/', import.meta.url))
+        // tool.js 是唯一允许 import tools/ 的 feature：它是工具注册表，和 tools/ 是有意的紧密耦合。
+        // 其他 feature 一律不能 import tools/。
         for (const file of (await readdir(directory)).filter(name => name.endsWith('.js'))) {
             const code = await Bun.file(new URL(`../features/${file}`, import.meta.url)).text()
             expect(code.includes("from './"), `${file} 引用了同层的 feature`).toBe(false)
             expect(code.includes("from '../features/"), `${file} 引用了别的 feature`).toBe(false)
             expect(code.includes("from '../commands/"), `${file} 引用了 commands`).toBe(false)
             expect(code.includes('const bind = '), `${file} 还在用 bind 注入兄弟能力`).toBe(false)
+            if (file !== 'tool.js') {
+                expect(code.includes("from '../tools/"), `${file} 引用了 tools 层`).toBe(false)
+            }
+        }
+    })
+
+    test('utils 之间的同层引用只限已知的白名单', async () => {
+        // utils 本身是通用工具，原则上不互相引用。
+        // 但下列文件依赖 path.js / command.js / fs.js 属于合理的基础工具依赖，逐条写明允许避免静默扩大。
+        const allowed = new Map([
+            ['context-ratios.js', new Set(['./path.js'])],
+            ['context-usage.js',  new Set(['./path.js'])],
+            ['process.js',        new Set(['./path.js', './command.js'])],
+            ['temp-workspace.js', new Set(['./path.js', './fs.js'])],
+        ])
+        const directory = fileURLToPath(new URL('../utils/', import.meta.url))
+        for (const file of (await readdir(directory)).filter(name => name.endsWith('.js'))) {
+            const code = await Bun.file(new URL(`../utils/${file}`, import.meta.url)).text()
+            const permitted = allowed.get(file) || new Set()
+            for (const [, target] of code.matchAll(/from '(\.\/[^']+)'/g)) {
+                expect(permitted.has(target), `utils/${file} 引用了同层的 ${target}，不在白名单中`).toBe(true)
+            }
         }
     })
 

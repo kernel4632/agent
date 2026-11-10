@@ -178,6 +178,7 @@ const paths = async ({ sessionId, toolCallId } = {}) => {
     return [...found]
 }
 // --- 恢复文件：带 toolCallId 退回这一次工具调用之前；带 keepMessages 退回某条消息之前 ---
+// 两个都给时走 toolCallId 分支（restoreTool），不要混传。
 const restore = args => args?.toolCallId ? File.restoreTool(args) : File.restoreMessage(args)
 // --- 只丢掉这次工具调用的快照，不动文件 ---
 const drop = args => File.dropTool(args)
