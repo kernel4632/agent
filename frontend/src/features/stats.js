@@ -279,9 +279,21 @@ export function sessionStats(session) {
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
   const liveOutput = liveAssistant ? estimateTokens(liveAssistant.content || '') : 0
   const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
+  // 新请求已经在前端按“可见正文/工具参数”的生成窗口测过速度；
+  // 这类请求没有可测窗口时必须显示 —，不能再用整次请求的 output/duration 兜底。
+  const hasRawSpeed = requests.some(item => item.rawOutput !== undefined || item.rawTps !== undefined || item.generationMs !== undefined)
   // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
   const requestTps = item => {
-    if (Number(item?.rawTps) > 0) return Number(item.rawTps)
+    if (item?.rawOutput !== undefined || item?.rawTps !== undefined) {
+      return Math.max(0, Number(item.rawTps || 0))
+    }
+    // 服务端持久化的可见生成窗口；0 表示这一笔没有可测窗口，不能退回总耗时。
+    if (item?.generationMs !== undefined) {
+      const generation = Number(item.generationMs || 0)
+      if (generation <= 0) return 0
+      const visible = Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
+      return visible / (generation / 1000)
+    }
     const duration = Number(item?.durationMs || 0)
     // 旧请求没有前端原始输出记录时退回 usage，并扣掉思考 token；分母用整次请求耗时。
     return duration > 0 ? Math.max(0, Number(item?.output || 0) - Number(item?.reasoning || 0)) / (duration / 1000) : 0
@@ -318,14 +330,29 @@ export function sessionStats(session) {
         lastFirstTokenMs: 0, lastTps: 0, latest: null,
       }
       group.count += 1
-      group.output += Number(item.rawOutput ?? Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0)))
       const duration = Number(item.durationMs || 0)
       const firstToken = Number(item.firstTokenMs || 0)
+      const tps = requestTps(item)
+      if (item.rawOutput !== undefined) {
+        // 只把真正测到窗口的请求算进平均；单块输出没有速度样本。
+        if (tps > 0) {
+          group.output += Number(item.rawOutput || 0)
+          group.generationMs += Number(item.generationMs || 0)
+        }
+      } else if (item.generationMs !== undefined) {
+        // 刷新后从服务端 usage 恢复的可见生成窗口。
+        if (tps > 0) {
+          group.output += Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
+          group.generationMs += Number(item.generationMs || 0)
+        }
+      } else {
+        group.output += Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
+        // 旧请求没有生成窗口，平均速度仍按整次请求耗时。
+        if (duration > 0) group.generationMs += duration
+      }
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
-        // 平均速度也按整次请求耗时，和最后一次 tok/s 使用同一分母。
-        group.generationMs += duration
       }
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
@@ -333,7 +360,6 @@ export function sessionStats(session) {
         // 首字时间按字段独立保留；新请求没带这个字段时不能把旧值清成 0。
         group.lastFirstTokenMs = firstToken
       }
-      const tps = requestTps(item)
       if (tps > 0) group.lastTps = tps
       // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
       // 实时行的数据由 StatsPanel 单独从 live 补齐。
@@ -405,6 +431,7 @@ export function sessionStats(session) {
       provider: liveRequest?.provider || currentProvider,
       model: liveRequest?.model || currentModel,
       tps: lastTps,
+      rawSpeed: hasRawSpeed,
     },
     // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
     get composition() { return contentComposition(messages) },

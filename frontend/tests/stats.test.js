@@ -60,7 +60,7 @@ test('real request usage wins over estimation', () => {
 
 test('frontend raw tps wins over backend usage output', () => {
   const request = {
-    input: 30, output: 100, reasoning: 60, rawOutput: 20, rawTps: 42,
+    input: 30, output: 100, reasoning: 60, rawOutput: 20, rawTps: 42, generationMs: 800,
     durationMs: 800, firstTokenMs: 700, provider: 'Test Provider', model: 'test-model',
   }
   const session = {
@@ -71,6 +71,38 @@ test('frontend raw tps wins over backend usage output', () => {
   const stats = sessionStats(session)
   assert.equal(stats.models[0].lastTps, 42)
   assert.equal(stats.models[0].averageTps, 25)
+  assert.equal(stats.live.rawSpeed, true)
+})
+
+test('a persisted visible generation window computes tps without persisting reasoning', () => {
+  const request = {
+    input: 30, output: 50, reasoning: 40, generationMs: 1000,
+    durationMs: 20000, firstTokenMs: 19000, provider: 'Test Provider', model: 'test-model',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('你好'), assistant('好的', { requests: [request], request })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 10)
+  assert.equal(stats.live.rawSpeed, true)
+})
+
+test('a raw request without a measured generation window is not turned into fallback tps', () => {
+  const request = {
+    input: 30, output: 900, reasoning: 800, rawOutput: 20, rawTps: 0, generationMs: 0,
+    durationMs: 20000, firstTokenMs: 19000, provider: 'Test Provider', model: 'test-model',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('你好'), assistant('好的', { requests: [request], request })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 0)
+  assert.equal(stats.live.tps, 0)
+  assert.equal(stats.live.rawSpeed, true)
 })
 
 test('content composition separates user, thinking, reply and tool output', () => {

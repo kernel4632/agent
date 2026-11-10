@@ -60,12 +60,29 @@ function finishRequest(request, usage, durationMs) {
   request.status = 'completed'
   request.finishedAt = Date.now()
   Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
-  // TPS 只算模型原始输出：正文 + 工具参数，不含会被改写的思考。
+  // TPS 只算模型真正展示给用户的内容：正文 + 工具参数，不含 reasoning。
+  // 分母也只取“第一段正文/工具参数 → 最后一段正文/工具参数”，
+  // 不从请求开始或思考首字算，否则思考越长速度越假。
   const raw = `${request.rawText || ''}${request.rawToolInput || ''}`
-  const elapsed = request.finishedAt - Number(request.startedAt || request.finishedAt)
   request.rawOutput = estimateTokens(raw)
-  request.rawTps = elapsed > 0 ? request.rawOutput / (elapsed / 1000) : 0
+  const generationMs = request.contentStartedAt && request.lastContentAt
+    ? Math.max(0, request.lastContentAt - request.contentStartedAt)
+    : 0
+  request.generationMs = generationMs
+  // 只有一个可见片段时没有可测的生成窗口；不能拿一个瞬时时间戳除出天文数字。
+  request.rawTps = generationMs > 0 && (request.contentEvents || 0) >= 2 && request.rawOutput > 0
+    ? request.rawOutput / (generationMs / 1000)
+    : 0
   return request
+}
+
+// 正文和工具参数才是可见输出；reasoning 不算 TPS 的起点或 token。
+function markContent(request) {
+  if (!request) return
+  const now = Date.now()
+  if (!request.contentStartedAt) request.contentStartedAt = now
+  request.lastContentAt = now
+  request.contentEvents = (request.contentEvents || 0) + 1
 }
 
 // --- 运行中排队：先记在本地，等这一轮空闲后按顺序发出去 ---
@@ -345,6 +362,9 @@ function startRequest(session, event = {}) {
     retryRequest.model = event.model || retryRequest.model
     retryRequest.rawText = ''
     retryRequest.rawToolInput = ''
+    retryRequest.contentStartedAt = 0
+    retryRequest.lastContentAt = 0
+    retryRequest.contentEvents = 0
     assistant.request = retryRequest
     assistant.isStreaming = true
     return
@@ -356,7 +376,7 @@ function startRequest(session, event = {}) {
     firstTokenAt: Number(event.firstTokenAt) || 0,
     provider: event.provider || '', model: event.model || '',
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
-    rawText: '', rawToolInput: '',
+    rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0,
   }
   assistant.requests.push(request)
   assistant.steps.push({ type: 'request', requestId: request.id })
@@ -388,7 +408,7 @@ function finishRunRequest(session, event) {
   let request = assistant.requests.at(-1)
   // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
   if (!request) {
-    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '' }
+    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0 }
     assistant.requests.push(request)
     assistant.steps.push({ type: 'request', requestId: request.id })
   }
@@ -533,7 +553,10 @@ function applyMessageDelta(session, event) {
   assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
   if (event.type === 'text-delta') {
     const request = assistant.requests.at(-1)
-    if (request) request.rawText = `${request.rawText || ''}${text}`
+    if (request) {
+      markContent(request)
+      request.rawText = `${request.rawText || ''}${text}`
+    }
   }
   appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
 }
@@ -608,6 +631,7 @@ function receiveTool(session, event) {
     if (tool) {
       tool.assembling = true
       tool.streamInput = ''
+      markContent(streaming(session)?.requests.at(-1))
     }
   } else if (event.type === 'tool-input-delta') {
     const tool = toolFor(session, event)
@@ -616,7 +640,10 @@ function receiveTool(session, event) {
       // 只留尾巴，参数可以很长；完整内容由后面的 tool-call 给。
       tool.streamInput = `${tool.streamInput || ''}${event.delta || ''}`.slice(-6000)
       const request = streaming(session)?.requests.at(-1)
-      if (request) request.rawToolInput = `${request.rawToolInput || ''}${event.delta || ''}`
+      if (request) {
+        markContent(request)
+        request.rawToolInput = `${request.rawToolInput || ''}${event.delta || ''}`
+      }
     }
   } else if (event.type === 'tool-input-end') {
     const tool = toolFor(session, event)
@@ -628,7 +655,10 @@ function receiveTool(session, event) {
       // 保留最后一段 raw 参数：工具完成到下一次请求之间还要继续显示，
       // 不能在这里清空导致内容先消失、Fold 再收高度。
       const request = streaming(session)?.requests.at(-1)
-      if (request && !request.rawToolInput && event.input) request.rawToolInput = JSON.stringify(event.input)
+      if (request) {
+        markContent(request)
+        if (!request.rawToolInput && event.input) request.rawToolInput = JSON.stringify(event.input)
+      }
     }
     markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {
