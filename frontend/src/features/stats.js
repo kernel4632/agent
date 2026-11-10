@@ -297,9 +297,8 @@ export function sessionStats(session) {
       const visible = Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
       return visible / (generation / 1000)
     }
-    const duration = Number(item?.durationMs || 0)
-    // 旧请求没有前端原始输出记录时退回 usage，并扣掉思考 token；分母用整次请求耗时。
-    return duration > 0 ? Math.max(0, Number(item?.output || 0) - Number(item?.reasoning || 0)) / (duration / 1000) : 0
+    // 旧请求没有可见生成窗口，无法得出正确 TPS；不要用总耗时伪造一个数字。
+    return 0
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
@@ -348,10 +347,6 @@ export function sessionStats(session) {
           group.output += Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
           group.generationMs += Number(item.generationMs || 0)
         }
-      } else {
-        group.output += Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
-        // 旧请求没有生成窗口，平均速度仍按整次请求耗时。
-        if (duration > 0) group.generationMs += duration
       }
       if (duration > 0) {
         group.durationMs += duration

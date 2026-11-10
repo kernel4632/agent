@@ -19,7 +19,7 @@ test('estimateTokens counts Chinese and English in the same text', () => {
 
 test('real request usage wins over estimation', () => {
   const request = {
-    input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, durationMs: 800,
+    input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800,
     provider: 'Test Provider', model: 'test-model', startedAt: 1, finishedAt: 801,
   }
   const session = {
@@ -182,8 +182,8 @@ test('streaming output exposes a live speed snapshot', () => {
   assert.ok(stats.live.output > 0)
 })
 
-test('speed groups by provider and model, slowest first', () => {  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
-  const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
+test('speed groups by provider and model, slowest first', () => {  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, generationMs: 1000, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, generationMs: 4000, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 10,
@@ -199,8 +199,8 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
 
 test('speed groups keep the latest request alongside averages', () => {
-  const first = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
-  const latest = { input: 10, output: 20, total: 30, firstTokenMs: 400, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const first = { input: 10, output: 10, total: 20, firstTokenMs: 300, generationMs: 1000, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const latest = { input: 10, output: 20, total: 30, firstTokenMs: 400, generationMs: 2000, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 10,
@@ -217,8 +217,8 @@ test('speed groups keep the latest request alongside averages', () => {
 
 
 test('speed groups keep the last measured first token when the newest request omits it', () => {
-  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
-  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, generationMs: 200, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
+  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, generationMs: 2000, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 20,

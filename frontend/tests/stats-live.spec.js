@@ -20,6 +20,7 @@ test('waiting for the first token keeps the last measured speed', async ({ page 
           total: 300,
           cacheRead: 0,
           firstTokenMs: 500,
+          generationMs: 1400,
           durationMs: 2000,
           provider: 'Test Provider',
           model: 'test-model',

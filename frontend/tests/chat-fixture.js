@@ -535,7 +535,7 @@ export async function backend(page, { configured = true } = {}) {
       session.history.push({
         messageId: `assistant-${number}`,
         role: 'assistant',
-        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
+        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
@@ -549,7 +549,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model' } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800, provider: 'Test Provider', model: 'test-model' } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false
@@ -574,13 +574,13 @@ export async function backend(page, { configured = true } = {}) {
       // 真实后端会先追加一条内部提示和助手回复，再返回并推 SSE；
       // 先落 history 再 fulfill，避免前端 agent-finish 刷新时读到旧历史。
       session.history.push({ messageId: 'internal-continue', role: 'user', internal: true, content: CONTINUE_TEXT })
-      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
+      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, generationMs: 600, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
       await json({ ok: true })
       return emit(id, [
         { type: 'agent-resume' },
         { type: 'llm-start', startedAt: Date.now() - 700 },
         { type: 'text-delta', text: '继续完成' },
-        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' } },
+        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, generationMs: 600, durationMs: 600, provider: 'Test Provider', model: 'test-model' } },
         { type: 'agent-finish' },
       ])
     }

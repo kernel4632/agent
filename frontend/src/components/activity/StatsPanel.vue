@@ -61,13 +61,8 @@ const live = computed(() => props.stats.live || {})
 const speed = computed(() => {
   const latestTps = Number(live.value.tps || 0)
   if (latestTps > 0) return `${Math.round(latestTps)} tok/s`
-  // 新口径的请求如果还没有任何已完成样本，显示 —，不能拿整次请求的
-  // output/duration 重算一个假数字。
-  if (live.value.rawSpeed) return ''
-  // 旧会话或最后一笔没有耗时数据时，至少保留一个聚合速度，不能让速度项直接消失。
-  const output = Number(usage.value.output || 0)
-  const duration = Number(usage.value.durationMs || 0)
-  return output > 0 && duration > 0 ? `${Math.round(output / (duration / 1000))} tok/s` : ''
+  // 新口径的请求如果还没有任何已完成样本，显示 —，不能用整次请求耗时伪造速度。
+  return ''
 })
 const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
