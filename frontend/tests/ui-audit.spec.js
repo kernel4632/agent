@@ -684,9 +684,13 @@ test('segmented session loads only the current segment and fetches a folded segm
   mock.sessions.set('segmented-1', {
     id: 'segmented-1',
     title: '分段加载',
+    cwd: 'C:/mock',
     provider: 'Test Provider',
     model: 'test-model',
     history: [
+      { messageId: 'segment-u1', role: 'user', content: '分段旧问题' },
+      { messageId: 'segment-a1', role: 'assistant', content: [{ type: 'text', text: '分段旧回答' }] },
+      { messageId: 'segment-c1', role: 'user', compact: true, content: '分段旧摘要' },
       { messageId: 'segment-u2', role: 'user', content: '分段当前问题' },
       { messageId: 'segment-a2', role: 'assistant', content: [{ type: 'text', text: '分段当前回答' }] },
     ],
@@ -703,6 +707,7 @@ test('segmented session loads only the current segment and fetches a folded segm
         messageIds: ['segment-u1', 'segment-a1'],
         compact: { messageId: 'segment-c1', role: 'user', compact: true, content: '分段旧摘要' },
       }],
+      current: { file: 'current.jsonl', count: 2, startIndex: 3 },
     },
     segmentData: {
       'segment-0001': [

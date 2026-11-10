@@ -328,7 +328,7 @@ export async function backend(page, { configured = true } = {}) {
       if (root) root.enabled = body.enabled
       return json({ path: body.path, enabled: body.enabled })
     }
-    if (path === '/session/list') return json([...sessions.values()])
+    if (path === '/session/list') return json({ sessions: [...sessions.values()], groups: [] })
     if (path === '/session/groups') {
       if (method === 'GET') return json({ groups: sessionGroups })
       if (method === 'PUT') {
@@ -400,12 +400,25 @@ export async function backend(page, { configured = true } = {}) {
       })
       return json({ sessionId: id })
     }
-    if (path.startsWith('/session/segment/')) {
-      const parts = path.split('/')
-      const target = sessions.get(parts[3])
-      if (!target) return json({ error: 'Session not found' }, 404)
-      const segmentID = parts[4]
-      return json({ id: segmentID, messages: target.segmentData?.[segmentID] || [] })
+    // /session/read/:id?segment=<segmentId> 读某个封存段，?segmented=true 只返回当前段
+    if (path.startsWith('/session/read/')) {
+      const id = path.split('/').at(-1)
+      const session = sessions.get(id)
+      if (!session) return json({ error: 'Session not found' }, 404)
+      const url = new URL(request.url())
+      const segmentId = url.searchParams.get('segment')
+      if (segmentId) {
+        return json({ id, segment: segmentId, messages: session.segmentData?.[segmentId] || [] })
+      }
+      const segmented = url.searchParams.get('segmented') === 'true'
+      if (segmented && session.historyManifest) {
+        const visible = session.history.filter(item => !item.internal)
+        const currentStart = session.historyManifest.current?.startIndex ?? 0
+        const current = visible.slice(currentStart)
+        const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+        return json({ ...session, history: current, historyTotal: total })
+      }
+      // 走下面的正常 read 逻辑（全量）
     }
     const id = path.split('/').at(-1)
     const session = sessions.get(id)
