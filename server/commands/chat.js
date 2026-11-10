@@ -26,18 +26,19 @@ import usageOf from '../utils/usage.js'
 import ContextUsage from '../utils/context-usage.js'
 import ContextRatios from '../utils/context-ratios.js'
 
-// 同一个会话的保存串成一条队：两次保存交错时会重复追加同一条消息。
-const saveQueue = new Map()
-// 每一轮 run 一个 token；只有当前 token 能发终态。
-const activeRuns = new Map()
-// stop 处理期间不允许同一会话启动新 run。
-const stopping = new Set()
+// 一个会话的运行状态：用一个状态机代替两个独立的 Map/Set，避免竞态窗口。
+// status 可能的值：idle （空闲） | starting （启动中） | running （运行中） | stopping （停止中）。
+// token 是这一轮的标记，只有持有当前 token 的请求才能发终态；旧 token 失效后直接丢弃。
+const sessions = new Map()  // sessionId -> { status, token, agent }
+const saveQueue = new Map() // sessionId -> 上一次保存的 Promise（串成队列）
 
 // --- 一轮结束：清运行标记 ---
 // 必须 await 落盘：不能留后台 Promise。测试切 AGENT_HOME、进程正在退出、
 // 或用户马上又发下一句时，悬着的写入会落到错误的目录或晚到而覆盖新状态。
 const finishRun = async (sessionId, token) => {
-    if (activeRuns.get(sessionId) === token) activeRuns.delete(sessionId)
+    const state = sessions.get(sessionId)
+    if (state?.token !== token) return                                  // token 已失效，不再处理
+    sessions.delete(sessionId)                                           // 清除运行状态
     // 无论本轮是成功还是失败，都把磁盘上的运行标记清掉：下次重启时不再把已结束的会话当作被打断。
     History.setRunning(sessionId, false)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 清除运行标记失败：${error.message}`))
@@ -90,33 +91,35 @@ const syncHistory = async ({ sessionId, agent }) => {
 
 // --- 任务成功后的收尾：保存、起标题、通知前端 ---
 const finishSuccess = async ({ sessionId, token, agent, resume, result }) => {
+    if (token.stopped) return                                           // token 被标记停止，不再继续
+    const state = sessions.get(sessionId)
+    if (state?.token !== token) return finishRun(sessionId, token)      // token 已失效，直接清理
+    await syncHistory({ sessionId, agent })                             // 把 Agent 内存里的新消息保存到历史文件
     if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-    await syncHistory({ sessionId, agent })
-    if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    if (sessions.get(sessionId)?.token !== token) return finishRun(sessionId, token)
     // 标题在任务成功之后才起：这一轮有没有跑通，直接决定标题该不该花这次请求。
     if (!resume) await titleFor({ sessionId })
     if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-    await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } })
+    if (sessions.get(sessionId)?.token !== token) return finishRun(sessionId, token)
+    await SSE.send({ id: sessionId, data: { type: 'agent-finish', ...result } }) // 通知前端任务成功
     await finishRun(sessionId, token)
 }
 
 // --- 任务失败后的收尾：保留已产生的进度，再把错误交给前端 ---
 const finishFailure = async ({ sessionId, token, agent, state, error }) => {
     if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
+    const status = sessions.get(sessionId)
+    if (status?.token !== token) return finishRun(sessionId, token)     // token 已失效，直接清理
     // 只有 kind=aborted 才是 core 的主动取消；timeout 等仍要报错结束。
     if (error?.kind === 'aborted') {
         await finishRun(sessionId, token)
         return
     }
-    attachCompactUsage({ agent, state })
-    await syncHistory({ sessionId, agent }).catch(() => {})
+    attachCompactUsage({ agent, state })                                // 压缩用量挂到历史消息上
+    await syncHistory({ sessionId, agent }).catch(() => {})             // 保存已产生的进度，失败也不中断
     if (token.stopped) return
-    if (activeRuns.get(sessionId) !== token) return finishRun(sessionId, token)
-    await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } })
+    if (sessions.get(sessionId)?.token !== token) return finishRun(sessionId, token)
+    await SSE.send({ id: sessionId, data: { type: 'agent-finish', error: error.message } }) // 通知前端错误
     await finishRun(sessionId, token)
 }
 
@@ -155,16 +158,17 @@ const lastConversationMessage = history => [...history]
 
 // --- 发送前检查：输入、停止状态、运行状态和继续位置 ---
 const validateRun = async ({ sessionId, input, resume }) => {
-    if (!resume && !inputHasText(input)) throw fail(400, 'input must be a non-empty string')
-    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
+    if (!resume && !inputHasText(input)) throw fail(400, 'input must be a non-empty string') // 新发送时输入不能为空
+    const state = sessions.get(sessionId)
+    if (state?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试') // 停止中不能启动
 
-    await History.load(sessionId)
-    const agent = await Agent.get({ sessionId })
-    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
-    if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    await History.load(sessionId)                                        // 加载历史到内存
+    const agent = await Agent.get({ sessionId })                         // 装配 agent（如果还没有的话）
+    if (sessions.get(sessionId)?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
+    if (agent.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能再发
 
     if (resume) {
-        const last = lastConversationMessage(agent.history)
+        const last = lastConversationMessage(agent.history)            // 找到最后一条对话消息
         if (!last || (last.role !== 'assistant' && last.role !== 'user')) {
             throw fail(409, '最后一条消息不是用户或助手回复，不能继续')
         }
@@ -174,8 +178,8 @@ const validateRun = async ({ sessionId, input, resume }) => {
 
 // --- 开跑前：先通知前端开始；历史落盘不能挡在模型请求之前，长会话会白等 ---
 const startAgent = ({ sessionId, agent, resume, token }) => async () => {
-    if (token.stopped || activeRuns.get(sessionId) !== token) return
-    await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } })
+    if (token.stopped || sessions.get(sessionId)?.token !== token) return // token 已失效或被停止
+    await SSE.send({ id: sessionId, data: { type: resume ? 'agent-resume' : 'agent-start' } }) // 通知前端开始
     // 历史保存异步跑，onStep / finish 还会继续落盘；这里不再 await。
     syncHistory({ sessionId, agent }).catch(error => console.error(`[session ${sessionId}] 启动时保存历史失败：${error.message}`))
 }
@@ -371,7 +375,8 @@ const compactWarning = ({ state, sessionId }) => ({ tokens, budget, compactThres
 const startRun = async ({ sessionId, input, resume, agent, recovery = false }) => {
     const session = await History.load(sessionId)
     const settings = await Agent.readSettings(sessionId)
-    if (stopping.has(sessionId)) throw fail(409, '正在停止上一轮任务，请稍后再试')
+    const state = sessions.get(sessionId)
+    if (state?.status === 'stopping') throw fail(409, '正在停止上一轮任务，请稍后再试')
 
     // 落盘“运行中”，重启后才有线索知道这个会话被意外打断。
     // await：标记必须在模型请求之前真的落到磁盘，否则进程刚好在写入前被杀死就没有线索。
@@ -379,20 +384,20 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     History.setRunning(sessionId, true)
     await History.saveMeta(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
-    const state = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
-    const token = { stopped: false, state }
-    activeRuns.set(sessionId, token)
+    const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
+    const token = { stopped: false, state: runState }
+    sessions.set(sessionId, { status: 'running', token, agent })
     let task
     try {
         const options = {
             config: await Agent.resolve({ session, settings, recovery }),
             callbacks: {
                 onStart: startAgent({ sessionId, agent, resume, token }),
-                onInject: compactWarning({ state, sessionId }),
-                ...modelEvents({ sessionId, state }),
-                ...forwardedEvents({ sessionId, state }),
+                onInject: compactWarning({ state: runState, sessionId }),
+                ...modelEvents({ sessionId, state: runState }),
+                ...forwardedEvents({ sessionId, state: runState }),
                 onToolResult: sendToolResult({ sessionId }),
-                onStep: saveStep({ sessionId, agent, state }),
+                onStep: saveStep({ sessionId, agent, state: runState }),
                 onPermission: askBeforeTool({ sessionId, agent }),
             },
         }
@@ -531,30 +536,32 @@ const stop = async ({ sessionId, partial }) => {
     }
     const agent = Agent.runtime().get(sessionId)
     if (!agent) return { ok: false }
-    if (stopping.has(sessionId)) return { ok: false }
-    stopping.add(sessionId)
+    const state = sessions.get(sessionId)
+    if (state?.status === 'stopping') return { ok: false }              // 已经在停止中，不重复处理
+    sessions.set(sessionId, { ...state, status: 'stopping' })           // 标记停止中
     try {
-        const token = activeRuns.get(sessionId)
+        const token = state?.token
         const wasRunning = Boolean(agent.running)
-        if (token && wasRunning) token.stopped = true
-        const result = await agent.stop()
-        if (activeRuns.get(sessionId) !== token) return result
+        if (token && wasRunning) token.stopped = true                   // 标记 token 停止
+        const result = await agent.stop()                               // 调用 core 停止
+        if (sessions.get(sessionId)?.token !== token) return result     // token 已失效
         if (result.ok) {
-            attachCompactUsage({ agent, state: token?.state })
-            appendPartial({ agent, partial })
+            attachCompactUsage({ agent, state: token?.state })          // 附加压缩用量
+            appendPartial({ agent, partial })                           // 附加部分文本
         }
         try {
-            await syncHistory({ sessionId, agent })
+            await syncHistory({ sessionId, agent })                     // 保存历史
         } catch {
             // stop 的接口约定只有 { ok }，保存失败已经写进日志。
         }
-        if (token && wasRunning && activeRuns.get(sessionId) === token) {
+        if (token && wasRunning && sessions.get(sessionId)?.token === token) {
             await SSE.send({ id: sessionId, data: { type: 'agent-finish', reason: 'stopped' } })
             await finishRun(sessionId, token)
         }
         return result
     } finally {
-        stopping.delete(sessionId)
+        const current = sessions.get(sessionId)
+        if (current?.status === 'stopping') sessions.delete(sessionId)  // 清除停止标记
     }
 }
 
