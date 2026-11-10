@@ -12,6 +12,7 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
 import { History, clearRollback } from '../features/history.js'
+import { estimateTokens } from '../features/stats.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
 import { usageFields } from '../utils/usage.js'
@@ -50,6 +51,11 @@ function finishRequest(request, usage, durationMs) {
   request.status = 'completed'
   request.finishedAt = Date.now()
   Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
+  // TPS 只算模型原始输出：正文 + 工具参数，不含会被改写的思考。
+  const raw = `${request.rawText || ''}${request.rawToolInput || ''}`
+  const elapsed = request.finishedAt - Number(request.startedAt || request.finishedAt)
+  request.rawOutput = estimateTokens(raw)
+  request.rawTps = elapsed > 0 ? request.rawOutput / (elapsed / 1000) : 0
   return request
 }
 
@@ -326,6 +332,8 @@ function startRequest(session, event = {}) {
     retryRequest.firstTokenAt = Number(event.firstTokenAt) || 0
     retryRequest.provider = event.provider || retryRequest.provider
     retryRequest.model = event.model || retryRequest.model
+    retryRequest.rawText = ''
+    retryRequest.rawToolInput = ''
     assistant.request = retryRequest
     assistant.isStreaming = true
     return
@@ -337,6 +345,7 @@ function startRequest(session, event = {}) {
     firstTokenAt: Number(event.firstTokenAt) || 0,
     provider: event.provider || '', model: event.model || '',
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+    rawText: '', rawToolInput: '',
   }
   assistant.requests.push(request)
   assistant.steps.push({ type: 'request', requestId: request.id })
@@ -368,10 +377,11 @@ function finishRunRequest(session, event) {
   let request = assistant.requests.at(-1)
   // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
   if (!request) {
-    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0 }
+    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '' }
     assistant.requests.push(request)
     assistant.steps.push({ type: 'request', requestId: request.id })
   }
+  if (event.text && !request.rawText) request.rawText = event.text
   finishRequest(request, event.usage, event.durationMs)
   assistant.request = request
   session.contextTokens = request?.input || 0
@@ -510,6 +520,10 @@ function applyMessageDelta(session, event) {
   const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
   const text = event.text || '' // 服务端只承诺 text 一个字段
   assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
+  if (event.type === 'text-delta') {
+    const request = assistant.requests.at(-1)
+    if (request) request.rawText = `${request.rawText || ''}${text}`
+  }
   appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
 }
 
@@ -590,6 +604,8 @@ function receiveTool(session, event) {
       tool.assembling = true
       // 只留尾巴，参数可以很长；完整内容由后面的 tool-call 给。
       tool.streamInput = `${tool.streamInput || ''}${event.delta || ''}`.slice(-6000)
+      const request = streaming(session)?.requests.at(-1)
+      if (request) request.rawToolInput = `${request.rawToolInput || ''}${event.delta || ''}`
     }
   } else if (event.type === 'tool-input-end') {
     const tool = toolFor(session, event)
@@ -600,6 +616,8 @@ function receiveTool(session, event) {
       tool.assembling = false
       // 保留最后一段 raw 参数：工具完成到下一次请求之间还要继续显示，
       // 不能在这里清空导致内容先消失、Fold 再收高度。
+      const request = streaming(session)?.requests.at(-1)
+      if (request && !request.rawToolInput && event.input) request.rawToolInput = JSON.stringify(event.input)
     }
     markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {

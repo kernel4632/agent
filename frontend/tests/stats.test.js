@@ -42,20 +42,35 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
   assert.equal(stats.live.running, false)
-  // 外显速度按最后一次请求的实际生成时间算，不是会话平均。
-  assert.ok(Math.abs(stats.live.tps - 100 / 3) < 0.01)
+  // 外显速度按最后一次请求的整次耗时算，不是会话平均。
+  assert.ok(Math.abs(stats.live.tps - 25) < 0.01)
   assert.deepEqual(stats.models, [{
     provider: 'Test Provider',
     model: 'test-model',
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 100 / 3,
+    averageTps: 25,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
-    lastTps: 100 / 3,
+    lastTps: 25,
     lastAt: 801,
   }])
+})
+
+test('frontend raw tps wins over backend usage output', () => {
+  const request = {
+    input: 30, output: 100, reasoning: 60, rawOutput: 20, rawTps: 42,
+    durationMs: 800, firstTokenMs: 700, provider: 'Test Provider', model: 'test-model',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('你好'), assistant('好的', { requests: [request], request })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 42)
+  assert.equal(stats.models[0].averageTps, 25)
 })
 
 test('content composition separates user, thinking, reply and tool output', () => {
@@ -128,9 +143,9 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 10 / 3.1)
+  assert.equal(stats.models[0].averageTps, 10 / 4)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10 / 0.7)
+  assert.equal(stats.models[1].averageTps, 10)
 })
 
 
@@ -148,7 +163,7 @@ test('speed groups keep the latest request alongside averages', () => {
   assert.equal(stats.models[0].averageDurationMs, 1500)
   assert.equal(stats.models[0].lastFirstTokenMs, 400)
   assert.equal(stats.models[0].lastDurationMs, 2000)
-  assert.equal(stats.models[0].lastTps, 12.5)
+  assert.equal(stats.models[0].lastTps, 10)
 })
 
 

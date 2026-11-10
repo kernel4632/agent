@@ -223,7 +223,7 @@ export function sessionStats(session) {
   const currentModel = typeof session.model === 'string'
     ? session.model
     : (typeof session.model === 'object' ? session.model?.model : '') || ''
-  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${currentProvider}\u0000${currentModel}`
+  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${lastRequest?.rawOutput || 0}:${lastRequest?.rawTps || 0}:${currentProvider}\u0000${currentModel}`
   const remote = session.historyStats
   let aggregate = remote
     ? {
@@ -277,14 +277,14 @@ export function sessionStats(session) {
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
-  const liveOutput = liveAssistant ? estimateTokens(`${liveAssistant.content || ''}${liveAssistant.reasoning || ''}`) : 0
+  const liveOutput = liveAssistant ? estimateTokens(liveAssistant.content || '') : 0
   const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
   // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
   const requestTps = item => {
+    if (Number(item?.rawTps) > 0) return Number(item.rawTps)
     const duration = Number(item?.durationMs || 0)
-    const firstToken = Number(item?.firstTokenMs || 0)
-    const generation = duration > firstToken ? duration - firstToken : duration
-    return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
+    // 旧请求没有前端原始输出记录时退回 usage，并扣掉思考 token；分母用整次请求耗时。
+    return duration > 0 ? Math.max(0, Number(item?.output || 0) - Number(item?.reasoning || 0)) / (duration / 1000) : 0
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
@@ -318,14 +318,14 @@ export function sessionStats(session) {
         lastFirstTokenMs: 0, lastTps: 0, latest: null,
       }
       group.count += 1
-      group.output += Number(item.output || 0)
+      group.output += Number(item.rawOutput ?? Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0)))
       const duration = Number(item.durationMs || 0)
       const firstToken = Number(item.firstTokenMs || 0)
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
-        // 平均速度也只看生成阶段，和最后一次 tok/s 使用同一分母。
-        group.generationMs += duration > firstToken ? duration - firstToken : duration
+        // 平均速度也按整次请求耗时，和最后一次 tok/s 使用同一分母。
+        group.generationMs += duration
       }
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
@@ -361,12 +361,9 @@ export function sessionStats(session) {
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
   const cachedModels = modelGroupsCache.get(session)
-  const models = Array.isArray(remote?.models)
-    ? remote.models
-    : cachedModels?.signature === requestSignature
-      ? cachedModels.value
-      : modelGroups()
-  if (!remote && cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
+  // 速度必须由前端从请求原始输出算，不能采用服务端按 usage.output 预算的模型列表。
+  const models = cachedModels?.signature === requestSignature ? cachedModels.value : modelGroups()
+  if (cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
   // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
   const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
   const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
