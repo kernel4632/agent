@@ -174,6 +174,7 @@ const processSummary = computed(() => summarizeProcess(treeSteps.value))
 // 要批准时把收起的处理过程整个展开，按钮滚进视野；高度不做动画，避免把时间线抽一下。
 const needsDecision = tool => !!tool && (tool.status === 'waiting' || (tool.subagentSteps || []).some(needsDecision))
 const isPendingStep = step => step.type === 'tool' && needsDecision(step.tool)
+const isRunningRequest = step => step.type === 'request' && step.request?.status === 'running'
 const approvalPending = computed(() => treeSteps.value.some(isPendingStep))
 const processShown = computed(() => processOpen.value || approvalPending.value)
 // 外层处理过程收起时，内层不能先 instant 清空高度：否则外层卡片还占着
@@ -330,7 +331,7 @@ const lastGroupKey = computed(() => processSections.value.filter(section => sect
 // 组里还有运行中的工具时不收，避免并行工具被下一条流式输出折叠。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
+const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || section.steps?.some(isRunningRequest) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}

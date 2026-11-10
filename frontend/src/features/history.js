@@ -520,3 +520,12 @@ function admit(source) {
 }
 
 export const History = { normalize, admit, refresh, summaryOf, syncSummary, previewRollback, rollbackMessage, undoRollback, fork, loadSegment, normalizeCompact }
+
+/** 新消息发出后，上一轮回退不能再撤销；顺手清掉本地快照和提示条。 */
+export function clearRollback(sessionID) {
+  rollbackSnapshots.delete(sessionID)
+  const session = store.sessions[sessionID]
+  if (!session) return
+  session.rollback = null
+  session.undoable = 0
+}

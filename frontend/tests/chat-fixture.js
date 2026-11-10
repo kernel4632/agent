@@ -516,6 +516,9 @@ export async function backend(page, { configured = true } = {}) {
       return json({ ...session, restored: [] })
     }
     if (path.startsWith('/agent/send/')) {
+      // 新消息代表新的时间线，之前的回退不能再撤销。
+      session.undoable = 0
+      session.redo = []
       const number = session.history.filter(item => item.role === 'user' && !item.internal).length + 1
       session.history.push({ messageId: `user-${number}`, id: `core-user-${number}`, role: 'user', content: body.input })
       await json({ ok: true })

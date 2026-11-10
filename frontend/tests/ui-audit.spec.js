@@ -1024,6 +1024,7 @@ test('stopping before the first token still offers continue', async ({ page }) =
   await page.getByRole('textbox', { name: '消息', exact: true }).fill('keep waiting')
   await page.getByRole('button', { name: '发送消息', exact: true }).click()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByText('正在请求模型…', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: '停止生成', exact: true }).click()
   const continueButton = page.getByRole('button', { name: '继续助手', exact: true })
@@ -2208,6 +2209,25 @@ test('message action forks the conversation at that message', async ({ page }, t
   await page.getByRole('button', { name: '创建分支', exact: true }).click()
   await expect.poll(() => mock.calls.find(call => call.path === '/session/fork/session-1')?.body)
     .toEqual({ messageId: 'user-1' })
+})
+
+test('sending a new message clears the rollback notice', async ({ page }) => {
+  const mock = await backend(page)
+  await page.goto('/')
+  await navigate(page, '新建对话')
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('你好')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.rikka-bubble--assistant .markdown-body')).toContainText('一步步实现')
+
+  await openStepActions(page, page.locator('.rikka-bubble--user').first())
+  await page.getByRole('button', { name: '回退到这条消息之前' }).click()
+  await page.getByRole('button', { name: '确认回退', exact: true }).click()
+  await expect(page.locator('.chat-notice--undo')).toHaveCount(1)
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('重新开始')
+  await page.getByRole('button', { name: '发送消息', exact: true }).click()
+  await expect(page.locator('.chat-notice--undo')).toHaveCount(0)
+  expect(mock.errors).toEqual([])
 })
 
 test('tool row cuts that call and every call after it', async ({ page }, testInfo) => {

@@ -11,7 +11,7 @@ import { Notice } from '../utils/notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { History } from '../features/history.js'
+import { History, clearRollback } from '../features/history.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
 import { usageFields } from '../utils/usage.js'
@@ -181,6 +181,7 @@ async function send(sessionID, content, queuedFiles = null) {
   try {
     await AgentAPI.sendMessage(sessionID, input)
     if (queuedFiles == null) session.files = []
+    clearRollback(sessionID)
     return true
   } catch (error) {
     const assistant = streaming(session)
