@@ -54,5 +54,9 @@ export function canContinueSession(session) {
   if (!turn) return false
   if (turn.role === 'user') return isSavedMessage(turn.messages.at(-1))
   if (turn.role !== 'assistant') return false
-  return !hasStopTool(turn.messages) && isSavedMessage(turn.messages.at(-1))
+  // 本地 error 气泡没有后端 id，但它前面可能已经有落盘的助手进度；
+  // 运行停止后只要这一轮没有正常收尾，就应该给“继续”，不能被错误气泡挡住。
+  const saved = [...turn.messages].reverse().find(isSavedMessage)
+  if (!saved) return false
+  return !hasStopTool(turn.messages)
 }
