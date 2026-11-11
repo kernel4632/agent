@@ -17,6 +17,20 @@ test('estimateTokens counts Chinese and English in the same text', () => {
   assert.ok(estimateTokens('你好世界你好世界你好世界你好世界') > estimateTokens('abcdefghijklmnopqrst'))
 })
 
+test('segmented history with an empty current segment still shows stats', () => {
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 0,
+    contextEstimate: { tokens: 800, budget: 1000 },
+    historyStats: { input: 900, output: 100, total: 1000, requests: 2, models: [] },
+    messages: [],
+  }
+  const stats = sessionStats(session)
+  assert.ok(stats)
+  assert.equal(stats.context.used, 800)
+  assert.equal(stats.usage.total, 1000)
+})
+
 test('real request usage wins over estimation', () => {
   const request = {
     input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800,

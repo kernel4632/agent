@@ -287,15 +287,17 @@ export function sessionStats(session) {
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
-  const exactUsed = Number(last?.input || session.contextTokens || 0)
+  // 分段历史加载时当前段可能为空；这种情况下 last.usage 不存在，退回
+  // 服务端最近一次已知的上下文估算，不能把整个统计栏判成“空会话”。
+  const exactUsed = Number(last?.input || session.contextTokens || session.contextEstimate?.tokens || 0)
   // 只有缺少真实用量时才遍历消息做估算，正常会话加载不必多算一遍。
   const estimate = (!exactUsed || !requests.length) && messages.length ? estimateSession(session, messages, limit) : null
   // 有最后一次请求的真实输入 token 就用真实的；旧会话没有记录时退回估算。
   const usedApproximate = !exactUsed && Boolean(estimate)
   const used = exactUsed || estimate?.contextUsed || 0
   const usageApproximate = !requests.length && Boolean(estimate)
-  // 空会话没有内容可统计；发出第一条消息后才显示输入框下方的状态栏。
-  if (!messages.length && !requests.length && !session.contextTokens) return null
+  // 空会话没有内容可统计；分段历史里当前段为空时仍有全量 historyStats 和上下文估算。
+  if (!messages.length && !requests.length && !session.contextTokens && !session.contextEstimate && !session.historyStats) return null
   // 真实请求最多保留最近 18 次；旧会话没有请求记录时，用最近 18 条回复的估算值画同一张图。
   const estimatedSeries = usageApproximate
     ? messages
