@@ -100,6 +100,7 @@ export const AgentAPI = {
   // 从现有会话分出一个新分支；可以只复制到某条消息。
   forkSession:      (sessionID, body = {})     => request(`/session/fork/${encodeURIComponent(sessionID)}`, 'POST', body),
   getSession:       sessionID => request(`/session/read/${encodeURIComponent(sessionID)}`),
+  compactSession:   sessionID => request(`/session/compact/${encodeURIComponent(sessionID)}`, 'POST'),
   // 增量读：只返回指定消息之后的新增内容（finishRun / stop / 重连用）
   getSessionDelta:  (sessionID, afterId) => request(`/session/read/${encodeURIComponent(sessionID)}?after=${encodeURIComponent(afterId)}`),
   // 分段读：只给 manifest + 当前段，首次打开有历史压缩的长会话用

@@ -49,7 +49,7 @@ const props = defineProps({
   draftWorkspace: { type: String, default: '' },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'withdraw', 'update:reasoning', 'update:draftWorkspace'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'withdraw', 'update:reasoning', 'update:draftWorkspace', 'compact'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -278,6 +278,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="busy" @click="addOpen = false; fileInput.click()"><Icon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
+        <button v-if="!draftMode" type="button" :disabled="isRunning || busy" :title="isRunning ? '任务运行中不能压缩上下文' : undefined" @click="addOpen = false; emit('compact')"><Icon name="layers" :size="20" /><span>手动压缩上下文</span></button>
         <!-- 新会话的工作区入口在输入框内联；开始对话后才回到这个二级菜单。 -->
         <button v-if="!draftMode" type="button" :disabled="isRunning || busy" :title="isRunning ? '任务运行中不能切换工作区' : undefined" @click="openWorkspace"><Icon name="folder" :size="20" /><span>切换工作区</span></button>
       </div>

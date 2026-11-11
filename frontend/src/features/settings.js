@@ -15,7 +15,7 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { Notice } from '../utils/notice.js'
 import { Appearance } from '../utils/appearance.js'
-import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP } from '../defaults.js'
+import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP, DEFAULT_RETRY } from '../defaults.js'
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -97,6 +97,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     models: raw.models,
     compact: raw.compact,
     contextKeep: raw.contextKeep || { ...DEFAULT_CONTEXT_KEEP },
+    retry: raw.retry || { ...DEFAULT_RETRY },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
@@ -116,6 +117,7 @@ function backendSnapshot(draft) {
     models: draft.models,
     compact: draft.compact,
     contextKeep: draft.contextKeep,
+    retry: draft.retry,
     mcp: draft.mcp,
   })
   // appearance 只存浏览器本地；切换主题不应该额外写一次后端配置。
@@ -167,6 +169,7 @@ function open() {
     models: store.config.models,
     compact: store.config.compact,
     contextKeep: store.config.contextKeep,
+    retry: store.config.retry,
     appearance: store.config.appearance,
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
@@ -219,8 +222,7 @@ function configPayload(draft) {
     models: draft.models,
     compact: draft.compact,
     contextKeep: draft.contextKeep,
-    // 重试次数目前没有设置页控件，但整份替换不能把用户写在 config.json 里的值抹掉。
-    retry: store.config.raw?.retry || { maxTries: null },
+    retry: draft.retry,
   }
 }
 

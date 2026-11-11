@@ -736,8 +736,21 @@ async function receive(sessionID, event) {
   History.syncSummary(store.sessions[sessionID])
 }
 
-async function stop(sessionID) {
+async function compact(sessionID) {
   const session = store.sessions[sessionID]
+  if (!session || session.status === 'running' || stopping.has(sessionID)) return false
+  try {
+    await AgentAPI.compactSession(sessionID)
+    await History.refresh(sessionID, { force: true })
+    Notice.show('上下文已压缩')
+    return true
+  } catch (error) {
+    Notice.show(error.message)
+    return false
+  }
+}
+
+async function stop(sessionID) {  const session = store.sessions[sessionID]
   // 停止是用户动作，先把本地状态收回来：停止按钮立刻消失，重连提示也关掉。
   // SSE 订阅本身会无限重连；不在这里 abort，界面会一直显示“正在重连”。
   stopping.add(sessionID)
@@ -835,4 +848,4 @@ export function imagePasteNotice({ hasImage, provider, model }) {
   })
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, enqueue, withdrawQueued, flushQueue, imagePasteNotice }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, compact, attach, removeFile, enqueue, withdrawQueued, flushQueue, imagePasteNotice }

@@ -141,6 +141,9 @@ function removeFile(id) {
   if (props.session) Chat.removeFile(props.session.id, id)
   else emit('remove-file', id)
 }
+async function compactContext() {
+  if (props.session) await Chat.compact(props.session.id)
+}
 function chooseReasoning(reasoning) {
   if (props.session) void Session.setReasoning(props.session.id, reasoning)
   else emit('update:reasoning', reasoning)
@@ -183,7 +186,7 @@ function chooseReasoning(reasoning) {
             </div>
           </Transition>
           <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :queued="queued" :draft-workspace="store.ui.draftCwd"
-            @submit="submit" @stop="Chat.stop(session.id)" @continue="continueRun" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
+            @submit="submit" @stop="Chat.stop(session.id)" @continue="continueRun" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @compact="compactContext" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
         </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>

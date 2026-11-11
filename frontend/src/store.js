@@ -4,7 +4,7 @@
 调用示例：store.sessionList、store.sessions[sessionID]、store.ui.activeSessionID。
 */
 import { computed, reactive } from 'vue'
-import { DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_KEEP } from './defaults.js'
+import { DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_KEEP, DEFAULT_RETRY } from './defaults.js'
 
 
 export const DEFAULT_APPEARANCE = Object.freeze({
@@ -63,6 +63,7 @@ export const store = reactive({
     models: {},                                       // 按任务的模型选择：chat、compact、title、task
     compact: { threshold: DEFAULT_COMPACT_THRESHOLD }, // 全局压缩阈值
     contextKeep: { ...DEFAULT_CONTEXT_KEEP },        // 压缩后保留多少原文；首屏先用默认值，读到配置后再覆盖
+    retry: { ...DEFAULT_RETRY },                     // 模型请求最多重试几次；null 为无限
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
     appearance: loadAppearance(),                       // 从 localStorage 恢复外观偏好

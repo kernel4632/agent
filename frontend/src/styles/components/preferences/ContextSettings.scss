@@ -1,6 +1,18 @@
 .context-settings { display: grid; min-width: 0; gap: 24px; }
 .context-settings__control { display: flex; min-width: 0; align-items: center; gap: 12px; }
 .context-settings__slider { width: 180px; height: 32px; margin: 0; accent-color: var(--la-accent); cursor: pointer; }
+.context-settings__number {
+  width: 112px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--la-line);
+  border-radius: var(--la-shape-sm);
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
 .context-settings__value { min-width: 44px; color: var(--la-secondary); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 767px) {
