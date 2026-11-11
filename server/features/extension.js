@@ -84,4 +84,4 @@ const load = async () => {
     return { loaded, failed }
 }
 
-export default { load }
+export default { load, state: () => state }

@@ -51,8 +51,9 @@ test('路由表冻结在 19 条，不允许新增路由', () => {
 test('/admin op 表包含所有管理动作，可随功能扩展', () => {
     // op 表不冻结：/admin 是管理总线，功能扩展时可以加新 op。
     // 只要确保路由表冻结（不新增路由），所有管理动作都走 /admin 即可。
+    // 扩展启动后会往 OPS 里注入额外的 op，框架本身保持 24 个。
     const ops = Object.keys(Admin.OPS)
-    assert.ok(ops.length >= 30, `至少包含初始的 30 个 op，当前 ${ops.length} 个`)
+    assert.ok(ops.length >= 24, `至少包含框架的 24 个 op，当前 ${ops.length} 个`)
     assert.ok(ops.includes('config.read'), '必须包含 config.read')
     assert.ok(ops.includes('mcp.list'), '必须包含 mcp.list')
     })

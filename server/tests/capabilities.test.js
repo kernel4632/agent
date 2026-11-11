@@ -15,7 +15,7 @@ import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
-import SkillFeature from '../features/skills.js'
+
 import Session from '../commands/session.js'
 import { getAgent, settleAgent } from './agent-helpers.js'
 import Skill from '../tools/skill.js'
@@ -31,12 +31,6 @@ const OP_OF = {
     'POST /mcp/remove': 'mcp.remove',
     'PATCH /mcp/toggle': 'mcp.toggle',
     'POST /mcp/test': 'mcp.test',
-    'GET /skill/list': 'skill.list',
-    'GET /skill/read': 'skill.read',
-    'POST /skill/save': 'skill.save',
-    'POST /skill/remove': 'skill.remove',
-    'PATCH /skill/toggle': 'skill.toggle',
-    'PATCH /skill/source': 'skill.source',
 }
 
 const request = (path, options = {}) => {
@@ -92,10 +86,7 @@ const withHome = async callback => {
     }
 }
 
-const writeSkill = async (directory, name, description, body) => {
-    await mkdir(directory, { recursive: true })
-    await writeFile(join(directory, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n${body}\n`)
-}
+// 技能测试已迁移到 extensions/skill/
 
 const writeJson = async (path, value) => {
     await mkdir(dirname(path), { recursive: true })
@@ -354,10 +345,7 @@ describe('MCP 服务管理', () => {
 describe('技能识别与管理', () => {
     test('自己的技能直接生效，别的软件的目录先识别、启用后才生效', async () => {
         await withHome(async ({ root, discovery, project }) => {
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await writeSkill(join(project, '.agent', 'skills', 'deploy'), 'deploy', '部署', '部署正文')
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
 
             const before = await (await request(`/skill/list?cwd=${encodeURIComponent(project)}`)).json()
             expect(before.skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
@@ -445,8 +433,6 @@ describe('技能识别与管理', () => {
 
     test('禁用的技能不进交给模型的清单，重新启用后回来', async () => {
         await withHome(async ({ project }) => {
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
 
             const disabled = await (await json('/skill/toggle', 'PATCH', { name: 'review', enabled: false })).json()
             expect(disabled).toEqual({ name: 'review', enabled: false })
@@ -472,7 +458,6 @@ describe('技能识别与管理', () => {
     test('外部技能不能被删除，也不能把本应用目录当外部来源', async () => {
         await withHome(async ({ discovery }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
 
             expect((await json('/skill/remove', 'POST', { name: 'lint' })).status).toBe(404)
@@ -483,8 +468,6 @@ describe('技能识别与管理', () => {
     test('状态文件记录了启用的目录和禁用名单，重启后仍然有效', async () => {
         await withHome(async ({ discovery }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查', '正文')
 
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
             await json('/skill/toggle', 'PATCH', { name: 'review', enabled: false })
@@ -502,7 +485,6 @@ describe('技能识别与管理', () => {
     test('技能工具会带上已启用外部目录里的技能', async () => {
         await withHome(async ({ discovery, project }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
 
             const tool = await Skill.build({ cwd: project, skills: SkillFeature })
@@ -556,7 +538,6 @@ describe('MCP 配置版本与 Agent 快照', () => {
 describe('能力接口装配', () => {
     test('会话装配后技能清单跟着目录里的技能走', async () => {
         await withHome(async ({ project }) => {
-            await writeSkill(join(project, '.agent', 'skills', 'local'), 'local', '本地技能', '正文')
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: '技能会话', cwd: project })
             const agent = Agent.runtime().get(sessionId)

@@ -135,7 +135,7 @@ describe('项目结构', () => {
 
     test('工具目录只有按类别分组的文件', async () => {
         const files = (await readdir(fileURLToPath(new URL('../tools/', import.meta.url)))).filter(name => name.endsWith('.js')).sort()
-        expect(files).toEqual(['background.js', 'context.js', 'control.js', 'file.js', 'history.js', 'shell.js', 'skill.js', 'todo.js', 'web.js'])
+        expect(files).toEqual(['background.js', 'context.js', 'control.js', 'file.js', 'history.js', 'shell.js', 'todo.js', 'web.js'])
     })
 
     test('每个工具文件里的工具都声明了名称、类别、说明和参数', async () => {
