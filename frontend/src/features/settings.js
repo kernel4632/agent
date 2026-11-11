@@ -219,6 +219,8 @@ function configPayload(draft) {
     models: draft.models,
     compact: draft.compact,
     contextKeep: draft.contextKeep,
+    // 重试次数目前没有设置页控件，但整份替换不能把用户写在 config.json 里的值抹掉。
+    retry: store.config.raw?.retry || { maxTries: null },
   }
 }
 
