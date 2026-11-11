@@ -742,9 +742,12 @@ async function compact(sessionID) {
   session.compacting = true
   Notice.show('正在压缩上下文…')
   try {
-    await AgentAPI.compactSession(sessionID)
-    // 压缩结果由 SSE 的 compact-start / compact-finish 实时更新；这里不再整份
-    // 重读历史，否则会话对象被替换，底部统计会在压缩完成后短暂或永久消失。
+    const result = await AgentAPI.compactSession(sessionID)
+    // 压缩结果由 SSE 的 compact-start / compact-finish 实时更新；服务端还会
+    // 返回压缩后的上下文估算，立刻替换本地旧值，底部才能从 95% 降下来。
+    if (result?.contextEstimate) session.contextEstimate = result.contextEstimate
+    if (result?.historyStats) session.historyStats = result.historyStats
+    if (result?.contextTokens !== undefined) session.contextTokens = result.contextTokens
     Notice.show('上下文已压缩')
     return true
   } catch (error) {
