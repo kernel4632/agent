@@ -32,6 +32,17 @@ function modelValue(task) {
 function chooseModel(task, value) {
   props.draft.models[task] = value ? JSON.parse(value) : { provider: '', model: '' }
 }
+
+// 留空表示无限重试，0 表示一次都不重试。
+function setRetry(value) {
+  const text = String(value ?? '').trim()
+  if (!text) {
+    props.draft.retry = { maxTries: null }
+    return
+  }
+  const number = Number(text)
+  if (Number.isInteger(number) && number >= 0) props.draft.retry = { maxTries: number }
+}
 </script>
 
 <template>
@@ -45,6 +56,24 @@ function chooseModel(task, value) {
     <SettingsList title="哪件事用哪个模型">
       <SettingsRow v-for="item in tasks" :key="item.task" :title="item.label" :description="item.hint">
         <Select class="model-settings__select" :label="item.label" :model-value="modelValue(item.task)" :items="modelChoices" @update:model-value="chooseModel(item.task, $event)" />
+      </SettingsRow>
+    </SettingsList>
+
+    <SettingsList title="请求重试">
+      <SettingsRow title="最大重试次数" description="模型请求失败后最多重试几次。留空为无限重试，0 表示不重试">
+        <div class="model-settings__retry">
+          <input
+            class="model-settings__number"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="无限"
+            :value="draft.retry?.maxTries ?? ''"
+            aria-label="最大重试次数"
+            @input="setRetry($event.target.value)"
+          />
+          <span class="model-settings__unit">{{ draft.retry?.maxTries == null ? '无限' : '次' }}</span>
+        </div>
       </SettingsRow>
     </SettingsList>
 

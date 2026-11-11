@@ -30,17 +30,6 @@ function setShare(field, value) {
 function turnLabel(turns) {
   return turns > 0 ? `${turns} 轮` : '不留'
 }
-
-// 留空表示无限重试，0 表示一次都不重试。
-function setRetry(value) {
-  const text = String(value ?? '').trim()
-  if (!text) {
-    props.draft.retry = { maxTries: null }
-    return
-  }
-  const number = Number(text)
-  if (Number.isInteger(number) && number >= 0) props.draft.retry = { maxTries: number }
-}
 </script>
 
 <template>
@@ -59,24 +48,6 @@ function setRetry(value) {
             @input="setThreshold($event.target.value)"
           />
           <span class="context-settings__value">{{ Math.round(draft.compact.threshold * 100) }}%</span>
-        </div>
-      </SettingsRow>
-    </SettingsList>
-
-    <SettingsList title="模型请求重试">
-      <SettingsRow title="最大重试次数" description="模型请求失败后最多重试几次。留空为无限重试，0 表示不重试">
-        <div class="context-settings__control">
-          <input
-            class="context-settings__number"
-            type="number"
-            min="0"
-            step="1"
-            placeholder="无限"
-            :value="draft.retry?.maxTries ?? ''"
-            aria-label="最大重试次数"
-            @input="setRetry($event.target.value)"
-          />
-          <span class="context-settings__value">{{ draft.retry?.maxTries == null ? '无限' : '次' }}</span>
         </div>
       </SettingsRow>
     </SettingsList>

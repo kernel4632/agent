@@ -22,6 +22,7 @@ const props = defineProps({
   streamKey: { type: Number, default: 0 },
   active: Boolean,
   toolIndex: { type: Number, default: 0 },
+  autoExpand: { type: Boolean, default: true },
 })
 const now = ref(Date.now())
 // null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
@@ -68,7 +69,7 @@ const duration = computed(() => {
 // 高速执行时不跟着状态把结果框打开再关上。出错或被拒绝才自动展开；其余只听用户的点击。
 // 参数流式生成和工具执行中自动展开，让读者能实时看到正在写入/执行的内容；
 // 这一轮结束后恢复折叠，之后由用户自己决定要不要再看结果。
-const wantsAuto = computed(() => Boolean(props.active && (props.tool.assembling || props.tool.status === 'running')))
+const wantsAuto = computed(() => Boolean(props.autoExpand && props.active && (props.tool.assembling || props.tool.status === 'running')))
 // 新工具要等上一个工具的高度收起，避免两个 Fold 同时运动；第一个工具直接展开。
 // 并行工具由外层同时传入 active，各自按自己的完成状态收起。
 const SETTLE_MS = 650

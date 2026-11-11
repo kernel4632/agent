@@ -26,6 +26,7 @@ const props = defineProps({
 })
 
 // 步骤操作由 Timeline 的全局浮层读取 data-cut-*，这里不再渲染每步窄条。
+const autoExpandTools = computed(() => store.config.appearance.autoExpandTools !== false)
 const savedTarget = message => isSavedMessage(message) ? message : null
 // 正文/工具行自己带精确切口；没有 partIndex 的旧历史仍退回整条消息操作。
 const cutAttrs = step => step.partIndex === undefined ? {} : {
@@ -136,9 +137,9 @@ const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => ste
 // 整轮处理默认折叠；活动时自动展开。折叠状态只保留在本次会话的当前挂载里：
 // 切换会话后重新挂载，历史轮次全部收起，正在执行的那一轮仍然展开。
 const processTouched = ref(false)
-const processOpen = ref(turnActive.value || steps.value.some(step => step.type === 'compact' && step.request?.status === 'running'))
+const processOpen = ref((autoExpandTools.value && turnActive.value) || steps.value.some(step => step.type === 'compact' && step.request?.status === 'running'))
 watch(turnActive, value => {
-  if (!processTouched.value) processOpen.value = value
+  if (autoExpandTools.value && !processTouched.value) processOpen.value = value
 })
 function toggleProcess() {
   processTouched.value = true
@@ -304,7 +305,7 @@ const lastGroupKey = computed(() => processSections.value.filter(section => sect
 // 组里还有运行中的工具时不收，避免并行工具被下一条流式输出折叠。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || (section.steps?.some(isRunningRequest) && section.key === lastGroupKey.value && lastStepType.value !== 'text') || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
+const isGroupOpen = section => section.steps?.some(isPendingStep) || (autoExpandTools.value && (section.steps?.some(isRunningToolStep) || (section.steps?.some(isRunningRequest) && section.key === lastGroupKey.value && lastStepType.value !== 'text'))) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
@@ -377,6 +378,7 @@ const defaultTarget = computed(() => [...props.messages].reverse().find(savedTar
                   :stream-key="streamSerial"
                   :active="isActiveTool(section.step.key)"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
+                  :auto-expand="autoExpandTools"
                 />
               </template>
 

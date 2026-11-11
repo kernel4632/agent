@@ -18,6 +18,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
   tint: 0,                                          // 背景着色强度 0~1（预留）
   strongFocus: false,
   reduceMotion: false,
+  autoExpandTools: true,                            // 工具运行中自动展开、结束后自动收起
 })
 
 export function normalizeAppearance(value = {}) {
