@@ -123,27 +123,12 @@ const hasCapability = (profile, name) => profile.some(item => {
     return false
 })
 
-// --- 恢复续跑的尝试上限 ---
-// 恢复是后台自动行为，没人看着：provider 挂了、密钥过期、地址错了，无限重试会一直烧下去，
-// 而且任务永远不结束、运行标记永远不清，下次重启又续一次。给恢复路径一个总时限和次数上限，
-// 到点就把错误交给 finishFailure（发 agent-finish.error 并清标记），用户自己发的消息不受影响。
-const RECOVERY_RETRY_ELAPSED = 120000
-const RECOVERY_RETRY_TRIES = 3
-// 400/401/403 这类请求错误重试也不会变好，尤其历史协议/字段缺失会无限重试；
-// 这类错误只展示一次，交给用户或上层修复配置/历史。
-const noRetryClientErrors = error => {
-    if (error?.kind === 'request' || error?.kind === 'auth') return false
-    const status = Number(error?.statusCode || 0)
-    if (status >= 400 && status < 500 && status !== 408 && status !== 429) return false
-    return true
-}
-// core 的 retry 可以传一个“要不要重试这个错误”的过滤函数；这里按次数收口。
-const recoveryRetry = () => {
-    let tries = 0
-    return error => {
-        tries += 1
-        return tries < RECOVERY_RETRY_TRIES
-    }
+// --- 重试策略 ---
+// 默认交给 agent-core：除取消和上下文超长外无限重试。只有用户显式配置
+// retry.maxTries 时才传 core 原生的 retryMaxTries；0 表示不重试。
+const retryTries = () => {
+    const maxTries = store.config.retry?.maxTries
+    return Number.isInteger(maxTries) ? maxTries : undefined
 }
 
 const resolveFor = async ({ session, settings, target, recovery = false, context }) => {
@@ -153,6 +138,7 @@ const resolveFor = async ({ session, settings, target, recovery = false, context
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
+    const maxTries = retryTries()
     const generation = {}
     for (const field of ['temperature', 'topP', 'seed']) {
         if (profileModel?.[field] !== undefined) generation[field] = profileModel[field]
@@ -185,13 +171,9 @@ const resolveFor = async ({ session, settings, target, recovery = false, context
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
-        // 重试由 agent-core 统一处理：无限次数、5s 起指数退避、总时长不限。
-        // 这里只把单次退避上限从 core 0.30.2 的默认 10 分钟收紧到 120s，其余全用 core 默认。
-        retryMaxDelay: 120000,
-        // 恢复续跑必须封顶：provider 挂了或配置丢失时，无限重试会变成一个永不结束、
-        // 永不清运行标记的空转任务，每次重启又续一次。只对恢复路径设总时限和次数上限，
-        // 用户自己发的消息仍用 core 默认的无限重试，不因慢供应商而失败。
-        ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : { retry: noRetryClientErrors }),
+        // 重试完全继承 agent-core：默认无限次数、5s 起指数退避、单次退避上限 600s；
+        // 只有 retry.maxTries 显式配置时才用 core 原生的 retryMaxTries 收口。
+        ...(maxTries !== undefined ? { retryMaxTries: maxTries } : {}),
         // 压缩后保留多少总结之前的原文；四个值都由 config 层补默认值，core 也认同名配置。
         // firstTurns = 0 就是不要最初那几轮原始措辞，只信总结 + 最近现场。
         contextKeep: { ...store.config.contextKeep },
@@ -360,9 +342,17 @@ const invalidate = sessionId => {
     void dispose(current)
 }
 
+const historyError = payload => AgentCore.history.error(payload)
+const estimateContext = ({ history, system = '', budget, ratio }) => AgentCore.context.build({
+    history,
+    system,
+    ...(budget ? { budget } : {}),
+    ...(Number.isFinite(Number(ratio)) && Number(ratio) > 0 ? { ratio: Number(ratio) } : {}),
+}).token
+
 export default {
     defaults, normalize, settings,
     connection, model, resolve: resolveFor, test,
-    create, get: getAgent, runtime, count, invalidate, settle,
+    create, get: getAgent, runtime, count, invalidate, settle, historyError, estimateContext,
     REASONING_LEVELS, threshold,
 }

@@ -279,14 +279,15 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('模型请求使用 agent-core 的无限重试，只把单次退避上限收紧到 120s', async () => {
+    test('模型请求重试完全继承 agent-core 的默认值', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
             const config = await resolve({ provider: 'local', model: 'm1' })
-            expect(config.retryMaxDelay).toBe(120000)
-            // 基数和总时长不覆盖，继续使用 core 的 5000ms / 无限总时长。
+            // 不覆盖 core 的退避和总时长：默认无限重试。
+            expect(config.retryMaxDelay).toBeUndefined()
             expect(config.retryBaseDelay).toBeUndefined()
             expect(config.retryMaxElapsed).toBeUndefined()
+            expect(config.retryMaxTries).toBeUndefined()
         })
     })
 

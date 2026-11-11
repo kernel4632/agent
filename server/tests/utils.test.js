@@ -22,9 +22,7 @@ import History from '../features/history.js'
 import Rollback from '../features/rollback.js'
 import Tool from '../features/tool.js'
 import Mcp from '../features/mcp.js'
-import SkillsFeature from '../features/skills.js'
 import Session from '../commands/session.js'
-import Skill from '../tools/skill.js'
 import store from '../store.js'
 import { app } from '../server.js'
 import SSE from '../utils/sse.js'
@@ -212,48 +210,7 @@ describe('server HTTP API', () => {
     })
 })
 
-describe('server skills', () => {
-    const writeSkill = async (dir, name, description, body) => {
-        await mkdir(dir, { recursive: true })
-        await writeFile(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n${body}`)
-    }
-
-    test('lists global and project skills, project wins on the same name', async () => {
-        await withHome(async root => {
-            const project = join(root, 'project')
-            await writeSkill(join(root, 'skills', 'review'), 'review', '全局审查', '全局正文')
-            await writeSkill(join(project, '.agent', 'skills', 'review'), 'review', '项目审查', '项目正文')
-            await writeSkill(join(root, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
-
-            const skills = await Skill.list({ cwd: project, skills: SkillsFeature })
-            expect(skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
-            expect(skills.find(item => item.name === 'review').description).toBe('项目审查')
-            expect(await Skill.read({ name: 'review', cwd: project, skills: SkillsFeature })).toBe('项目正文')
-        })
-    })
-
-    test('skips a file without a header and reports an unknown skill as missing', async () => {
-        await withHome(async root => {
-            await mkdir(join(root, 'skills', 'broken'), { recursive: true })
-            await writeFile(join(root, 'skills', 'broken', 'SKILL.md'), '随便写点东西')
-
-            expect((await Skill.list({ cwd: root, skills: SkillsFeature })).map(item => item.name)).not.toContain('broken')
-            await expect(Skill.read({ name: 'nope', cwd: root, skills: SkillsFeature })).rejects.toThrow(/Skill not found/)
-        })
-    })
-
-    test('gives the agent a skill tool listing the available skills', async () => {
-        await withHome(async root => {
-            await writeSkill(join(root, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
-            const { sessionId } = await Session.create({ title: 'With skills', cwd: root })
-            const agent = Agent.runtime().get(sessionId)
-
-            expect(agent.tools.schema.skill).toBeDefined()
-            expect(agent.tools.schema.skill.description).toContain('review')
-        })
-    })
-})
+// 技能测试已迁移到 extensions/skill/，框架本身不再测试扩展功能
 
 describe('server MCP', () => {
     test('connects a configured MCP server and exposes its tools to the agent', async () => {

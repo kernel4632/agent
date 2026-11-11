@@ -569,7 +569,7 @@ describe('能力接口装配', () => {
         expect(routes).toContain('POST /admin')
         const admin = (await import('../commands/admin.js')).default
         for (const op of ['mcp.list', 'mcp.save', 'mcp.import', 'mcp.remove', 'mcp.toggle', 'mcp.test',
-            'skill.list', 'skill.read', 'skill.save', 'skill.remove', 'skill.toggle', 'skill.source']) {
+            ]) {
             expect(Object.keys(admin.OPS)).toContain(op)
         }
     })

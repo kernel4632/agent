@@ -341,29 +341,30 @@ describe('重启恢复', () => {
         })
     })
 
-    test('恢复续跑的重试有上限，不会无限空转', async () => {
+    test('默认继承 core 的无限重试，retryMaxTries 可配置次数', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
 
-            // 恢复路径上的配置要带封顶的重试策略；用户自己发消息的路径不带。
             const session = await History.load(sessionId)
             const settings = Agent.settings(session)
+            const defaults = await Agent.resolve({ session, settings, recovery: true, context: Context })
+            // 默认不覆盖 core 的 retry：无限次数、无限总时长。
+            expect(defaults.retry).toBeUndefined()
+            expect(defaults.retryMaxTries).toBeUndefined()
+            expect(defaults.retryMaxElapsed).toBeUndefined()
+
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                retry: { maxTries: 3 },
+            })
             const recovery = await Agent.resolve({ session, settings, recovery: true, context: Context })
             const normal = await Agent.resolve({ session, settings, context: Context })
 
-            // 恢复路径封顶；用户路径也有通用过滤，但不限制总时长/次数。
-            expect(recovery.retryMaxElapsed).toBeGreaterThan(0)
-            expect(typeof recovery.retry).toBe('function')
+            // 普通 4xx 也重试；次数由 core 原生的 retryMaxTries 收口。
+            expect(recovery.retryMaxTries).toBe(3)
+            expect(normal.retryMaxTries).toBe(3)
             expect(normal.retryMaxElapsed).toBeUndefined()
-            expect(typeof normal.retry).toBe('function')
-            expect(normal.retry({ statusCode: 400 })).toBe(false)
-            expect(normal.retry({ statusCode: 500 })).toBe(true)
-
-            // 过滤函数第 3 次开始拒绝重试；core 据此结束循环。
-            const allow = [recovery.retry(), recovery.retry(), recovery.retry()]
-            const results = [allow[0](new Error('x')), allow[0](new Error('x')), allow[0](new Error('x'))]
-            expect(results).toEqual([true, true, false])
         })
     })
 

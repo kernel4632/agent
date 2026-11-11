@@ -55,5 +55,4 @@ test('/admin op 表包含所有管理动作，可随功能扩展', () => {
     assert.ok(ops.length >= 30, `至少包含初始的 30 个 op，当前 ${ops.length} 个`)
     assert.ok(ops.includes('config.read'), '必须包含 config.read')
     assert.ok(ops.includes('mcp.list'), '必须包含 mcp.list')
-    assert.ok(ops.includes('skill.list'), '必须包含 skill.list')
-})
+    })

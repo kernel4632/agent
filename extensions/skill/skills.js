@@ -15,10 +15,10 @@ import { mkdir, readdir, rm } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { writeFile } from 'atomically'
 import matter from 'gray-matter'
-import fail from '../utils/fail.js'
-import Path from '../utils/path.js'
-import Fs from '../utils/fs.js'
-import Text from '../utils/text.js'
+import fail from '../../server/utils/fail.js'
+import Path from '../../server/utils/path.js'
+import Fs from '../../server/utils/fs.js'
+import Text from '../../server/utils/text.js'
 
 const MAX_SKILLS = 200                 // 一个目录最多收这么多技能，防止有人把大仓库指进来
 const MAX_BYTES = 256 * 1024           // 一份 SKILL.md 的上限

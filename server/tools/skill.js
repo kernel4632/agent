@@ -36,6 +36,8 @@ const read = async ({ name, cwd = process.cwd(), skills }) => {
 
 // --- 造出给模型用的 skill 工具；一个技能都没有时返回 null ---
 const build = async ({ cwd = process.cwd(), skills }) => {
+    // 技能正在拆成扩展时，装配层可能还没有 skills 提供者；没有提供者就当没有技能。
+    if (!skills) return null
     const available = await list({ cwd, skills })
     if (!available.length) return null
 
@@ -65,4 +67,3 @@ const build = async ({ cwd = process.cwd(), skills }) => {
 }
 
 export default { list, read, build }
-

@@ -26,8 +26,8 @@ import Compact from '../features/compact.js'
 import Context from '../features/context.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
-import Skills from '../features/skills.js'
 import ContextUsage from '../utils/context-usage.js'
+import ContextRatios from '../utils/context-ratios.js'
 import Rollback from '../features/rollback.js'
 import SessionGroups from '../features/session-groups.js'
 import Tool from '../features/tool.js'
@@ -51,12 +51,9 @@ const checkPermission = params => Approval.check({
 const agentMaterials = async sessionId => {
     const session = await History.load(sessionId)
     const saveSession = () => History.save(sessionId)
-    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
+    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp })
     return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
-
-// create 和 fork 完成后预热 Agent，让工具表在就绪就已装载。
-const createAgent = async sessionId => Agent.create({ sessionId, ...await agentMaterials(sessionId) })
 
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
@@ -110,7 +107,7 @@ const create = async ({ title, cwd, provider, model }) => {
             model: chosen.model,
             settings: Agent.defaults(),
         })
-        await createAgent(session.id)
+        // Agent 按需装配，不预热
     } catch (error) {
         if (temporary) await TempWorkspace.remove(cwdPath, true).catch(() => {})
         throw error
@@ -151,7 +148,7 @@ const fork = async ({ sessionId, title, messageId }) => {
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
     for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
-    await createAgent(branch.id)
+    // Agent 按需装配，不预热
     return { sessionId: branch.id }}
 
 // --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
@@ -352,7 +349,6 @@ const model = async ({ sessionId, provider, model: modelId }) => {
         Object.assign(agent.config, await Agent.resolve({ session, settings: agentSettings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
-        await createAgent(sessionId)
     }
     return { ...session, provider: chosen, model: name }
 }
@@ -416,7 +412,6 @@ const patch = async ({ sessionId, reasoning, provider, model: modelName, cwd }) 
                 Object.assign(agent.config, await Agent.resolve({ session, settings: saved, context: Context }))
             } else {
                 Agent.invalidate(sessionId)
-                await createAgent(sessionId)
             }
         }
     }
@@ -450,6 +445,17 @@ const compact = async ({ sessionId }) => {
     content = result.content
     await History.add({ sessionId, message: { ...result.message, ...(compactUsage ? { usage: compactUsage } : {}) } })
     await History.save(sessionId)
+
+    // 压缩后历史已经换成摘要；下一次请求的上下文明显变小，立刻重算并写回台账，
+    // 否则底部会一直显示压缩前的 90%+。
+    const system = await Context.system({ config: store.config, cwd: session.cwd })
+    const budget = ContextUsage.read(sessionId)?.budget || 128000
+    // 长会话早就有真实 usage 校准出的每字符 token 比例，重算摘要上下文时直接复用，
+    // 不要退回 core 的默认 0.6，否则压缩后的百分比会偏大。
+    const calibrated = await ContextRatios.read(session.model)
+    const tokens = Agent.estimateContext({ history, system, budget, ratio: calibrated?.ratio })
+    ContextUsage.record(sessionId, { tokens, budget, compactThreshold: store.config.compact.threshold })
+
     return { ...await read({ sessionId }), content }
 }
 

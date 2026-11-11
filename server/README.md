@@ -41,7 +41,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   - 历史末尾是用户消息 → 只清标记，等用户自己发下一句；
   - 尾部 tool 消息里已经有 `attempt_completion` / `ask_followup_question` 的结果 → 任务其实已正常收尾，只清标记；
 - 恢复异步进行，不挡启动；单条会话失败（比如供应商配置丢了）只记日志并清标记，不影响其他会话和服务启动。
-- 恢复路径的重试有上限（总时长 2 分钟、3 次封顶）：provider 挂了或密钥过期时，无限重试会变成一个永不结束、永不清标记的空转任务，每次重启又续一次。用户自己发消息仍走 core 默认的无限重试，不因慢供应商而失败。
+- 恢复续跑和用户发送一样继承 agent-core 的重试策略；默认无限，只有 `retry.maxTries` 显式配置时才按次数收口。
 
 ## 五个核心概念
 
@@ -130,6 +130,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   },
   "compact": { "threshold": 0.8 },
   "contextKeep": { "firstTurns": 3, "recentTurns": 3, "firstShare": 0.2, "recentShare": 0.3 },
+  "retry": { "maxTries": null },
   "permission": { "*": "ask" }
 }
 ```
@@ -139,7 +140,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - `models` 按任务分开：`chat` 是会话默认模型；`compact`、`title`、`task` 不填就回退到 `chat`。
 - `compact.threshold` 是自动压缩的触发比例。`contextKeep` 决定压缩后还留多少总结之前的原文：`firstTurns` 是开场最多保留几个用户回合（**填 0 就是压缩后不再带上最初那几轮原始对话**，只用总结 + 最近的现场），`recentTurns` 是总结之前最多保留几个回合，两个 `*Share` 分别是这两段最多占多少上下文预算。轮数写 0 就是 0，不会被当成“没填”退回默认值；本次发送的用户输入永远保留。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
-- 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
+- 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，默认无限次指数退避；`retry.maxTries` 缺省或 `null` 为无限，正整数为最多重试次数，`0` 为不重试。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
 
 ### 权限规则

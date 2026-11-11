@@ -15,7 +15,6 @@ import Approval from '../features/approval.js'
 import Context from '../features/context.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
-import Skills from '../features/skills.js'
 import Tool from '../features/tool.js'
 
 // --- 审批关口：快照、扫描和类别查询由这里递给审批 ---
@@ -30,7 +29,7 @@ const checkPermission = params => Approval.check({
 const agentMaterials = async sessionId => {
     const session = await History.load(sessionId)                 // 会话元数据和历史先读进内存
     const saveSession = () => History.save(sessionId)             // 工具改了会话后能立刻落盘
-    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills }) // 工具表和 MCP 租约
+    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp }) // 工具表和 MCP 租约
     return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
 }
 

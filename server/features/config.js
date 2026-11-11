@@ -111,6 +111,17 @@ const contextKeep = value => {
     }
 }
 
+// --- 模型请求重试：null 是 agent-core 默认的无限重试；正整数是最大重试次数 ---
+const retry = value => {
+    if (value !== undefined && value !== null && !isObject(value)) throw fail(400, 'retry must be an object')
+    const raw = isObject(value) ? value : {}
+    const maxTries = raw.maxTries
+    if (maxTries === undefined || maxTries === null) return { maxTries: null }
+    const tries = Number(maxTries)
+    if (!Number.isInteger(tries) || tries < 0) throw fail(400, 'retry.maxTries must be a non-negative integer')
+    return { maxTries: tries }
+}
+
 // --- 当前配置形状；未知字段不进入内存，也不写回磁盘 ---
 const normalize = raw => {
     const config = isObject(raw) ? raw : {}
@@ -136,6 +147,7 @@ const normalize = raw => {
                 : 0.8,
         },
         contextKeep: contextKeep(config.contextKeep),
+        retry: retry(config.retry),
     }
 }
 

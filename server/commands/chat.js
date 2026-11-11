@@ -19,7 +19,6 @@ import Approval from '../features/approval.js'
 import Context from '../features/context.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
-import Skills from '../features/skills.js'
 import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
@@ -47,7 +46,7 @@ const getAgent = sessionId => Agent.get({
         build: async () => {
             const session = await History.load(sessionId)
             const saveSession = () => History.save(sessionId)
-            const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp, skills: Skills })
+            const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp })  // skills 由扩展注入
             return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
         },
         mcpRevision: () => Tool.revision(Mcp),
@@ -438,6 +437,20 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
             return
         }
         attachCompactUsage({ agent, state: token.state })
+        // 失败请求本身也写进历史；agent-core 0.36+ 在构造上下文时会跳过 role:'error'。
+        const failedAt = Date.now()
+        agent.history.push(Agent.historyError({
+            content: error.message || String(error),
+            request: {
+                provider: token.state.provider || agent.config?.providerName || '',
+                model: token.state.model || agent.config?.model || '',
+                startedAt: token.state.llmStartedAt || failedAt,
+                finishedAt: failedAt,
+                durationMs: Math.max(0, failedAt - (token.state.llmStartedAt || failedAt)),
+                error: error.message || String(error),
+                kind: error.kind || 'unknown',
+            },
+        }))
         await syncHistory({ sessionId, agent }).catch(() => {})
         if (token.stopped) return
         if (sessions.get(sessionId)?.token !== token) return finishRun(sessionId, token)

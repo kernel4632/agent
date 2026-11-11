@@ -25,7 +25,6 @@ import Filesystem from '../features/filesystem.js'
 import Mcp from '../features/mcp.js'
 import ModelIcons from '../features/model-icons.js'
 import SessionGroups from '../features/session-groups.js'
-import Skills from '../features/skills.js'
 import Storage from '../features/storage.js'
 import Tool from '../features/tool.js'
 import fail from '../utils/fail.js'
@@ -112,13 +111,7 @@ const OPS = {
     'mcp.toggle': ({ name, enabled } = {}) => mcpToggle({ name, enabled }),
     'mcp.test': ({ name } = {}) => Mcp.test({ name }),
 
-    // --- 技能 ---
-    'skill.list': ({ cwd } = {}) => Skills.list({ cwd: cwd || process.cwd() }),
-    'skill.read': ({ name, cwd } = {}) => Skills.read({ name, cwd: cwd || process.cwd() }),
-    'skill.save': body => Skills.save(body || {}),
-    'skill.remove': body => Skills.remove(body || {}),
-    'skill.toggle': body => Skills.toggle(body || {}),
-    'skill.source': body => Skills.source(body || {}),
+    // --- 技能：由 extensions/skill/backend.js 在启动时往 OPS 里挂 skill.* 动作 ---
 
     // --- 会话存储位置 ---
     'storage.status': () => Storage.status(),
