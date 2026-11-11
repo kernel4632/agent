@@ -50,13 +50,14 @@ export function groupMessageTurns(messages = []) {
  */
 export function canContinueSession(session) {
   if (!session || session.status === 'running' || session.stopping) return false
-  const turn = groupMessageTurns(session.messages || []).at(-1)
+  const turns = groupMessageTurns(session.messages || [])
+  // 工具结果可能单独成一条 message；它属于前一条助手回合，不能把继续按钮挡掉。
+  const turn = [...turns].reverse().find(item => item.role !== 'tool')
   if (!turn) return false
   if (turn.role === 'user') return isSavedMessage(turn.messages.at(-1))
   if (turn.role !== 'assistant') return false
-  // 本地 error 气泡没有后端 id，但它前面可能已经有落盘的助手进度；
-  // 运行停止后只要这一轮没有正常收尾，就应该给“继续”，不能被错误气泡挡住。
-  const saved = [...turn.messages].reverse().find(isSavedMessage)
-  if (!saved) return false
+  // 助手消息可能还没落盘（pending/error），只要这一轮前面有保存过的用户消息，
+  // 后端仍能用内部续跑提示继续；不能因为本地占位没有 id 就不给继续按钮。
+  if (!session.messages.some(isSavedMessage)) return false
   return !hasStopTool(turn.messages)
 }

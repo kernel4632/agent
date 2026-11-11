@@ -44,6 +44,18 @@ test('empty history produces no turns', () => {
   assert.deepEqual(groupMessageTurns(), [])
 })
 
+test('a trailing tool result does not hide the unfinished assistant turn', () => {
+  const session = {
+    status: 'idle',
+    messages: [
+      user('u1'),
+      assistant('a1'),
+      { id: 't1', role: 'tool', content: [] },
+    ],
+  }
+  assert.equal(canContinueSession(session), true)
+})
+
 test('a trailing local error bubble does not hide a saved unfinished assistant', () => {
   const session = {
     status: 'idle',
@@ -58,5 +70,10 @@ test('a trailing local error bubble does not hide a saved unfinished assistant',
   assert.equal(canContinueSession({
     status: 'idle',
     messages: [user('u1'), { id: 'error_local', role: 'assistant', content: '', error: 'EBADF' }],
+  }), true)
+
+  assert.equal(canContinueSession({
+    status: 'idle',
+    messages: [{ id: 'error_local', role: 'assistant', content: '', error: 'EBADF' }],
   }), false)
 })
