@@ -494,16 +494,30 @@ async function finishRun(sessionID, session, event) {
   await History.refresh(sessionID)
   const refreshed = store.sessions[sessionID]
   refreshed.status = 'idle'
+  if (error) {
+    // 只收到 agent-finish 错误时，本地请求行还停在 running；先把它标成失败，
+    // 后面才能挂回请求条自己的错误折叠里。
+    for (const message of localMessages) {
+      if (message.role !== 'assistant') continue
+      for (const request of message.requests || []) {
+        if (request.status !== 'running') continue
+        request.status = 'failed'
+        request.error = error
+        request.finishedAt = Date.now()
+        request.durationMs = Math.max(0, request.finishedAt - Number(request.startedAt || request.finishedAt))
+      }
+    }
+  }
   const failed = localMessages
     .flatMap(message => message.role === 'assistant' ? (message.requests || []) : [])
     .filter(request => request.status === 'failed')
   const target = [...refreshed.messages].reverse().find(message => message.role === 'assistant')
   if (target && failed.length) {
-    // 刷新会用磁盘历史重建 messages；失败尝试只存在于前端，重新挂回最后一轮，
-    // 这样重试结束后错误行不会凭空消失。
-    target.error = error || target.error
+    // 刷新会用磁盘历史重建 messages；失败尝试只存在于前端，重新挂回最后一轮。
+    // 错误留在失败请求行自己的 request.error 里，不再额外挂一条消息级错误。
     target.requests = [...(target.requests || []), ...failed]
     target.steps = [...(target.steps || []), ...failed.map(request => ({ type: 'request', requestId: request.id }))]
+    target.error = ''
   } else if (error) {
     refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error })
   }
