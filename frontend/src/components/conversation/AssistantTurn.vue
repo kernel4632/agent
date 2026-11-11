@@ -136,7 +136,7 @@ const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => ste
 // 整轮处理默认折叠；活动时自动展开。折叠状态只保留在本次会话的当前挂载里：
 // 切换会话后重新挂载，历史轮次全部收起，正在执行的那一轮仍然展开。
 const processTouched = ref(false)
-const processOpen = ref(turnActive.value)
+const processOpen = ref(turnActive.value || steps.value.some(step => step.type === 'compact' && step.request?.status === 'running'))
 watch(turnActive, value => {
   if (!processTouched.value) processOpen.value = value
 })

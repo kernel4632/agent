@@ -185,7 +185,7 @@ function unsubscribe(sessionID) {
 
 async function send(sessionID, content, queuedFiles = null) {
   const session = store.sessions[sessionID]
-  if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
+  if (!session || !content.trim() || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { Notice.show('请先配置并启用此会话使用的模型供应商'); return false }
   const files = queuedFiles ?? session.files ?? []
@@ -738,7 +738,9 @@ async function receive(sessionID, event) {
 
 async function compact(sessionID) {
   const session = store.sessions[sessionID]
-  if (!session || session.status === 'running' || stopping.has(sessionID)) return false
+  if (!session || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
+  session.compacting = true
+  Notice.show('正在压缩上下文…')
   try {
     await AgentAPI.compactSession(sessionID)
     await History.refresh(sessionID, { force: true })
@@ -747,6 +749,8 @@ async function compact(sessionID) {
   } catch (error) {
     Notice.show(error.message)
     return false
+  } finally {
+    if (store.sessions[sessionID]) store.sessions[sessionID].compacting = false
   }
 }
 

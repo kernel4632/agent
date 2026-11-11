@@ -185,7 +185,7 @@ function chooseReasoning(reasoning) {
               <div class="reconnect-card"><span class="ui-spinner ui-spinner--large" aria-hidden="true"><span class="ui-spinner__ring"></span></span><strong>正在重新连接</strong></div>
             </div>
           </Transition>
-          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping" :files="files" :queued="queued" :draft-workspace="store.ui.draftCwd"
+          <Composer ref="composer" v-model:draft="draft" :blocked="!!error || showReconnect" :selected-model="session ? session.model : model" :selected-provider="session?.provider || ''" :session-id="session?.id || ''" :reasoning="reasoning" :is-running="session?.status === 'running'" :can-continue="resumable" :busy="busy || session?.stopping || session?.compacting" :files="files" :queued="queued" :draft-workspace="store.ui.draftCwd"
             @submit="submit" @stop="Chat.stop(session.id)" @continue="continueRun" @attach="attach" @remove-file="removeFile" @withdraw="withdrawQueued" @compact="compactContext" @update:reasoning="chooseReasoning" @update:draft-workspace="store.ui.draftCwd = $event" />
         </div>
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
