@@ -743,7 +743,8 @@ async function compact(sessionID) {
   Notice.show('正在压缩上下文…')
   try {
     await AgentAPI.compactSession(sessionID)
-    await History.refresh(sessionID, { force: true })
+    // 压缩结果由 SSE 的 compact-start / compact-finish 实时更新；这里不再整份
+    // 重读历史，否则会话对象被替换，底部统计会在压缩完成后短暂或永久消失。
     Notice.show('上下文已压缩')
     return true
   } catch (error) {
