@@ -223,7 +223,7 @@ export function sessionStats(session) {
   const currentModel = typeof session.model === 'string'
     ? session.model
     : (typeof session.model === 'object' ? session.model?.model : '') || ''
-  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${lastRequest?.rawOutput || 0}:${lastRequest?.rawTps || 0}:${currentProvider}\u0000${currentModel}`
+  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${lastRequest?.firstTokenMs || 0}:${lastRequest?.durationMs || 0}:${currentProvider}\u0000${currentModel}`
   const remote = session.historyStats
   let aggregate = remote
     ? {
@@ -279,26 +279,13 @@ export function sessionStats(session) {
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
   const liveOutput = liveAssistant ? estimateTokens(liveAssistant.content || '') : 0
   const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
-  // 新请求已经在前端按“可见正文/工具参数”的生成窗口测过速度；
-  // 这类请求没有可测窗口时必须显示 —，不能再用整次请求的 output/duration 兜底。
-  const hasRawSpeed = requests.some(item => item.rawOutput !== undefined || item.rawTps !== undefined || item.generationMs !== undefined)
-  // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
-  // 模型速度取最近 5 个已完成有效请求的算术平均；当前正在跑的这一笔
-  // 还没完成，不参与平均，也不实时猜速度。
-  const RECENT_TPS_SAMPLES = 5
+  // TPS 用供应商返回的 output 除以“整次耗时 - 首字时间”，和中转站口径一致。
+  // 输出包含思考 token；生成窗口为 0 或没有首字时不计算。
   const requestTps = item => {
-    if (item?.rawOutput !== undefined || item?.rawTps !== undefined) {
-      return Math.max(0, Number(item.rawTps || 0))
-    }
-    // 服务端持久化的可见生成窗口；0 表示这一笔没有可测窗口，不能退回总耗时。
-    if (item?.generationMs !== undefined) {
-      const generation = Number(item.generationMs || 0)
-      if (generation <= 0) return 0
-      const visible = Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
-      return visible / (generation / 1000)
-    }
-    // 旧请求没有可见生成窗口，无法得出正确 TPS；不要用总耗时伪造一个数字。
-    return 0
+    const duration = Number(item?.durationMs || 0)
+    const firstToken = Number(item?.firstTokenMs || 0)
+    const generation = firstToken > 0 ? Math.max(0, duration - firstToken) : duration
+    return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
@@ -320,6 +307,7 @@ export function sessionStats(session) {
       .slice(-18)
     : []
   // 速度面板按供应商 / 模型分组；旧请求没有记录来源时退回当前会话模型。
+  const RECENT_TPS_SAMPLES = 5
   const modelGroups = () => {
     if (usageApproximate || !requests.length) return []
     const groups = new Map()
@@ -335,22 +323,11 @@ export function sessionStats(session) {
       const duration = Number(item.durationMs || 0)
       const firstToken = Number(item.firstTokenMs || 0)
       const tps = requestTps(item)
-      if (item.rawOutput !== undefined) {
-        // 只把真正测到窗口的请求算进平均；单块输出没有速度样本。
-        if (tps > 0) {
-          group.output += Number(item.rawOutput || 0)
-          group.generationMs += Number(item.generationMs || 0)
-        }
-      } else if (item.generationMs !== undefined) {
-        // 刷新后从服务端 usage 恢复的可见生成窗口。
-        if (tps > 0) {
-          group.output += Math.max(0, Number(item.output || 0) - Number(item.reasoning || 0))
-          group.generationMs += Number(item.generationMs || 0)
-        }
-      }
+      group.output += Number(item.output || 0)
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
+        group.generationMs += firstToken > 0 ? Math.max(0, duration - firstToken) : duration
       }
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
@@ -436,7 +413,6 @@ export function sessionStats(session) {
       provider: liveRequest?.provider || currentProvider,
       model: liveRequest?.model || currentModel,
       tps: lastTps,
-      rawSpeed: hasRawSpeed,
     },
     // 内容构成只在统计面板真正读取时才算；流式正文不经过这里。
     get composition() { return contentComposition(messages) },

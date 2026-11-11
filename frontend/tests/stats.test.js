@@ -42,27 +42,27 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
   assert.equal(stats.live.running, false)
-  // 外显速度按最后一次请求的整次耗时算，不是会话平均。
-  assert.ok(Math.abs(stats.live.tps - 25) < 0.01)
+  // 外显速度按 output /（总耗时 - 首字时间）算。
+  assert.ok(Math.abs(stats.live.tps - 20 / 0.6) < 0.01)
   assert.deepEqual(stats.models, [{
     provider: 'Test Provider',
     model: 'test-model',
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 25,
-    recentTps: 25,
+    averageTps: 20 / 0.6,
+    recentTps: 20 / 0.6,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
-    lastTps: 25,
+    lastTps: 20 / 0.6,
     lastAt: 801,
   }])
 })
 
-test('frontend raw tps wins over backend usage output', () => {
+test('frontend raw counters do not override usage output', () => {
   const request = {
     input: 30, output: 100, reasoning: 60, rawOutput: 20, rawTps: 42, generationMs: 800,
-    durationMs: 800, firstTokenMs: 700, provider: 'Test Provider', model: 'test-model',
+    durationMs: 800, firstTokenMs: 200, provider: 'Test Provider', model: 'test-model',
   }
   const session = {
     contextLimit: 1000,
@@ -70,46 +70,14 @@ test('frontend raw tps wins over backend usage output', () => {
     messages: [user('你好'), assistant('好的', { requests: [request], request })],
   }
   const stats = sessionStats(session)
-  assert.equal(stats.models[0].lastTps, 42)
-  assert.equal(stats.models[0].averageTps, 25)
-  assert.equal(stats.live.rawSpeed, true)
+  assert.ok(Math.abs(stats.models[0].lastTps - 100 / 0.6) < 0.01)
+  assert.ok(Math.abs(stats.models[0].averageTps - 100 / 0.6) < 0.01)
 })
 
-test('a persisted visible generation window computes tps without persisting reasoning', () => {
+test('tps becomes zero when there is no generation window', () => {
   const request = {
-    input: 30, output: 50, reasoning: 40, generationMs: 1000,
-    durationMs: 20000, firstTokenMs: 19000, provider: 'Test Provider', model: 'test-model',
-  }
-  const session = {
-    contextLimit: 1000,
-    contextTokens: 30,
-    messages: [user('你好'), assistant('好的', { requests: [request], request })],
-  }
-  const stats = sessionStats(session)
-  assert.equal(stats.models[0].lastTps, 10)
-  assert.equal(stats.live.rawSpeed, true)
-})
-
-test('model tps averages the most recent completed rounds', () => {
-  const values = [10, 20, 30, 40, 50, 60]
-  const requests = values.map((value, index) => ({
-    input: 10, output: value, rawOutput: value, rawTps: value, generationMs: 1000,
-    durationMs: 2000, firstTokenMs: 200, provider: 'Test Provider', model: 'test-model', finishedAt: index,
-  }))
-  const session = {
-    contextLimit: 1000,
-    contextTokens: 10,
-    messages: [user('你好'), assistant('好的', { requests, request: requests.at(-1) })],
-  }
-  const stats = sessionStats(session)
-  assert.equal(stats.models[0].lastTps, 60)
-  assert.equal(stats.models[0].recentTps, 40)
-})
-
-test('a raw request without a measured generation window is not turned into fallback tps', () => {
-  const request = {
-    input: 30, output: 900, reasoning: 800, rawOutput: 20, rawTps: 0, generationMs: 0,
-    durationMs: 20000, firstTokenMs: 19000, provider: 'Test Provider', model: 'test-model',
+    input: 30, output: 50, reasoning: 40, durationMs: 1000, firstTokenMs: 1000,
+    provider: 'Test Provider', model: 'test-model',
   }
   const session = {
     contextLimit: 1000,
@@ -119,7 +87,22 @@ test('a raw request without a measured generation window is not turned into fall
   const stats = sessionStats(session)
   assert.equal(stats.models[0].lastTps, 0)
   assert.equal(stats.live.tps, 0)
-  assert.equal(stats.live.rawSpeed, true)
+})
+
+test('model tps averages the most recent completed rounds', () => {
+  const values = [10, 20, 30, 40, 50, 60]
+  const requests = values.map((value, index) => ({
+    input: 10, output: value, durationMs: 1000, firstTokenMs: 0,
+    provider: 'Test Provider', model: 'test-model', finishedAt: index,
+  }))
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 10,
+    messages: [user('你好'), assistant('好的', { requests, request: requests.at(-1) })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 60)
+  assert.equal(stats.models[0].recentTps, 40)
 })
 
 test('content composition separates user, thinking, reply and tool output', () => {
@@ -192,9 +175,9 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 10 / 4)
+  assert.equal(stats.models[0].averageTps, 10 / 3.1)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10)
+  assert.equal(stats.models[1].averageTps, 10 / 0.7)
 })
 
 
@@ -212,7 +195,7 @@ test('speed groups keep the latest request alongside averages', () => {
   assert.equal(stats.models[0].averageDurationMs, 1500)
   assert.equal(stats.models[0].lastFirstTokenMs, 400)
   assert.equal(stats.models[0].lastDurationMs, 2000)
-  assert.equal(stats.models[0].lastTps, 10)
+  assert.equal(stats.models[0].lastTps, 12.5)
 })
 
 
