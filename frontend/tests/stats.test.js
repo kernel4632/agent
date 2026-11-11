@@ -42,19 +42,19 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
   assert.equal(stats.live.running, false)
-  // 外显速度按 output /（总耗时 - 首字时间）算。
-  assert.ok(Math.abs(stats.live.tps - 20 / 0.6) < 0.01)
+  // 外显速度按 output / 整次请求耗时算。
+  assert.ok(Math.abs(stats.live.tps - 25) < 0.01)
   assert.deepEqual(stats.models, [{
     provider: 'Test Provider',
     model: 'test-model',
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 20 / 0.6,
-    recentTps: 20 / 0.6,
+    averageTps: 25,
+    recentTps: 25,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
-    lastTps: 20 / 0.6,
+    lastTps: 25,
     lastAt: 801,
   }])
 })
@@ -70,13 +70,13 @@ test('frontend raw counters do not override usage output', () => {
     messages: [user('你好'), assistant('好的', { requests: [request], request })],
   }
   const stats = sessionStats(session)
-  assert.ok(Math.abs(stats.models[0].lastTps - 100 / 0.6) < 0.01)
-  assert.ok(Math.abs(stats.models[0].averageTps - 100 / 0.6) < 0.01)
+  assert.ok(Math.abs(stats.models[0].lastTps - 100 / 0.8) < 0.01)
+  assert.ok(Math.abs(stats.models[0].averageTps - 100 / 0.8) < 0.01)
 })
 
-test('tps becomes zero when there is no generation window', () => {
+test('tps becomes zero when there is no duration', () => {
   const request = {
-    input: 30, output: 50, reasoning: 40, durationMs: 1000, firstTokenMs: 1000,
+    input: 30, output: 50, reasoning: 40, durationMs: 0, firstTokenMs: 0,
     provider: 'Test Provider', model: 'test-model',
   }
   const session = {
@@ -175,9 +175,9 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 10 / 3.1)
+  assert.equal(stats.models[0].averageTps, 10 / 4)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10 / 0.7)
+  assert.equal(stats.models[1].averageTps, 10)
 })
 
 
@@ -195,7 +195,7 @@ test('speed groups keep the latest request alongside averages', () => {
   assert.equal(stats.models[0].averageDurationMs, 1500)
   assert.equal(stats.models[0].lastFirstTokenMs, 400)
   assert.equal(stats.models[0].lastDurationMs, 2000)
-  assert.equal(stats.models[0].lastTps, 12.5)
+  assert.equal(stats.models[0].lastTps, 10)
 })
 
 

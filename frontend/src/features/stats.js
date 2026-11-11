@@ -279,13 +279,11 @@ export function sessionStats(session) {
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
   const liveOutput = liveAssistant ? estimateTokens(liveAssistant.content || '') : 0
   const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
-  // TPS 用供应商返回的 output 除以“整次耗时 - 首字时间”，和中转站口径一致。
-  // 输出包含思考 token；生成窗口为 0 或没有首字时不计算。
+  // TPS 用供应商返回的 output 除以整次请求耗时。
+  // 这是“整次请求吞吐”，和中转站口径一致；不假装是逐 token 的模型 decode 速度。
   const requestTps = item => {
     const duration = Number(item?.durationMs || 0)
-    const firstToken = Number(item?.firstTokenMs || 0)
-    const generation = firstToken > 0 ? Math.max(0, duration - firstToken) : duration
-    return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
+    return duration > 0 ? Number(item?.output || 0) / (duration / 1000) : 0
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
@@ -327,7 +325,7 @@ export function sessionStats(session) {
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
-        group.generationMs += firstToken > 0 ? Math.max(0, duration - firstToken) : duration
+        group.generationMs += duration
       }
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
