@@ -85,6 +85,39 @@ export function splitUserAttachments(raw) {
 }
 
 function normalizeMessage(item, toolTimings, toolIndex) {
+  if (item.role === 'error') {
+    // 失败请求也是历史的一部分，但它不是模型消息：投影成一条只带请求行的
+    // assistant 占位，RequestStatus 负责展示失败原因。
+    const data = item.request && typeof item.request === 'object' ? item.request : {}
+    const id = item.messageId || item.id
+    const startedAt = Number(data.startedAt || item.startedAt || 0)
+    const finishedAt = Number(data.finishedAt || item.finishedAt || 0)
+    const request = {
+      id: `request_${id}`,
+      status: 'failed',
+      startedAt,
+      finishedAt,
+      durationMs: Number(data.durationMs || (finishedAt > startedAt ? finishedAt - startedAt : 0)),
+      firstTokenAt: 0,
+      firstTokenMs: 0,
+      provider: data.provider || '',
+      model: data.model || '',
+      input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+      error: data.error || item.content || '模型请求失败',
+    }
+    return {
+      id,
+      role: 'assistant',
+      content: '',
+      reasoning: '',
+      tools: [],
+      requests: [request],
+      steps: [{ type: 'request', requestId: request.id }],
+      startedAt,
+      finishedAt,
+      failedRequest: true,
+    }
+  }
   const parts = partList(item)
   // 只保留界面真正会用到的字段；不要整条 structuredClone，旧格式里的 parts 会留下大份副本。
   const message = {
