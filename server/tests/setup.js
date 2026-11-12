@@ -9,6 +9,14 @@ import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+const serverDir = join(import.meta.dir, '..')
+Bun.plugin({
+    name: 'agent-resolver-preload',
+    setup(build) {
+        build.onResolve({ filter: /^@agent\// }, args => ({ path: join(serverDir, args.path.slice('@agent/'.length)) }))
+    },
+})
+
 const root = await mkdtemp(join(tmpdir(), 'agent-test-home-'))
 process.env.AGENT_HOME = root
 

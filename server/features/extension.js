@@ -50,7 +50,10 @@ let adminOps = null           // Admin.OPS，由 load() 传入；feature 层不 
 const resolverRoots = []
 
 // --- 让扩展能用 @agent/ 和框架的依赖包；只管扩展目录里发起的 import ---
-const inside = (file, root) => file.toLowerCase().startsWith((root + sep).toLowerCase())
+const inside = (file, root) => {
+    const raw = file.startsWith('file://') ? fileURLToPath(file.replace(/\?.*$/, '')) : file
+    return raw.toLowerCase().startsWith((root + sep).toLowerCase())
+}
 let resolverReady = false
 const installResolver = () => {
     if (resolverReady) return

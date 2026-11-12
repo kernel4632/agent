@@ -143,9 +143,10 @@ const build = async ({ sessionId, onPermission, saveSession, mcp }) => {
     }
 }
 
+const adopt = tools => Agent.tool.adopt(tools)
+const merge = (a, b) => Agent.tool.merge(a, b)
 // --- 当前 MCP 配置版本；由调用方传入 mcp 对象调用 ---
 const revision = mcp => mcp?.revision?.() || 0
-
 // --- 工具真正执行之前：交给工具自己的快照钩子 ---
 const snapshot = async call => {
     await ready()
@@ -181,6 +182,8 @@ export default {
     KINDS,
     list,
     build,
+    adopt,
+    merge,
     revision,
     ready,
     kind,
