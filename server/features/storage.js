@@ -5,7 +5,7 @@
 调用示例：
   await Storage.prepare()                 // 服务启动时最先调用
   Storage.status()                        // 当前路径、待迁移路径和错误
-  await Storage.setPath('D:\\AgentSessions') // 写入待迁移标记，重启后执行
+  await Storage.move('D:\\AgentSessions')    // 写入待迁移标记，重启后执行
   await Storage.cancel()                  // 取消尚未执行的迁移
 */
 import { access, cp, mkdir, readdir, rm, rename, stat } from 'node:fs/promises'
@@ -137,7 +137,7 @@ const status = async () => {
     }
 }
 
-const setPath = async value => {
+const move = async value => {
     if (process.env.AGENT_SESSIONS) throw fail(409, '会话目录由 AGENT_SESSIONS 环境变量控制，不能在界面修改')
     const requested = String(value || '').trim()
     if (!requested) throw fail(400, '请填写会话数据目录')
@@ -167,4 +167,4 @@ const cancel = async () => {
     return { ok: true }
 }
 
-export default { prepare, status, setPath, cancel, finishMove, writePointer }
+export default { prepare, status, move, cancel }

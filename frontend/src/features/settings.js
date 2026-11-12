@@ -15,7 +15,7 @@ import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { Notice } from '../utils/notice.js'
 import { Appearance } from '../utils/appearance.js'
-import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP } from '../defaults.js'
+import { DEFAULT_CONTEXT, DEFAULT_CONTEXT_KEEP, DEFAULT_RETRY } from '../defaults.js'
 
 // --- 加载完整设置数据 ---
 async function load() {
@@ -98,6 +98,7 @@ function apply(raw, catalog = [], catalogKinds = [], meta = { models: [] }) {
     compact: raw.compact,
     review: raw.review || { enabled: false, policy: '', timeout: 15000 },
     contextKeep: raw.contextKeep || { ...DEFAULT_CONTEXT_KEEP },
+    retry: raw.retry || { ...DEFAULT_RETRY },
     mcp: mcpList(raw),
     prompt: raw.prompt?.system || '',
     appearance: store.config.appearance,
@@ -117,6 +118,7 @@ function backendSnapshot(draft) {
     models: draft.models,
     compact: draft.compact,
     contextKeep: draft.contextKeep,
+    retry: draft.retry,
     mcp: draft.mcp,
     review: draft.review,
   })
@@ -170,6 +172,7 @@ function open() {
     compact: store.config.compact,
     review: store.config.review,
     contextKeep: store.config.contextKeep,
+    retry: store.config.retry,
     appearance: store.config.appearance,
   })
   initialBackendDraft = backendSnapshot(store.settings.draft)
@@ -223,6 +226,7 @@ function configPayload(draft) {
     compact: draft.compact,
     review: draft.review,
     contextKeep: draft.contextKeep,
+    retry: draft.retry,
   }
 }
 

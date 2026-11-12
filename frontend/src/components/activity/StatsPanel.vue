@@ -4,7 +4,7 @@
 调用示例：<StatsPanel :stats="stats" />。
 -->
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed } from 'vue'
 import Menu from '../../ui/Menu.vue'
 import RingProgress from '../../ui/RingProgress.vue'
 import Icon from '../../ui/Icon.vue'
@@ -57,51 +57,12 @@ const formatTokens = (value, isApproximate = false) => {
   return `${prefix}${number}`
 }
 const live = computed(() => props.stats.live || {})
-const liveNow = ref(Date.now())
-let liveTimer = null
-watch(() => Boolean(live.value.running), running => {
-  if (liveTimer) { window.clearInterval(liveTimer); liveTimer = null }
-  if (!running) return
-  liveNow.value = Date.now()
-  liveTimer = window.setInterval(() => { liveNow.value = Date.now() }, 500)
-}, { immediate: true })
-onBeforeUnmount(() => { if (liveTimer) window.clearInterval(liveTimer) })
-// 实时速度用最近两秒的估算输出做滑动窗口；首字刚到时不拿极小分母硬算，
-// 先沿用上一次真实请求的速度，避免瞬间冲出一千多 tok/s。
-const liveSamples = ref([])
-let lastLiveOutput = -1
-watch([() => live.value.running, () => Number(live.value.firstTokenAt || 0), () => Number(live.value.startedAt || 0)], () => {
-  liveSamples.value = []
-  lastLiveOutput = -1
-})
-watch([() => Boolean(live.value.running), () => Number(live.value.output || 0), liveNow], ([running, output]) => {
-  if (!running || output <= 0) {
-    liveSamples.value = []
-    lastLiveOutput = -1
-    return
-  }
-  if (output < lastLiveOutput) liveSamples.value = []
-  lastLiveOutput = output
-  const at = liveNow.value
-  liveSamples.value = [...liveSamples.value.filter(sample => at - sample.at <= 2000), { at, tokens: output }]
-})
-const liveRate = computed(() => {
-  if (!live.value.running || liveSamples.value.length < 2) return 0
-  const first = liveSamples.value[0]
-  const last = liveSamples.value.at(-1)
-  const seconds = (last.at - first.at) / 1000
-  if (seconds < 0.8) return 0
-  return Math.max(0, (last.tokens - first.tokens) / seconds)
-})
-// 外显速度：生成中用最近两秒的滑动窗口；结束后用最后一次真实请求。
+// 实时速度不猜：请求进行中只沿用该模型最近几轮的平均值，完成后才把本轮加进平均。
 const speed = computed(() => {
-  if (live.value.running && liveRate.value > 0) return `${Math.round(liveRate.value)} tok/s`
   const latestTps = Number(live.value.tps || 0)
   if (latestTps > 0) return `${Math.round(latestTps)} tok/s`
-  // 旧会话或最后一笔没有耗时数据时，至少保留一个聚合速度，不能让速度项直接消失。
-  const output = Number(usage.value.output || 0)
-  const duration = Number(usage.value.durationMs || 0)
-  return output > 0 && duration > 0 ? `${Math.round(output / (duration / 1000))} tok/s` : ''
+  // 新口径的请求如果还没有任何已完成样本，显示 —，不能用整次请求耗时伪造速度。
+  return ''
 })
 const ringClass = computed(() => ({
   'is-warn': percent.value >= 70 && percent.value < 90,
@@ -125,7 +86,7 @@ const liveHighlight = computed(() => {
     provider,
     model,
     lastFirstTokenMs: startedAt ? Math.max(0, firstTokenAt - startedAt) : previous?.lastFirstTokenMs || 0,
-    lastTps: liveRate.value || previous?.lastTps || 0,
+    lastTps: previous?.recentTps || previous?.lastTps || 0,
     lastAt: Number.MAX_SAFE_INTEGER,
     live: true,
   }
@@ -267,7 +228,7 @@ const tpsTone = tps => !tps ? 'is-muted' : tps >= 30 ? 'is-fast' : tps >= 10 ? '
                     <span class="stats-panel__speed-model-path"><span>{{ group.provider }}</span><i>/</i><strong>{{ group.model }}</strong></span>
                   </td>
                   <td class="stats-panel__speed-first" :class="firstTone(group.lastFirstTokenMs)">{{ formatDuration(group.lastFirstTokenMs) }}</td>
-                  <td class="stats-panel__speed-tps" :class="tpsTone(group.lastTps)"><span class="stats-panel__speed-tps-inner"><span>{{ group.lastTps ? Math.round(group.lastTps) : '—' }}</span><small>tok/s</small></span></td>
+                  <td class="stats-panel__speed-tps" :class="tpsTone(group.recentTps || group.lastTps)"><span class="stats-panel__speed-tps-inner"><span>{{ (group.recentTps || group.lastTps) ? Math.round(group.recentTps || group.lastTps) : '—' }}</span><small>tok/s</small></span></td>
                 </tr>
               </tbody>
             </table>

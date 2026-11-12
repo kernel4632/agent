@@ -6,32 +6,23 @@
  * 用哪个模型、带哪段提示词、给哪些工具、这次会话的权限和设置。
  * 默认模型按任务分开：对话、压缩、标题、子任务各用 config.models 里那一个；
  * 没配的那几项跟会话自己的模型走，压缩交给 core 用主连接。
- * 审批、工具、历史和上下文由命令层在启动时 bind；本文件不 import 任何 feature。
- *
- * agent-core 的消费点目前有三处，各自只取需要的那块能力：
- *   agent.js  create()          会话装配：历史 + 工具表 + 审批回调的完整循环
- *   title.js  llm.chat()        一次性的单发请求（起标题），不走会话装配
- *   tool.js   tool.adopt()      把本仓库的工具对象适配成 core 认识的工具表
- * 新增 core 能力时先看这里能不能长出来，不要随手多一个直接消费点。
+ * 会话装配所需的历史、工具、审批、上下文由调用方传入；本文件不 import 任何 feature。
  *
  * 调用示例：
- *   Agent.bind({ history, tool, approval, context })   // 命令层启动时注入
- *   const agent = await Agent.get({ sessionId })
- *   const settings = await Agent.readSettings(sessionId)
- *   await Agent.saveSettings({ sessionId, reasoning: 'high' })
- *   const config = await Agent.resolve({ session })
+ *   const agent = await Agent.get({ sessionId, assemble })
+ *   const settings = Agent.settings(session)   // session 已加载
+ *   const config = await Agent.resolve({ session, settings, context })   // context 由调用方传入
  */
 
 import AgentCore from '@kernel4632/agent-core'
 import store from '../store.js'
 import fail from '../utils/fail.js'
+import ContextRatios from '../utils/context-ratios.js'
 
 // 运行中的 Agent 实例：不能写进 store，也不能序列化。
 const agents = new Map()
 
-// 命令层在启动时注入 history/tool/approval/context；本文件不 import 任何 feature。
-let services = {}
-const bind = value => { services = value }
+// 会话装配需要的兄弟能力由调用方传入；本文件不 import 任何 feature。
 
 // =======================================================================
 //  模型连接
@@ -90,6 +81,7 @@ const connection = ({ provider: name, model }) => {
         baseURL: provider.baseURL || '',
         apiKey: provider.apiKey || '',
         protocol: provider.protocol === 'openai-compatible' ? 'chat' : provider.protocol || 'chat',
+        stream: provider.stream !== false,
         provider: { headers, body: provider.body || {} },
     }
 }
@@ -101,9 +93,6 @@ const configured = target => {
     return provider ? { provider: provider.name, model: target.model } : null
 }
 
-// --- 某件事用哪个模型：先看 models 里那一项，再退到调用方给的连接（会话自己的模型），最后退到第一个可用模型 ---
-// 标题、压缩和工具审核各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
-const taskModel = (task, fallback) => configured(store.config.models?.[task]) || configured(fallback) || defaultModel()
 const firstModel = () => {
     const provider = (store.config.providers || []).find(item => item.enabled !== false)
     const model = provider?.models?.[0]
@@ -113,8 +102,13 @@ const firstModel = () => {
     }
 }
 
-// --- 新会话默认用 models.chat；没配或配置失效时回退到第一个模型 ---
-const defaultModel = () => configured(store.config.models?.chat) || firstModel()
+// --- 某件事用哪个模型 ---
+// 不传 task：新会话默认用 models.chat，没配或失效时回退到第一个模型。
+// 传 task：先看 models[task]，再退到调用方给的连接（会话自己的模型），最后退到默认模型。
+// 标题和压缩各自可以另配模型；子任务模型（models.task）等子智能体功能恢复时再接上消费。
+const model = (task, fallback) => task
+    ? configured(store.config.models?.[task]) || configured(fallback) || model()
+    : configured(store.config.models?.chat) || firstModel()
 
 // --- 把配置翻成 agent-core 认的字段 ---
 const hasCapability = (profile, name) => profile.some(item => {
@@ -129,36 +123,22 @@ const hasCapability = (profile, name) => profile.some(item => {
     return false
 })
 
-// --- 恢复续跑的尝试上限 ---
-// 恢复是后台自动行为，没人看着：provider 挂了、密钥过期、地址错了，无限重试会一直烧下去，
-// 而且任务永远不结束、运行标记永远不清，下次重启又续一次。给恢复路径一个总时限和次数上限，
-// 到点就把错误交给 finishFailure（发 agent-finish.error 并清标记），用户自己发的消息不受影响。
-const RECOVERY_RETRY_ELAPSED = 120000
-const RECOVERY_RETRY_TRIES = 3
-// 400/401/403 这类请求错误重试也不会变好，尤其历史协议/字段缺失会无限重试；
-// 这类错误只展示一次，交给用户或上层修复配置/历史。
-const noRetryClientErrors = error => {
-    if (error?.kind === 'request' || error?.kind === 'auth') return false
-    const status = Number(error?.statusCode || 0)
-    if (status >= 400 && status < 500 && status !== 408 && status !== 429) return false
-    return true
-}
-// core 的 retry 可以传一个“要不要重试这个错误”的过滤函数；这里按次数收口。
-const recoveryRetry = () => {
-    let tries = 0
-    return error => {
-        tries += 1
-        return tries < RECOVERY_RETRY_TRIES
-    }
+// --- 重试策略 ---
+// 默认交给 agent-core：除取消和上下文超长外无限重试。只有用户显式配置
+// retry.maxTries 时才传 core 原生的 retryMaxTries；0 表示不重试。
+const retryTries = () => {
+    const maxTries = store.config.retry?.maxTries
+    return Number.isInteger(maxTries) ? maxTries : undefined
 }
 
-const resolveFor = async ({ session, settings, target, recovery = false }) => {
+const resolveFor = async ({ session, settings, target, recovery = false, context }) => {
     const chosen = target || session.model
     const linked = connection(chosen)
-    const info = services.context.modelInfo(chosen)
+    const info = context.info(chosen)
     const profile = info.capabilities || []
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
+    const maxTries = retryTries()
     const generation = {}
     for (const field of ['temperature', 'topP', 'seed']) {
         if (profileModel?.[field] !== undefined) generation[field] = profileModel[field]
@@ -191,18 +171,14 @@ const resolveFor = async ({ session, settings, target, recovery = false }) => {
         },
         // 图片随历史常驻：没开 image 能力的模型每次请求前由 core 剔除图片块，开了的照常发送。
         mediaFallback: 'strip',
-        // 重试由 agent-core 统一处理：无限次数、5s 起指数退避、总时长不限。
-        // 这里只把单次退避上限从 core 0.30.2 的默认 10 分钟收紧到 120s，其余全用 core 默认。
-        retryMaxDelay: 120000,
-        // 恢复续跑必须封顶：provider 挂了或配置丢失时，无限重试会变成一个永不结束、
-        // 永不清运行标记的空转任务，每次重启又续一次。只对恢复路径设总时限和次数上限，
-        // 用户自己发的消息仍用 core 默认的无限重试，不因慢供应商而失败。
-        ...(recovery ? { retryMaxElapsed: RECOVERY_RETRY_ELAPSED, retry: recoveryRetry } : { retry: noRetryClientErrors }),
+        // 重试完全继承 agent-core：默认无限次数、5s 起指数退避、单次退避上限 600s；
+        // 只有 retry.maxTries 显式配置时才用 core 原生的 retryMaxTries 收口。
+        ...(maxTries !== undefined ? { retryMaxTries: maxTries } : {}),
         // 压缩后保留多少总结之前的原文；四个值都由 config 层补默认值，core 也认同名配置。
         // firstTurns = 0 就是不要最初那几轮原始措辞，只信总结 + 最近现场。
         contextKeep: { ...store.config.contextKeep },
         // 完整 system = 用户提示词 + 当前目录的项目规则（AGENTS.md）+ 压缩输出规范。
-        system: await services.context.systemFor({ config: store.config, cwd: session?.cwd }),
+        system: await context.system({ config: store.config, cwd: session?.cwd }),
         // 连续 3 轮没调用任何工具才结束；默认提示词要求用 attempt_completion 收尾，
         // 中间会插一条提醒，避免模型漏调结束工具就直接把文字当成结果（参考 Roo Code 的连续错误上限）。
         noToolRounds: 3,
@@ -222,24 +198,24 @@ const threshold = () => {
 }
 
 // --- 真实试一次模型请求 ---
-const testModel = async ({ provider: name, model }) => {
+const test = async ({ provider: name, model: id, context }) => {
     if (name) {
         const provider = (store.config.providers || []).find(item => item.name === name)
         if (!provider) throw fail(400, `Provider not found: ${name}`)
         const first = provider.models?.[0]
-        const chosen = model || first?.id
+        const chosen = id || first?.id
         if (!chosen) throw fail(400, `Provider has no model to test: ${name}`)
-        return attempt({ provider: name, model: chosen })
+        return attempt({ provider: name, model: chosen }, context)
     }
     const chosen = firstModel()
     if (!chosen.provider || !chosen.model) throw fail(400, 'no provider or model configured to test')
-    return attempt(chosen)
+    return attempt(chosen, context)
 }
 
 // --- 试一次真实请求 ---
-const attempt = async chosen => {
+const attempt = async (chosen, context) => {
     const result = await AgentCore.llm.chat({
-        ...await resolveFor({ session: { model: chosen }, settings: defaultSettings() }),
+        ...await resolveFor({ session: { model: chosen }, settings: defaults(), context }),
         messages: [{ role: 'user', content: 'hi' }],
         stream: false,
     })
@@ -250,89 +226,53 @@ const attempt = async chosen => {
 //  会话设置
 // =======================================================================
 
-const defaultSettings = () => ({
+const defaults = () => ({
     reasoning: 'auto',
 })
 
 // --- 收一份用户提交的设置，坏值保持原样或忽略 ---
-const normalizeSettings = (input = {}, base = defaultSettings()) => {
+const normalize = (input = {}, base = defaults()) => {
     const rawReasoning = input.reasoning === undefined ? base.reasoning : input.reasoning
     return {
         reasoning: REASONING_LEVELS.includes(rawReasoning) ? rawReasoning : base.reasoning,
     }
 }
 
-// --- 读设置；没存过时给默认值 ---
-const readSettings = async sessionId => {
-    const session = await services.history.load(sessionId)
-    return normalizeSettings(session.settings, defaultSettings())
-}
-
-/**
- * 改设置，只改点名的那几项。
- * 运行中改思考强度直接更新活 Agent 的 config，下一笔请求生效，不打断当前运行。
- */
-const saveSettings = async ({ sessionId, ...change }) => {
-    const current = normalizeSettings((await services.history.load(sessionId)).settings, defaultSettings())
-    const saved = normalizeSettings(change, current)
-
-    await services.history.saveSettings({ sessionId, settings: saved })
-    if (change.reasoning === undefined || change.reasoning === current.reasoning) return saved
-
-    const agent = agents.get(sessionId)
-    if (agent?.running) {
-        // core 0.30 每轮重新读 agent.config；正在跑的请求不打断，下一轮换新强度。
-        const session = await services.history.load(sessionId)
-        Object.assign(agent.config, await resolveFor({ session, settings: saved }))
-        return saved
-    }
-
-    // 历史原样交回去，不丢消息。
-    agents.delete(sessionId)
-    await create({ sessionId })
-    return saved
-}
+// --- 读设置：传入已加载的会话，不再自己加载历史 ---
+const settings = session => normalize(session.settings, defaults())
 
 // =======================================================================
 //  装配 Agent
 // =======================================================================
 
 // --- 把最新的 system（含项目规则）刷进一个已建好的 Agent ---
-const refreshSystem = async (instance, session) => {
+const refreshSystem = async (instance, session, context) => {
     // 测试注入的假实例没有 config；没有就不刷，下次真装配时自然会读到规则。
     if (!instance?.config) return
-    instance.config.system = await services.context.systemFor({ config: store.config, cwd: session.cwd })
+    instance.config.system = await context.system({ config: store.config, cwd: session.cwd })
 }
 
 // --- 为一个会话建出 Agent 实例 ---
-const create = async ({ sessionId }) => {
-    const session = await services.history.load(sessionId)                     // 先把会话元数据读进内存
-    const settings = await readSettings(sessionId)                    // 这条会话自己的思考强度
-    const config = await resolveFor({ session, settings })                  // 把配置翻成 agent-core 认的连接字段
-    const built = await services.tool.build({
-        sessionId,
-        onPermission: services.approval.check,                                 // 工具执行前回到同一个审批关口
-        saveSession: () => services.history.save(sessionId),                   // 工具改了会话（比如 cwd）后能立刻落盘
-    })
-    // Tool.build 返回工具快照和 MCP 租约；兼容旧的纯数组返回值。
-    const tools = Array.isArray(built) ? built : built.tools
+// 所有装配材料由调用方传入；本函数只做实例化和缓存。
+const create = async ({ sessionId, session, settings, tools, mcpRevision: rev, release, onPermission, saveSession, context }) => {
+    const config = await resolveFor({ session, settings, context })
+    const rememberedRatio = await ContextRatios.read({ provider: config.providerName, model: config.model })
+    if (rememberedRatio) config.contextRatio = rememberedRatio.ratio
     let instance
     try {
-        // 审批只依赖 config 和工具宿主，不再 import agent；这里静态引入不会成环。
         instance = AgentCore.create({
             id: sessionId,
             history: session.history.messages.map(record => record.message),
             config,
             tools,
-            callbacks: { onPermission: services.approval.check },
+            callbacks: { onPermission },
         })
-        // 记下装配时的目录：cwd 工具移动之后，下一次运行要按新目录重建工具表。
         instance.cwd = session.cwd
-        instance.mcpRevision = Array.isArray(built) ? 0 : built.mcpRevision
-        instance.releaseTools = Array.isArray(built) ? null : built.release
-        await refreshSystem(instance, session)                   // 项目规则按装配那一刻的目录读一次
+        instance.mcpRevision = rev ?? 0
+        instance.releaseTools = release || null
+        await refreshSystem(instance, session, context)
     } catch (error) {
-        await Promise.resolve(built?.release?.()).catch(() => {})
+        await Promise.resolve(release?.()).catch(() => {})
         throw error
     }
     agents.set(sessionId, instance)
@@ -347,47 +287,44 @@ const dispose = async instance => {
     await Promise.resolve(release()).catch(() => {})
 }
 
-// --- 获取或创建 Agent ---
-const getAgent = async ({ sessionId }) => {
-    const session = await services.history.load(sessionId)
+// --- 获取或创建 Agent，装配材料由 assemble 回调提供 ---
+// assemble 是 async () => { session, settings, tools, mcpRevision, release, onPermission, saveSession, context }
+const getAgent = async ({ sessionId, assemble }) => {
     const current = agents.get(sessionId)
-    const revision = services.tool.mcpRevision?.() || 0
+    const { session, context } = await assemble.peek()         // 只加载元数据，不装配工具
+    const revision = assemble.mcpRevision()
     if (current) {
-        // 配置变化时只让空闲 Agent 重建；运行中的回合继续用旧快照，结束再收敛。
         const stale = Number.isFinite(current.mcpRevision) && current.mcpRevision !== revision
         if (stale && current.running) {
             current.stale = true
-            await refreshSystem(current, session)
+            await refreshSystem(current, session, context)
             return current
         }
         if (stale) {
             agents.delete(sessionId)
             await dispose(current)
-            return create({ sessionId })
+            return create({ sessionId, ...await assemble.build() })
         }
         if (!current.running && current.cwd !== undefined && current.cwd !== session.cwd) {
             agents.delete(sessionId)
             await dispose(current)
-            return create({ sessionId })
+            return create({ sessionId, ...await assemble.build() })
         }
-        // 空闲时补上别的入口刚追加的消息；回退后变短的历史由 Session.read 负责交回。
         if (!current.running) {
-            const stored = services.history.get({ sessionId })
+            const stored = assemble.getHistory(sessionId)
             if (stored.length > current.history.length) current.history = stored
         }
-        // 项目规则可能刚被改过；每次取实例都刷一次 system，缓存的旧内容不会带过下一轮。
-        await refreshSystem(current, session)
+        await refreshSystem(current, session, context)
         return current
     }
-    return create({ sessionId })
+    return create({ sessionId, ...await assemble.build() })
 }
 
 // --- 回合结束后回收已经过期的 Agent，避免旧 MCP 连接一直挂着 ---
-const settle = async sessionId => {
+const settle = async (sessionId, mcpRevision) => {
     const current = agents.get(sessionId)
     if (!current || current.running) return
-    const revision = services.tool.mcpRevision?.() || 0
-    if (!Number.isFinite(current.mcpRevision) || current.mcpRevision === revision) return
+    if (!Number.isFinite(current.mcpRevision) || current.mcpRevision === mcpRevision) return
     agents.delete(sessionId)
     await dispose(current)
 }
@@ -396,7 +333,7 @@ const settle = async sessionId => {
 const runtime = () => agents
 
 // --- 正在跑的会话数量 ---
-const runningCount = () => [...agents.values()].filter(agent => agent.running).length
+const count = () => [...agents.values()].filter(agent => agent.running).length
 
 // --- 供应商/模型切换后重建 ---
 const invalidate = sessionId => {
@@ -405,9 +342,17 @@ const invalidate = sessionId => {
     void dispose(current)
 }
 
+const historyError = payload => AgentCore.history.error(payload)
+const estimateContext = ({ history, system = '', budget, ratio }) => AgentCore.context.build({
+    history,
+    system,
+    ...(budget ? { budget } : {}),
+    ...(Number.isFinite(Number(ratio)) && Number(ratio) > 0 ? { ratio: Number(ratio) } : {}),
+}).token
+
 export default {
-    defaultSettings, normalizeSettings, readSettings, saveSettings,
-    connection, configured, firstModel, defaultModel, taskModel, resolve: resolveFor, testModel,
-    create, get: getAgent, runtime, runningCount, invalidate, settle, bind,
+    defaults, normalize, settings,
+    connection, model, resolve: resolveFor, test,
+    create, get: getAgent, runtime, count, invalidate, settle, historyError, estimateContext,
     REASONING_LEVELS, threshold,
 }

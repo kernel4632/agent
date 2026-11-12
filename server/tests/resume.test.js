@@ -143,23 +143,30 @@ describe('继续被中断的助手', () => {
 
     test('手动压缩返回文本并把 compact-finish 用量写入 compact 历史', async () => {
         await withHome(async () => {
-            const sessionId = await setup()
-            const agent = {
-                history: [{ id: 'u1', role: 'user', content: text('已有记录') }],
-                config: { baseURL: 'http://fixture/v1', model: 'fixture' },
-                running: null,
-                async compact({ onCompact }) {
-                    await onCompact({ type: 'compact-start', messages: [] })
-                    await onCompact({ type: 'compact-finish', content: '手动总结', usage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 } })
-                    agent.history.push(AgentCore.history.compact({ id: 'c1', content: '手动总结' }))
-                    return '手动总结'
-                },
+            // compact 现在直接走静态路径，不依赖 runtime Agent 实例。
+            const server = Bun.serve({
+                port: 0,
+                fetch: () => Response.json({
+                    id: 'fake', object: 'chat.completion', created: Date.now(), model: 'fixture',
+                    choices: [{ index: 0, message: { role: 'assistant', content: '手动总结' }, finish_reason: 'stop' }],
+                    usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 },
+                }),
+            })
+            try {
+                // 必须先设置带 baseURL 的 provider，再建会话， compact 才能拿到连接配置。
+                await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                const { sessionId } = await Session.create({ title: '压缩测试' })
+                await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('已有记录') } })
+                await History.save(sessionId)
+                const result = await Session.compact({ sessionId })
+                expect(result.content).toBe('手动总结')
+                const compact = result.history.find(message => message.compact)
+                expect(compact).toBeDefined()
+                expect(compact.usage).toMatchObject({ input: 4, output: 2, total: 6 })
+                expect(compact.compact).toBe(true)
+            } finally {
+                server.stop(true)
             }
-            Agent.runtime().set(sessionId, agent)
-            const result = await Session.compact({ sessionId })
-            expect(result.content).toBe('手动总结')
-            expect(result.history.find(message => message.id === 'c1').usage).toMatchObject({ input: 4, output: 2, total: 6 })
-            expect(result.history.find(message => message.id === 'c1').compact).toBe(true)
         })
     })
 
@@ -468,20 +475,42 @@ describe('继续被中断的助手', () => {
         })
     })
 
-    test('任务在跑或最后一条不是助手回复时拒绝继续', async () => {
+    test('任务在跑时拒绝继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
-            Agent.runtime().set(sessionId, {
+            const running = {
+                history: [{ id: 'a1', role: 'assistant', content: text('做到一半') }],
+                running: { task: Promise.resolve() },
+                stop: async () => ({ ok: true }),
+            }
+            Agent.runtime().set(sessionId, running)
+            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+        })
+    })
+
+    test('最后一条是用户消息时用内部续跑提示继续，不写入第二个用户消息', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            const agent = {
                 history: [{ id: 'u1', role: 'user', content: text('开始') }],
                 running: null,
                 stop: async () => ({ ok: true }),
-            })
-            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+                send(options) {
+                    agent.history.push({ id: 'internal-user', role: 'user', content: text(options.input) })
+                    return options.callbacks.onStart().then(() => {
+                        agent.history.push({ id: 'a1', role: 'assistant', content: text('继续完成') })
+                        return { reason: 'finished' }
+                    })
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
 
-            const running = Agent.runtime().get(sessionId)
-            running.history = [{ id: 'a1', role: 'assistant', content: text('做到一半') }]
-            running.running = { task: Promise.resolve() }
-            await expect(Chat.resume({ sessionId })).rejects.toMatchObject({ status: 409 })
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            await waitForHistory(sessionId, 2)
+            const history = History.get({ sessionId })
+            expect(history.map(message => message.role)).toEqual(['user', 'assistant'])
+            expect(history.map(message => message.id)).toEqual(['u1', 'a1'])
+            expect(JSON.stringify(history)).not.toContain('System notice')
         })
     })
 
@@ -669,18 +698,18 @@ describe('继续助手的 HTTP 接口', () => {
         })
     })
 
-    test('最后一条不是助手回复时返回 409', async () => {
+    test('空历史不能继续', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             Agent.runtime().set(sessionId, {
-                history: [{ id: 'u1', role: 'user', content: text('还没回答') }],
+                history: [],
                 running: null,
                 stop: async () => ({ ok: true }),
             })
 
             const response = await resumeRequest(sessionId)
             expect(response.status).toBe(409)
-            expect(await response.json()).toMatchObject({ error: expect.stringContaining('助手') })
+            expect(await response.json()).toMatchObject({ error: expect.stringContaining('不能继续') })
         })
     })
 
@@ -735,33 +764,6 @@ describe('继续助手的 HTTP 接口', () => {
             await waitForHistory(sessionId, 2)
             expect(History.get({ sessionId }).map(message => message.id)).toEqual(['a1', 'a2'])
             await SSE.close({ id: sessionId })
-        })
-    })
-
-    test('用户可以按后续对话重新生成标题，模型失败时用第一句话兜底', async () => {
-        await withHome(async () => {
-            await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }] })
-            const { sessionId } = await Session.create({ title: '旧标题' })
-            await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('帮我修一下登录') } })
-            await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('好的') } })
-            await History.save(sessionId)
-
-            const original = Title.generate
-            Title.generate = async () => '修复登录问题'
-            try {
-                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '修复登录问题' })
-            } finally {
-                Title.generate = original
-            }
-
-            Title.generate = async () => null
-            try {
-                expect(await Session.generateTitle({ sessionId })).toEqual({ title: '帮我修一下登录' })
-            } finally {
-                Title.generate = original
-            }
-
-            await expect(Session.generateTitle({ sessionId: 'missing' })).rejects.toMatchObject({ status: 404 })
         })
     })
 

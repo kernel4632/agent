@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupMessageTurns } from "../src/features/turns.js"
+import { canContinueSession, groupMessageTurns } from "../src/features/turns.js"
 
 const user = id => ({ id, role: 'user', content: id })
 const assistant = id => ({ id, role: 'assistant', content: id })
@@ -42,4 +42,38 @@ test('consecutive user messages are not merged', () => {
 test('empty history produces no turns', () => {
   assert.deepEqual(groupMessageTurns([]), [])
   assert.deepEqual(groupMessageTurns(), [])
+})
+
+test('a trailing tool result does not hide the unfinished assistant turn', () => {
+  const session = {
+    status: 'idle',
+    messages: [
+      user('u1'),
+      assistant('a1'),
+      { id: 't1', role: 'tool', content: [] },
+    ],
+  }
+  assert.equal(canContinueSession(session), true)
+})
+
+test('a trailing local error bubble does not hide a saved unfinished assistant', () => {
+  const session = {
+    status: 'idle',
+    messages: [
+      user('u1'),
+      assistant('a1'),
+      { id: 'error_local', role: 'assistant', content: '', error: 'EBADF' },
+    ],
+  }
+  assert.equal(canContinueSession(session), true)
+
+  assert.equal(canContinueSession({
+    status: 'idle',
+    messages: [user('u1'), { id: 'error_local', role: 'assistant', content: '', error: 'EBADF' }],
+  }), true)
+
+  assert.equal(canContinueSession({
+    status: 'idle',
+    messages: [{ id: 'error_local', role: 'assistant', content: '', error: 'EBADF' }],
+  }), false)
 })

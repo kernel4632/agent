@@ -17,9 +17,23 @@ test('estimateTokens counts Chinese and English in the same text', () => {
   assert.ok(estimateTokens('你好世界你好世界你好世界你好世界') > estimateTokens('abcdefghijklmnopqrst'))
 })
 
+test('segmented history with an empty current segment still shows stats', () => {
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 0,
+    contextEstimate: { tokens: 800, budget: 1000 },
+    historyStats: { input: 900, output: 100, total: 1000, requests: 2, models: [] },
+    messages: [],
+  }
+  const stats = sessionStats(session)
+  assert.ok(stats)
+  assert.equal(stats.context.used, 800)
+  assert.equal(stats.usage.total, 1000)
+})
+
 test('real request usage wins over estimation', () => {
   const request = {
-    input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, durationMs: 800,
+    input: 30, output: 20, cache: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800,
     provider: 'Test Provider', model: 'test-model', startedAt: 1, finishedAt: 801,
   }
   const session = {
@@ -42,20 +56,67 @@ test('real request usage wins over estimation', () => {
   assert.equal(stats.usage.durationMs, 800)
   assert.deepEqual(stats.series, [{ input: 30, output: 20, cache: 10 }])
   assert.equal(stats.live.running, false)
-  // 外显速度按最后一次请求的实际生成时间算，不是会话平均。
-  assert.ok(Math.abs(stats.live.tps - 100 / 3) < 0.01)
+  // 外显速度按 output / 整次请求耗时算。
+  assert.ok(Math.abs(stats.live.tps - 25) < 0.01)
   assert.deepEqual(stats.models, [{
     provider: 'Test Provider',
     model: 'test-model',
     count: 1,
     averageFirstTokenMs: 200,
     averageDurationMs: 800,
-    averageTps: 100 / 3,
+    averageTps: 25,
+    recentTps: 25,
     lastFirstTokenMs: 200,
     lastDurationMs: 800,
-    lastTps: 100 / 3,
+    lastTps: 25,
     lastAt: 801,
   }])
+})
+
+test('frontend raw counters do not override usage output', () => {
+  const request = {
+    input: 30, output: 100, reasoning: 60, rawOutput: 20, rawTps: 42, generationMs: 800,
+    durationMs: 800, firstTokenMs: 200, provider: 'Test Provider', model: 'test-model',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('你好'), assistant('好的', { requests: [request], request })],
+  }
+  const stats = sessionStats(session)
+  assert.ok(Math.abs(stats.models[0].lastTps - 100 / 0.8) < 0.01)
+  assert.ok(Math.abs(stats.models[0].averageTps - 100 / 0.8) < 0.01)
+})
+
+test('tps becomes zero when there is no duration', () => {
+  const request = {
+    input: 30, output: 50, reasoning: 40, durationMs: 0, firstTokenMs: 0,
+    provider: 'Test Provider', model: 'test-model',
+  }
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 30,
+    messages: [user('你好'), assistant('好的', { requests: [request], request })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 0)
+  assert.equal(stats.live.tps, 0)
+})
+
+test('model tps averages the most recent completed rounds', () => {
+  const values = [10, 20, 30, 40, 50, 60]
+  const requests = values.map((value, index) => ({
+    input: 10, output: value, durationMs: 1000, firstTokenMs: 0,
+    provider: 'Test Provider', model: 'test-model', finishedAt: index,
+  }))
+  const session = {
+    contextLimit: 1000,
+    contextTokens: 10,
+    messages: [user('你好'), assistant('好的', { requests, request: requests.at(-1) })],
+  }
+  const stats = sessionStats(session)
+  assert.equal(stats.models[0].lastTps, 60)
+  assert.equal(stats.models[0].recentTps, 40)
 })
 
 test('content composition separates user, thinking, reply and tool output', () => {
@@ -118,8 +179,8 @@ test('streaming output exposes a live speed snapshot', () => {
   assert.ok(stats.live.output > 0)
 })
 
-test('speed groups by provider and model, slowest first', () => {  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
-  const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
+test('speed groups by provider and model, slowest first', () => {  const fast = { input: 10, output: 10, total: 20, firstTokenMs: 300, generationMs: 1000, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const slow = { input: 10, output: 10, total: 20, firstTokenMs: 900, generationMs: 4000, durationMs: 4000, provider: 'Provider B', model: 'slow-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 10,
@@ -128,15 +189,15 @@ test('speed groups by provider and model, slowest first', () => {  const fast = 
 
   const stats = sessionStats(session)
   assert.deepEqual(stats.models.map(item => `${item.provider}/${item.model}`), ['Provider B/slow-model', 'Provider A/fast-model'])
-  assert.equal(stats.models[0].averageTps, 10 / 3.1)
+  assert.equal(stats.models[0].averageTps, 10 / 4)
   assert.equal(stats.models[0].averageDurationMs, 4000)
-  assert.equal(stats.models[1].averageTps, 10 / 0.7)
+  assert.equal(stats.models[1].averageTps, 10)
 })
 
 
 test('speed groups keep the latest request alongside averages', () => {
-  const first = { input: 10, output: 10, total: 20, firstTokenMs: 300, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
-  const latest = { input: 10, output: 20, total: 30, firstTokenMs: 400, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const first = { input: 10, output: 10, total: 20, firstTokenMs: 300, generationMs: 1000, durationMs: 1000, provider: 'Provider A', model: 'fast-model' }
+  const latest = { input: 10, output: 20, total: 30, firstTokenMs: 400, generationMs: 2000, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 10,
@@ -148,13 +209,13 @@ test('speed groups keep the latest request alongside averages', () => {
   assert.equal(stats.models[0].averageDurationMs, 1500)
   assert.equal(stats.models[0].lastFirstTokenMs, 400)
   assert.equal(stats.models[0].lastDurationMs, 2000)
-  assert.equal(stats.models[0].lastTps, 12.5)
+  assert.equal(stats.models[0].lastTps, 10)
 })
 
 
 test('speed groups keep the last measured first token when the newest request omits it', () => {
-  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
-  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
+  const measured = { input: 10, output: 10, total: 20, firstTokenMs: 7800, generationMs: 200, durationMs: 8000, provider: 'Provider A', model: 'fast-model' }
+  const incomplete = { input: 20, output: 20, total: 40, firstTokenMs: 0, generationMs: 2000, durationMs: 2000, provider: 'Provider A', model: 'fast-model' }
   const session = {
     contextLimit: 1000,
     contextTokens: 20,

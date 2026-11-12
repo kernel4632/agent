@@ -10,12 +10,12 @@
  * 全局 `*` 为 allow 是「全部批准」：工具默认写成 ask / review 也不能把多行命令打回弹窗，只有明确的 deny 能拦住。
  * 规则已经是 allow 的调用直接放行，不再因为重复出现而停下来问。
  * 文件快照不在这里实现：放行时只调用工具自己的 snapshot 钩子，由文件工具决定存什么。
- * 工具查询、配置保存和审核器由命令层在启动时 bind；本文件不 import 任何 feature。
+ * 工具查询（快照、扫描、类别）和审核器由调用方传入；本文件不 import 任何 feature。
  *
  * 调用示例：
- *   Approval.bind({ tool, config, review })                // 命令层启动时注入
- *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal })
- *   await Approval.decide({ sessionId, toolCallId, decision: 'allow-once' })
+ *   const allowed = await Approval.check({ sessionId, messageId, toolCallId, toolName, input, signal,
+ *       snapshot: Tool.snapshot, ready: Tool.ready, kindOf: Tool.kind, review: Review.check })
+ *   await Approval.decide({ sessionId, toolCallId, decision: 'allow' })
  *   Approval.pending(sessionId)
  */
 
@@ -24,9 +24,7 @@ import store from '../store.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
 
-// 工具查询和配置保存在命令层启动时注入；本文件不 import 别的 feature。
-let services = {}
-const bind = value => { services = value }
+// 工具查询（快照、扫描、类别）由调用方传入；本文件不 import 任何 feature。
 
 // 等用户决定的工具调用：key 是 `${sessionId}:${toolCallId}`，value 里带着唤醒 Agent 的 resolve。
 const approvals = new Map()
@@ -59,24 +57,36 @@ const matchPattern = (value, pattern) => {
     }
 }
 
+// --- MCP 工具按服务名前缀识别，允许用一个 mcp 开关统一批准 ---
+const isMcpTool = toolName => Object.keys(store.config.mcp || {}).some(server => toolName.startsWith(`${server}_`))
+
 // --- 按规则决定放行、询问还是拒绝 ---
 const decideByRules = (toolName, matchValue, rules = store.config.permission || { '*': 'ask' }) => {
-    const toolRule = rules[toolName]
     const fallback = normalize(rules['*'])
     let decision = fallback
     let patterns = null
-    if (typeof toolRule === 'string') decision = normalize(toolRule)
-    if (toolRule && typeof toolRule === 'object' && !Array.isArray(toolRule)) {
-        // `*` 是这个工具的默认动作。设置页的“自动执行”写的就是它，不能再要求参数真的匹配到星号。
-        if ('*' in toolRule) decision = normalize(toolRule['*'])
-        patterns = toolRule
+    const applyRule = rule => {
+        if (typeof rule === 'string') decision = normalize(rule)
+        if (rule && typeof rule === 'object' && !Array.isArray(rule)) {
+            // `*` 是这个组的默认动作；参数模式在下面继续匹配。
+            if ('*' in rule) decision = normalize(rule['*'])
+            return rule
+        }
+        return null
     }
-    // 多行脚本经常对不上「cd /tmp*」这种前缀。工具默认是 ask 时会弹窗。
+    // 一个 mcp 开关统管全部 MCP 工具：组规则存在时，旧的单工具规则不再拆台。
+    if (isMcpTool(toolName) && rules.mcp !== undefined) {
+        patterns = applyRule(rules.mcp)
+    } else if (rules[toolName] !== undefined) {
+        patterns = applyRule(rules[toolName])
+    }
+    // 多行脚本经常对不上「cd /tmp*」这种前缀。工具默认是 ask / review 时会弹窗。
     // 全部批准把全局写成 allow，这一层必须盖过工具默认的 ask / review；deny 仍然是硬规则。
     if (fallback === 'allow' && (decision === 'ask' || decision === 'review')) decision = 'allow'
     if (patterns) {
         // 最后一条命中的说了算，deny 可以盖过前面的允许。全部批准时，命中 ask / review 不再把结果打回弹窗。
         for (const [pattern, result] of Object.entries(patterns)) {
+            if (pattern === '*') continue
             if (!matchPattern(matchValue, pattern)) continue
             const matched = normalize(result)
             if ((matched === 'ask' || matched === 'review') && fallback === 'allow') continue
@@ -90,45 +100,10 @@ const decideByRules = (toolName, matchValue, rules = store.config.permission || 
 const effectiveRules = () => store.config.permission || { '*': 'ask' }
 
 // 用户心里认为的"一个操作"：换参数还是同一个操作，换子命令才是另一个操作。
-// 取前两个词就够了：`bun test`、`make deploy` 是两个操作，`ls -la` 仍是 `ls`。
-const normalizeCommand = command => {
-    const words = String(command).trim().split(/\s+/)
-    const second = words[1] || ''
-    return !second || second.startsWith('-') ? words[0] : `${words[0]} ${second}`
-}
-
-const plainObject = value => value && typeof value === 'object' && !Array.isArray(value) ? value : null
-
-// --- 这个工具自己的默认动作：先看工具规则，再看全局规则 ---
-const defaultActionOf = (toolName, rules = effectiveRules()) => {
-    const rule = rules[toolName]
-    if (typeof rule === 'string') return normalize(rule)
-    if (plainObject(rule) && '*' in rule) return normalize(rule['*'])
-    return normalize(rules['*'])
-}
-
-// --- 把"始终允许"写成一条全局规则 ---
-const remember = ({ toolName, input, matchValue }) => {
-    const pattern = toolName === 'execute_command' ? `${normalizeCommand(input.command)}*` : matchValue
-    // 精确参数里的 glob 特殊字符按字面量转义，模式才能匹配回保存时的原值；
-    // 反斜杠在 bash 模式下是字面量，不进字符类——否则模式永远匹配不上 Windows 路径（issue #9）。
-    // execute_command 的命令前缀模式以 * 结尾表示"这类命令都放行"，这个星号是通配，不转义。
-    const escaped = (toolName === 'execute_command' ? pattern : pattern.replace(/\*/g, '\\*'))
-        .replace(/\\/g, '\\\\')
-        .replace(/[?[\]{()}]/g, character => `\\${character}`)
-    store.config.permission = plainObject(store.config.permission) || { '*': 'ask' }
-    const toolRule = plainObject(store.config.permission[toolName])
-    if (toolRule) toolRule[escaped] = 'allow'
-    else {
-        // 工具原本是 AI 审核时，记住一个参数不能让同工具的其他参数降级成人工询问。
-        const toolDefault = defaultActionOf(toolName) === 'review' ? 'review' : 'ask'
-        store.config.permission[toolName] = { '*': toolDefault, [escaped]: 'allow' }
-    }
-}
 
 // --- 放行这次调用，并让工具自己决定是否在写入前存快照 ---
-const allow = async ({ sessionId, messageId, toolCallId, toolName, input }) => {
-    await services.tool.snapshot({
+const allow = async ({ sessionId, messageId, toolCallId, toolName, input, snapshot }) => {
+    await snapshot({
         sessionId,
         messageId,
         toolCallId,
@@ -182,15 +157,15 @@ const waitForUser = ({ sessionId, toolCallId, name, input, matchValue, signal, r
 })
 
 // --- 检查一个工具调用能不能执行 ---
-const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal }) => {
+const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, signal, snapshot, ready, kindOf, review }) => {
     const name = toolName
     const mcpServers = Object.keys(store.config.mcp || {})
     // 直接调用审批（测试、脚本）时工具表可能还没装配，这里补一次扫描。
-    await services.tool.ready()
+    await ready()
 
     // 记清单、结束循环这些内部工具不碰磁盘，也没有"要不要批准"这回事。
-    if (services.tool.kindOf({ toolName: name, mcpServers }) === 'never') {
-        return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (kindOf({ toolName: name, mcpServers }) === 'never') {
+        return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
     }
 
     const matchValue = flattenInput(input)
@@ -198,32 +173,32 @@ const check = async ({ sessionId, messageId, toolCallId, toolName, input = {}, s
     if (rules.denied) return false
 
     // allow 就是放行。重复出现同一次调用不再改回询问，否则自动执行形同失效。
-    if (rules.decision === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (rules.decision === 'allow') return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
 
-    let review = null
+    let verdict = null
     if (rules.decision === 'review') {
-        review = services.review
-            ? await services.review.check({ sessionId, toolCallId, toolName: name, input, signal })
+        verdict = review
+            ? await review({ sessionId, toolCallId, toolName: name, input, signal })
             : { decision: 'ask', reason: '没有配置审核器' }
         if (signal?.aborted) return false
-        if (review.decision === 'allow') {
-            await announceReview({ sessionId, toolCallId, name, input, review })
-            return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+        if (verdict.decision === 'allow') {
+            await announceReview({ sessionId, toolCallId, name, input, review: verdict })
+            return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
         }
-        if (review.decision === 'deny') {
-            await blockByReview({ sessionId, toolCallId, name, input, review })
+        if (verdict.decision === 'deny') {
+            await blockByReview({ sessionId, toolCallId, name, input, review: verdict })
             return false
         }
         // review 说 ask：继续走人工审批，把 AI 的原因带在弹窗里。
     }
 
     // 没有会话上下文时按无人值守放行。
-    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    if (!sessionId || !toolCallId) return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
     if (signal?.aborted) return false
 
-    const answer = await waitForUser({ sessionId, toolCallId, name, input, matchValue, signal, review })
+    const answer = await waitForUser({ sessionId, toolCallId, name, input, matchValue, signal, review: verdict })
     if (!answer) return false
-    return allow({ sessionId, messageId, toolCallId, toolName: name, input })
+    return allow({ sessionId, messageId, toolCallId, toolName: name, input, snapshot })
 }
 
 // --- 列出这个会话还在等谁批准 ---
@@ -239,7 +214,7 @@ const pending = sessionId => [...approvals.entries()]
 // --- 配置变了就重问：按新规则重新评估还挂着的审批 ---
 // 用户先遇到弹窗、再去设置页开“全部批准”，回来时任务还卡在原来那个弹窗上——
 // 挂起的审批必须跟新配置走，否则自动批准永远救不回已经挂住的任务。
-const recheck = () => {
+const recheck = ({ review } = {}) => {
     const rules = effectiveRules()
     for (const [key, approval] of approvals) {
         const decision = decideByRules(approval.toolName, approval.matchValue, rules)
@@ -247,28 +222,28 @@ const recheck = () => {
         if (decision === 'review') {
             // 用户把等待中的调用改成了 AI 审核：先拿掉登记，审核结论回来后按结果结算。
             approvals.delete(key)
-            if (!services.review) {
+            if (!review) {
                 approvals.set(key, approval)
                 continue
             }
-            void services.review.check({
+            void review({
                 sessionId: approval.sessionId,
                 toolCallId: approval.toolCallId,
                 toolName: approval.toolName,
                 input: approval.input,
                 signal: approval.signal,
-            }).then(async review => {
+            }).then(async verdict => {
                 if (approval.signal?.aborted) {
                     approval.resolve(false)
                     return
                 }
-                if (review.decision === 'allow') {
-                    await announceReview({ sessionId: approval.sessionId, toolCallId: approval.toolCallId, name: approval.toolName, input: approval.input, review })
+                if (verdict.decision === 'allow') {
+                    await announceReview({ sessionId: approval.sessionId, toolCallId: approval.toolCallId, name: approval.toolName, input: approval.input, review: verdict })
                     approval.resolve(true)
                     return
                 }
-                if (review.decision === 'deny') {
-                    await blockByReview({ sessionId: approval.sessionId, toolCallId: approval.toolCallId, name: approval.toolName, input: approval.input, review })
+                if (verdict.decision === 'deny') {
+                    await blockByReview({ sessionId: approval.sessionId, toolCallId: approval.toolCallId, name: approval.toolName, input: approval.input, review: verdict })
                     approval.resolve(false)
                     return
                 }
@@ -288,19 +263,17 @@ const recheck = () => {
 }
 
 // --- 接收用户在界面上做的决定 ---
+// 只有两个值：放行这一次，或拒绝这一次。长期规则不在这里写——
+// “始终允许”属于工具自动批准，它直接改 config.permission，不走弹窗。
 const decide = async ({ sessionId, toolCallId, decision }) => {
     const approval = approvals.get(`${sessionId}:${toolCallId}`)
     if (!approval) return { ok: false }
-    if (!['allow-once', 'allow-always', 'deny'].includes(decision)) {
-        throw fail(400, `decision must be allow-once, allow-always or deny, got: ${decision}`)
+    if (decision !== 'allow' && decision !== 'deny') {
+        throw fail(400, `decision must be allow or deny, got: ${decision}`)
     }
 
     approvals.delete(`${sessionId}:${toolCallId}`)
-    if (decision === 'allow-always') {
-        remember({ toolName: approval.toolName, input: approval.input, matchValue: approval.matchValue }) // 把这条规则写进内存配置
-        await services.config.save()                                                                       // 规则立刻落盘，下次启动仍然生效
-    }
-    approval.resolve(decision !== 'deny')
+    approval.resolve(decision === 'allow')
     return { ok: true }
 }
 
@@ -311,4 +284,4 @@ const remove = sessionId => {
     }
 }
 
-export default { check, decide, pending, recheck, remove, bind }
+export default { check, decide, pending, recheck, remove }

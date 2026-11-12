@@ -80,7 +80,8 @@ const emptyText = computed(() => props.tool.status === 'completed'
 
     <section class="tool-content tool-content--output" aria-label="返回内容">
       <h4>返回内容</h4>
-      <ToolValue v-if="hasResult" :value="resultValue" class="tool-result" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }" :plain="typeof resultValue === 'string'" />
+      <component v-if="extensionView && hasResult" :is="extensionView" :tool="tool" :value="resultValue" :status="tool.status" />
+      <ToolValue v-else-if="hasResult" :value="resultValue" class="tool-result" :class="{ 'is-error': tool.status === 'error' || tool.status === 'rejected' }" :plain="typeof resultValue === 'string'" />
       <p v-else class="tool-empty">{{ emptyText }}</p>
     </section>
   </div>

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import '../server.js'
 import Session from '../commands/session.js'
 import Agent from '../features/agent.js'
 import History from '../features/history.js'
@@ -65,7 +64,7 @@ describe('临时工作区', () => {
             const before = await Session.read({ sessionId })
             expect(before.temporary).toBe(true)
 
-            const moved = await Session.setCwd({ sessionId, cwd: target })
+            const moved = await Session.dir({ sessionId, cwd: target })
             expect(moved).toEqual({ id: sessionId, cwd: target, temporary: false })
             const after = await Session.read({ sessionId })
             expect(after.temporary).toBe(false)

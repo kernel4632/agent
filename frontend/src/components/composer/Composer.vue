@@ -49,7 +49,7 @@ const props = defineProps({
   draftWorkspace: { type: String, default: '' },
 })
 const draft = defineModel('draft', { type: String, default: '' })
-const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'withdraw', 'update:reasoning', 'update:draftWorkspace'])
+const emit = defineEmits(['submit', 'stop', 'continue', 'attach', 'remove-file', 'withdraw', 'update:reasoning', 'update:draftWorkspace', 'compact'])
 const fileInput = ref(null)
 const editor = ref(null)
 const currentProvider = computed(() => props.selectedProvider || store.config.activeProvider)
@@ -262,9 +262,9 @@ defineExpose({ focus: () => editor.value?.focus() })
       </div>
       <div class="chat-composer__right">
         <button type="button" class="composer-action" aria-label="更多选项" title="更多选项" :disabled="busy" @click="addOpen = true"><Icon name="plus" :size="18" /></button>
-        <Button v-if="isRunning && draft.trim()" key="queue" variant="plain" class="chat-composer__send is-queue" type="submit" aria-label="排队发送" title="当前回复结束后自动发送" :disabled="busy || !selectedModel"><Icon name="up" :size="18" /></Button>
         <Transition name="send" mode="out-in">
-          <Button v-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><Icon name="stop" :size="18" /></Button>
+          <Button v-if="isRunning && draft.trim()" key="queue" variant="plain" class="chat-composer__send is-queue" type="submit" aria-label="排队发送" title="当前回复结束后自动发送" :disabled="busy || !selectedModel"><Icon name="up" :size="18" /></Button>
+          <Button v-else-if="isRunning" key="stop" variant="plain" class="chat-composer__send is-stop" type="button" aria-label="停止生成" @click="emit('stop')"><Icon name="stop" :size="18" /></Button>
           <Button v-else-if="canContinue && !draft.trim()" key="continue" variant="plain" class="chat-composer__send is-continue" type="button" aria-label="继续助手" title="继续助手" :disabled="busy || !selectedModel" @click="emit('continue')"><Icon name="play" :size="18" /></Button>
           <Button v-else key="send" variant="plain" class="chat-composer__send" type="submit" aria-label="发送消息" :disabled="busy || !draft.trim() || !selectedModel"><Icon name="up" :size="18" /></Button>
         </Transition>
@@ -278,6 +278,7 @@ defineExpose({ focus: () => editor.value?.focus() })
     <div class="composer-sheet">
       <div class="composer-sheet__list">
         <button type="button" :disabled="busy" @click="addOpen = false; fileInput.click()"><Icon name="paperclip" :size="20" /><span>添加文本或代码文件</span></button>
+        <button v-if="!draftMode" type="button" :disabled="isRunning || busy" :title="isRunning ? '任务运行中不能压缩上下文' : undefined" @click="addOpen = false; emit('compact')"><Icon name="layers" :size="20" /><span>手动压缩上下文</span></button>
         <!-- 新会话的工作区入口在输入框内联；开始对话后才回到这个二级菜单。 -->
         <button v-if="!draftMode" type="button" :disabled="isRunning || busy" :title="isRunning ? '任务运行中不能切换工作区' : undefined" @click="openWorkspace"><Icon name="folder" :size="20" /><span>切换工作区</span></button>
       </div>

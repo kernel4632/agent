@@ -110,7 +110,6 @@ server/
   server.js              入口：装配有状态模块、注册路由、统一错误、启动；健康检查也在这里
   store.js               全局数据中心：纯对象，直接看到 config 和 sessions
   package.json
-  openapi.json
   README.md
   .gitignore
   bun.lock
@@ -218,7 +217,7 @@ export default store
 - `mcp` 是配置的一部分，属于基座能力。
 - `sessions[].cwd` 是唯一的位置概念，没有 `workspaceId`。
 - `history` 和 `settings` 属于会话；消息回退只改 `history`，不碰文件。
-- 权限只有一层：`config.permission` 的全局规则（allow / review / ask / deny、参数模式）加每次询问的 allow-once / allow-always / deny。没有会话级 `autoApprove`。review 先问 `review` 配置和 `models.review` 指向的审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时或审核故障都转人工。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具权限」小窗里默认动作只写全局 `*`，不改每个工具已经记住的规则；全局 allow 盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。把单个工具改成 ask / review 时，如果全局还是 allow，会先把其余工具此刻的状态写实再撤全局，否则它们会跟着一起掉回询问。
+- 权限只有一层：`config.permission` 的全局规则（allow / review / ask / deny、参数模式）加每次询问的 allow / deny（弹窗只管这一次，长期规则在输入区「工具权限」里设）。没有会话级 `autoApprove`。review 先问 `review` 配置和 `models.review` 指向的审核模型，只有 allow 直接执行，deny 直接拒绝，ask、超时或审核故障都转人工。对象规则里的 `*` 是该工具的默认动作；其余模式按参数匹配，`*` 跨过斜杠和换行。规则已经是 allow 就直接放行。输入区「工具权限」小窗里默认动作只写全局 `*`，不改每个工具已经记住的规则；全局 allow 盖过工具默认的 ask / review，多行命令也不会因为前缀没对上再弹批准；明确的 deny 仍然拒绝。把单个工具改成 ask / review 时，如果全局还是 allow，会先把其余工具此刻的状态写实再撤全局，否则它们会跟着一起掉回询问。
 
 ## 六、请求流程
 
@@ -351,7 +350,7 @@ server.js
 - 删除 `components/results/` 中按工具类型维护的专用视图。`ToolResult.vue` 统一呈现输入参数、返回文本或 JSON、执行状态和已有动作；增加工具不再增加前端渲染器，也不把这些分支搬进一个大文件。
 - `components/` 按导航、输入、对话、运行信息、反馈、偏好设置、供应商设置、能力设置归类，每组 2～5 个 Vue 文件；对应 SCSS 同步迁移。分组用于浏览同类可见区域，不分拆 commands 功能主体。
 - `views/`、`ui/` 只保留 Vue 组件。页面装配表并回页面，控件出口改成显式导入；删除随品牌图标取消的 JS 和无调用者的头像工具。功能操作归 commands，通用传输和浏览器能力继续归 utils。
-- 删除 `frontend/docs/` 的过期接口副本和完成计划；保留精简的当前 README，接口以 `server/README.md`、`server/openapi.json`、`src/utils/api.js` 为准。完成计划不再长期留在源码旁。
+- 删除 `frontend/docs/` 的过期接口副本和完成计划；保留精简的当前 README，接口以 `server/README.md`、`server/server.js`、`src/utils/api.js` 为准。完成计划不再长期留在源码旁。
 - 根目录 `docs/frontend-*` 是已完成设计和旧结构的快照，一并清理；需要可视化时从当前源码生成到 `tmp/`，避免留下第二份过期说明。
 
 ## 十三、前端与当前后端保持一致

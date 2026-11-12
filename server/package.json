@@ -1,20 +1,19 @@
 {
   "name": "universal-agent",
-  "version": "0.91.0",
+  "version": "0.102.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "start": "bun run server.js",
     "build": "bun build server.js --outfile dist/server.js --target bun --minify",
     "test": "bun test",
-    "openapi": "bun scripts/openapi.js",
-    "openapi:check": "bun scripts/openapi.js --check",
     "test:real": "RUN_REAL_MODEL=1 RUN_REAL_AGENT=1 bun test tests/real.test.js"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.69",
-    "@kernel4632/agent-core": "0.34.0",
+    "@kernel4632/agent-core": "0.37.0",
     "@vscode/ripgrep": "^1.18.0",
+    "@vue/compiler-sfc": "^3.5.45",
     "atomically": "^2.0.3",
     "elysia": "^1.4.29",
     "gray-matter": "^4.0.3",

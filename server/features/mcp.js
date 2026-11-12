@@ -9,7 +9,7 @@
  *     }
  *   }
  * 连上的服务给出工具名带服务名前缀，两个服务撞名时不会互相覆盖。
- * 保存配置由 server.js 启动时绑定进来（本文件不 import 其他 feature）。
+ * commands/admin.js 在增删改之后接着调 Config.save()；本文件不 import 其他 feature。
  *
  * 调用示例：
  *   const lease = await Mcp.acquire({ sessionId })
@@ -26,9 +26,7 @@ import store from '../store.js'
 import fail from '../utils/fail.js'
 import SSE from '../utils/sse.js'
 
-// 配置保存由命令层在启动时绑定；本文件不 import 别的 feature。
-let services = {}
-const bind = value => { services = value }
+// 配置保存由调用方（commands/admin.js）负责；本文件只管 store.config.mcp 的内存状态和连接。
 
 // 每次配置变化递增。Agent 记住自己创建时的版本，旧 Agent 不会被新配置从脚下改掉。
 let revision = 0
@@ -303,7 +301,6 @@ const save = async ({ name, definition } = {}) => {
     const value = normalize(definition)
     if (!isObject(store.config.mcp)) store.config.mcp = {}
     store.config.mcp[key] = value
-    await services.config.save()
     await bump()
     return { name: key, enabled: value.enabled !== false, definition: value }
 }
@@ -313,7 +310,6 @@ const remove = async ({ name } = {}) => {
     const key = serverName(name)
     if (!isObject(store.config.mcp) || !store.config.mcp[key]) throw fail(404, `MCP server not found: ${key}`)
     delete store.config.mcp[key]
-    await services.config.save()
     await bump()
     return { ok: true, name: key }
 }
@@ -325,7 +321,6 @@ const toggle = async ({ name, enabled } = {}) => {
     const current = isObject(store.config.mcp) ? store.config.mcp[key] : null
     if (!current) throw fail(404, `MCP server not found: ${key}`)
     current.enabled = enabled
-    await services.config.save()
     await bump()
     return { name: key, enabled }
 }
@@ -361,6 +356,6 @@ const close = async () => {
 }
 
 // --- 最近一次连接失败的原因；设置页用它提示“这个服务起不来” ---
-const lastError = name => failures.get(connectionKey(name)) || ''
+const error = name => failures.get(connectionKey(name)) || ''
 
-export default { tools, warm, acquire, connect, close, bind, list, save, remove, toggle, test, lastError, revision: revisionOf }
+export default { tools, warm, acquire, connect, close, list, save, remove, toggle, test, error, revision: revisionOf }

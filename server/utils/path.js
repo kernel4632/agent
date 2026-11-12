@@ -88,6 +88,7 @@ const historyIndex = id => join(session(id), 'history-index.json')
 const settings = id => join(session(id), 'settings.json')
 const toolTimings = id => join(session(id), 'tool-timings.json')
 const contextUsage = id => join(session(id), 'context-usage.json')
+const contextRatios = () => join(home(), 'context-ratios.json')
 const snapshots = id => join(session(id), 'snapshots')
 const checkpoints = id => join(session(id), 'checkpoints.json')
 
@@ -115,6 +116,6 @@ export default {
     config,
     configBackups,
     sessionGroups,
-    sessions, setSessions, sessionsPathFile, sessionsMoveFile, sessionsMoveFailedFile, session, meta, history, historyLog, historyRedo, historyArchives, historyIndex, settings, toolTimings, contextUsage, snapshots, checkpoints,
+    sessions, setSessions, sessionsPathFile, sessionsMoveFile, sessionsMoveFailedFile, session, meta, history, historyLog, historyRedo, historyArchives, historyIndex, settings, toolTimings, contextUsage, contextRatios, snapshots, checkpoints,
     tools, modelCatalog, processes, skills, skillsState, projectSkills,
 }

@@ -15,13 +15,37 @@ import Config from '../features/config.js'
 import Discover from '../features/discover.js'
 import History from '../features/history.js'
 import Mcp from '../features/mcp.js'
-import SkillFeature from '../features/skills.js'
+
 import Session from '../commands/session.js'
+import { getAgent, settleAgent } from './agent-helpers.js'
 import Skill from '../tools/skill.js'
 import store from '../store.js'
 import { app } from '../server.js'
 
-const request = (path, options = {}) => app.handle(new Request(`http://localhost${path}`, options))
+// 管理面现在只有一条 POST /admin，测试里保留按旧名字调用的写法：
+// 这里把 "方法 + 路径 + query/body" 翻成 { op, ...参数 }，断言一行不用改。
+const OP_OF = {
+    'GET /mcp/list': 'mcp.list',
+    'POST /mcp/save': 'mcp.save',
+    'POST /mcp/import': 'mcp.import',
+    'POST /mcp/remove': 'mcp.remove',
+    'PATCH /mcp/toggle': 'mcp.toggle',
+    'POST /mcp/test': 'mcp.test',
+}
+
+const request = (path, options = {}) => {
+    const [pathname, search] = String(path).split('?')
+    const method = (options.method || 'GET').toUpperCase()
+    const op = OP_OF[`${method} ${pathname}`]
+    if (!op) return app.handle(new Request(`http://localhost${path}`, options))
+    const query = Object.fromEntries(new URLSearchParams(search || ''))
+    const body = options.body ? JSON.parse(options.body) : {}
+    return app.handle(new Request('http://localhost/admin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op, ...query, ...body }),
+    }))
+}
 const json = (path, method, body) => request(path, {
     method,
     headers: { 'content-type': 'application/json' },
@@ -62,10 +86,7 @@ const withHome = async callback => {
     }
 }
 
-const writeSkill = async (directory, name, description, body) => {
-    await mkdir(directory, { recursive: true })
-    await writeFile(join(directory, 'SKILL.md'), `---\nname: ${name}\ndescription: ${description}\n---\n${body}\n`)
-}
+// 技能测试已迁移到 extensions/skill/
 
 const writeJson = async (path, value) => {
     await mkdir(dirname(path), { recursive: true })
@@ -324,10 +345,7 @@ describe('MCP 服务管理', () => {
 describe('技能识别与管理', () => {
     test('自己的技能直接生效，别的软件的目录先识别、启用后才生效', async () => {
         await withHome(async ({ root, discovery, project }) => {
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await writeSkill(join(project, '.agent', 'skills', 'deploy'), 'deploy', '部署', '部署正文')
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
 
             const before = await (await request(`/skill/list?cwd=${encodeURIComponent(project)}`)).json()
             expect(before.skills.map(item => item.name).sort()).toEqual(['deploy', 'review'])
@@ -415,8 +433,6 @@ describe('技能识别与管理', () => {
 
     test('禁用的技能不进交给模型的清单，重新启用后回来', async () => {
         await withHome(async ({ project }) => {
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查改动', '第一步')
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'deploy'), 'deploy', '部署', '部署正文')
 
             const disabled = await (await json('/skill/toggle', 'PATCH', { name: 'review', enabled: false })).json()
             expect(disabled).toEqual({ name: 'review', enabled: false })
@@ -442,7 +458,6 @@ describe('技能识别与管理', () => {
     test('外部技能不能被删除，也不能把本应用目录当外部来源', async () => {
         await withHome(async ({ discovery }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
 
             expect((await json('/skill/remove', 'POST', { name: 'lint' })).status).toBe(404)
@@ -453,8 +468,6 @@ describe('技能识别与管理', () => {
     test('状态文件记录了启用的目录和禁用名单，重启后仍然有效', async () => {
         await withHome(async ({ discovery }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
-            await writeSkill(join(process.env.AGENT_HOME, 'skills', 'review'), 'review', '审查', '正文')
 
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
             await json('/skill/toggle', 'PATCH', { name: 'review', enabled: false })
@@ -472,7 +485,6 @@ describe('技能识别与管理', () => {
     test('技能工具会带上已启用外部目录里的技能', async () => {
         await withHome(async ({ discovery, project }) => {
             const external = join(discovery, '.claude', 'skills')
-            await writeSkill(join(external, 'lint'), 'lint', '检查代码', '运行 lint')
             await json('/skill/source', 'PATCH', { path: external, enabled: true })
 
             const tool = await Skill.build({ cwd: project, skills: SkillFeature })
@@ -487,12 +499,12 @@ describe('MCP 配置版本与 Agent 快照', () => {
         await withHome(async ({ project }) => {
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'MCP revision', cwd: project })
-            const before = await Agent.get({ sessionId })
+            const before = await getAgent(sessionId)
             const version = Mcp.revision()
 
             await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
             expect(Mcp.revision()).toBe(version + 1)
-            const after = await Agent.get({ sessionId })
+            const after = await getAgent(sessionId)
             expect(after).not.toBe(before)
             expect(after.mcpRevision).toBe(Mcp.revision())
 
@@ -505,17 +517,17 @@ describe('MCP 配置版本与 Agent 快照', () => {
         await withHome(async ({ project }) => {
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: 'MCP running', cwd: project })
-            const before = await Agent.get({ sessionId })
+            const before = await getAgent(sessionId)
             before.running = {}                                      // 模拟这一轮还没结束
 
             await Mcp.save({ name: 'disabled-test', definition: { command: 'bun', enabled: false } })
-            expect(await Agent.get({ sessionId })).toBe(before)
+            expect(await getAgent(sessionId)).toBe(before)
             expect(before.stale).toBe(true)
 
             before.running = null
-            await Agent.settle(sessionId)
+            await settleAgent(sessionId)
             expect(Agent.runtime().get(sessionId)).toBeUndefined()
-            expect(await Agent.get({ sessionId })).not.toBe(before)
+            expect(await getAgent(sessionId)).not.toBe(before)
 
             await Mcp.remove({ name: 'disabled-test' })
             await Mcp.close()
@@ -526,7 +538,6 @@ describe('MCP 配置版本与 Agent 快照', () => {
 describe('能力接口装配', () => {
     test('会话装配后技能清单跟着目录里的技能走', async () => {
         await withHome(async ({ project }) => {
-            await writeSkill(join(project, '.agent', 'skills', 'local'), 'local', '本地技能', '正文')
             await Config.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'ask' } })
             const { sessionId } = await Session.create({ title: '技能会话', cwd: project })
             const agent = Agent.runtime().get(sessionId)
@@ -534,11 +545,13 @@ describe('能力接口装配', () => {
         })
     })
 
-    test('skills 与 mcp 路由都出现在服务里', async () => {
-        const paths = app.routes.map(route => `${route.method.toUpperCase()} ${route.path}`)
-        for (const route of [
-            'GET /mcp/list', 'POST /mcp/save', 'POST /mcp/import', 'POST /mcp/remove', 'PATCH /mcp/toggle', 'POST /mcp/test',
-            'GET /skill/list', 'GET /skill/read', 'POST /skill/save', 'POST /skill/remove', 'PATCH /skill/toggle', 'PATCH /skill/source',
-        ]) expect(paths).toContain(route)
+    test('管理总线接住了所有能力动作', async () => {
+        const routes = app.routes.map(route => `${route.method.toUpperCase()} ${route.path}`)
+        expect(routes).toContain('POST /admin')
+        const admin = (await import('../commands/admin.js')).default
+        for (const op of ['mcp.list', 'mcp.save', 'mcp.import', 'mcp.remove', 'mcp.toggle', 'mcp.test',
+            ]) {
+            expect(Object.keys(admin.OPS)).toContain(op)
+        }
     })
 })

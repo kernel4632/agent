@@ -2,13 +2,11 @@
 一整轮助手回复：把自动接续产生的多条 assistant 消息合并成一条连续消息。
 思考、工具和中间正文按发生顺序合成一张时间线卡片；完成任务/询问用户这类结束工具的结果才是正式回复，直接显示在卡片下方，不再套背景。
 没有结束工具时（停止、报错、断网）才把已经流出的正文当临时回复。
-右键或长按这一整轮，直接打开聚光引导（见 MessageActions）：框住落点所在的那条消息和它的工具，菜单卡片只给复制/回退/分支三个按钮；复制目标那一条的内容（stop 工具输出或正文），不展示预览。
-调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :running="running" :rollback-target="..." :rollback-preview="..." @rollback="..." @fork="..." @rollback-confirm="..." />
+每轮按模型请求切成步骤：思考和工具属于步骤内的内容；操作由 Timeline 的全局浮层承载。
+右键和长按完全交还浏览器，全局浮层根据 data-step-* 找到当前步骤。
+调用示例：<AssistantTurn :messages="turn.messages" :session-id="session.id" :active="active" />
 -->
 <script setup>
-import { Notice } from "../../utils/notice.js"
-import { copyText } from '../../utils/clipboard.js'
-
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from '../../ui/Icon.vue'
 import Markdown from '../../ui/Markdown.vue'
@@ -16,7 +14,6 @@ import { store } from '../../store.js'
 import { useSmoothText } from '../../utils/smooth-text.js'
 import { outputText, toolTitle } from "../../utils/tool.js"
 import { isFinishedStopTool, isSavedMessage } from "../../features/turns.js"
-import MessageActions from './MessageActions.vue'
 import Fold from '../../ui/Fold.vue'
 import RequestStatus from '../feedback/RequestStatus.vue'
 import ReasoningStep from './ReasoningStep.vue'
@@ -25,26 +22,19 @@ import ToolCall from '../activity/ToolCall.vue'
 const props = defineProps({
   messages: { type: Array, required: true },
   sessionId: { type: String, required: true },
-  running: Boolean,
   active: Boolean,
-  rollbackPreview: { type: Object, default: null },   // Timeline 拿到的后端代价预览，传给聚光卡片
-  rollbackTarget: { type: Object, default: null },    // 正在确认回退的目标；清空表示已结束
 })
-const emit = defineEmits(['rollback', 'fork', 'rollback-confirm'])
 
-// 复制目标那一条消息自己的内容：正式回复取结束工具的输出，否则取正文。
-function messageText(message) {
-  if (!message) return content.value
-  const stopTool = (message.tools || []).find(isFinishedStopTool)
-  return (stopTool ? outputText(stopTool).trim() : String(message.content || '').trim()) || content.value
-}
-
-// 右键落点决定回退/分支的目标消息：点在哪一步就归哪条助手消息；
-// 打开聚光时由 resolveTarget 从事件里解析（找不到时保留 null，退回默认目标）。
-const targetId = ref(null)
-const targeted = messageId => {
-    const message = props.messages.find(item => item.id === messageId)
-    return message && actionable(message) ? message : null
+// 步骤操作由 Timeline 的全局浮层读取 data-cut-*，这里不再渲染每步窄条。
+const autoExpandTools = computed(() => store.config.appearance.autoExpandTools !== false)
+const savedTarget = message => isSavedMessage(message) ? message : null
+// 正文/工具行自己带精确切口；没有 partIndex 的旧历史仍退回整条消息操作。
+const cutAttrs = step => step.partIndex === undefined ? {} : {
+  'data-cut-row': '',
+  'data-cut-message-id': step.messageId,
+  'data-cut-part-index': step.partIndex,
+  'data-cut-kind': step.type,
+  'data-cut-label': step.type === 'tool' ? '工具操作' : '回复操作',
 }
 
 // 压缩预览滚动到最新一行：内容一直在追加，停在顶部就看不到模型正在写什么。
@@ -52,8 +42,6 @@ const vAutoScroll = {
   mounted: element => { element.scrollTop = element.scrollHeight },
   updated: element => { element.scrollTop = element.scrollHeight },
 }
-
-const actionable = message => isSavedMessage(message)
 
 // 结束工具才是正式回复；没有结束工具时（中断、报错）才把已经流出的正文当临时回复。
 const stopTexts = computed(() => props.messages.flatMap(message =>
@@ -67,10 +55,17 @@ const fallbackText = computed(() => props.messages
   .map(message => String(message.content || '').trim())
   .filter(Boolean)
   .join('\n\n'))
-const content = computed(() => finalText.value || fallbackText.value)
 // 正式气泡的归属：它来自带结束工具的那条消息；没有结束工具时（textOnly）
 // 气泡显示的是最后一条消息流出的正文，回退聚光也按这条框住它。
 const finalMessage = computed(() => [...props.messages].reverse().find(message => (message.tools || []).some(isFinishedStopTool)) || null)
+const bubbleTarget = computed(() => savedTarget(finalMessage.value || props.messages.at(-1)))
+// 最终气泡由结束工具产生；精确回退从该 tool-call 的原始 content 位置切开。
+const bubblePartIndex = computed(() => {
+  const message = finalMessage.value
+  const tool = message?.tools?.find(isFinishedStopTool)
+  if (!tool) return undefined
+  return message.steps?.find(step => step.type === 'tool' && step.toolId === tool.id)?.partIndex
+})
 const bubbleMessageId = computed(() => finalMessage.value?.id || defaultTarget.value?.id || null)
 const streaming = computed(() => props.messages.some(message => message.isStreaming))
 // 一轮任务里“模型请求结束、工具还在执行、下一次请求尚未开始”不是整轮结束。
@@ -105,10 +100,10 @@ const steps = computed(() => {
         })
       } else if (entry.type === 'text') {
         const text = String(entry.text || '').trim()
-        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text, messageId: message.id })
+        if (text && text !== finalText.value.trim()) list.push({ key: `${message.id}-text-${index}`, type: 'text', text: entry.text, messageId: message.id, partIndex: entry.partIndex })
       } else if (entry.type === 'tool') {
         const tool = (message.tools || []).find(item => item.id === entry.toolId)
-        if (tool && !isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool, messageId: message.id })
+        if (tool && !isFinishedStopTool(tool)) list.push({ key: tool.id || `${message.id}-tool-${index}`, type: 'tool', tool, messageId: message.id, partIndex: entry.partIndex })
       } else if (entry.type === 'request') {
         const request = (message.requests || []).find(item => item.id === entry.requestId)
         if (request) list.push({ key: `${message.id}-request-${index}`, type: 'request', request, messageId: message.id })
@@ -142,9 +137,9 @@ const treeSteps = computed(() => textOnly.value ? steps.value.filter(step => ste
 // 整轮处理默认折叠；活动时自动展开。折叠状态只保留在本次会话的当前挂载里：
 // 切换会话后重新挂载，历史轮次全部收起，正在执行的那一轮仍然展开。
 const processTouched = ref(false)
-const processOpen = ref(turnActive.value)
+const processOpen = ref((autoExpandTools.value && turnActive.value) || steps.value.some(step => step.type === 'compact' && step.request?.status === 'running'))
 watch(turnActive, value => {
-  if (!processTouched.value) processOpen.value = value
+  if (autoExpandTools.value && !processTouched.value) processOpen.value = value
 })
 function toggleProcess() {
   processTouched.value = true
@@ -180,6 +175,7 @@ const processSummary = computed(() => summarizeProcess(treeSteps.value))
 // 要批准时把收起的处理过程整个展开，按钮滚进视野；高度不做动画，避免把时间线抽一下。
 const needsDecision = tool => !!tool && (tool.status === 'waiting' || (tool.subagentSteps || []).some(needsDecision))
 const isPendingStep = step => step.type === 'tool' && needsDecision(step.tool)
+const isRunningRequest = step => step.type === 'request' && step.request?.status === 'running'
 const approvalPending = computed(() => treeSteps.value.some(isPendingStep))
 const processShown = computed(() => processOpen.value || approvalPending.value)
 // 外层处理过程收起时，内层不能先 instant 清空高度：否则外层卡片还占着
@@ -221,8 +217,7 @@ watch(pendingKey, value => {
 // 3. 这一组把请求放在第一个工具上方，然后按原顺序展开思考/工具；
 // 4. 组内保持请求→思考→工具的顺序；
 // 5. 单个动作没有请求时直接显示；有请求的动作收进组里，保证请求和工具不分离。
-const processSections = computed(() => {
-  const sections = []
+const processSections = computed(() => {  const sections = []
   let group = null
   // 当前模型请求会跨过正文，继续作为后续动作组的元数据；
   // 同一个请求可以在正文前后各出现一次，但绝不会落到别的请求下面。
@@ -270,6 +265,37 @@ const processSections = computed(() => {
   return sections
 })
 
+// 一段连续的工具/思考动作合并成一个折叠组；只有助手正文才把动作组切开。
+const stepBlocks = computed(() => {
+  const blocks = []
+  let current = null
+  for (const section of processSections.value) {
+    if (!current || section.type === 'group') {
+      current = { key: section.key, sections: [] }
+      blocks.push(current)
+    }
+    current.sections.push(section)
+  }
+  return blocks.map(block => {
+    const steps = block.sections.flatMap(section => section.type === 'group' ? section.steps : [section.step])
+    const messages = []
+    const seen = new Set()
+    for (const step of steps) {
+      // request/text 步骤只带 messageId，不一定挂 message 对象；从本轮消息里补齐。
+      const message = step.message || props.messages.find(item => item.id === step.messageId)
+      if (!message || seen.has(message.id)) continue
+      seen.add(message.id)
+      messages.push(message)
+    }
+    return {
+      ...block,
+      messages,
+      rollbackTarget: savedTarget(messages[0]) || null,
+      forkTarget: savedTarget(messages.at(-1)) || null,
+    }
+  })
+})
+
 const groupStoreKey = `agent.process-groups:${props.sessionId}:${props.messages[0]?.id || 'turn'}`
 const groupOpen = ref((() => {
   try { return JSON.parse(localStorage.getItem(groupStoreKey) || '{}') || {} } catch { return {} }
@@ -279,66 +305,27 @@ const lastGroupKey = computed(() => processSections.value.filter(section => sect
 // 组里还有运行中的工具时不收，避免并行工具被下一条流式输出折叠。
 const lastStepType = computed(() => treeSteps.value.at(-1)?.type)
 const activeGroupKey = computed(() => (turnActive.value || processClosing.value) && lastStepType.value !== 'text' ? lastGroupKey.value : null)
-const isGroupOpen = section => section.steps?.some(isPendingStep) || section.steps?.some(isRunningToolStep) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
+const isGroupOpen = section => section.steps?.some(isPendingStep) || (autoExpandTools.value && (section.steps?.some(isRunningToolStep) || (section.steps?.some(isRunningRequest) && section.key === lastGroupKey.value && lastStepType.value !== 'text'))) || (groupOpen.value[section.key] ?? (section.key === activeGroupKey.value))
 function toggleGroup(section) {
   groupOpen.value = { ...groupOpen.value, [section.key]: !isGroupOpen(section) }
   try { localStorage.setItem(groupStoreKey, JSON.stringify(groupOpen.value)) } catch {}
 }
-const bubbleText = computed(() => finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : '')))
+const bubbleText = computed(() => {
+  // 本地精确回退后，结束工具已从这条消息里移除；不要再把旧正文当成最终回复。
+  if (props.messages.some(message => message.rollbackCut)) return ''
+  return finalText.value || (textOnly.value ? fallbackText.value : (!contentSteps.value.length ? fallbackText.value : ''))
+})
 const { text: bubbleContent, done: bubbleDone } = useSmoothText(bubbleText)
 // 结束工具的输出是一整段突然到达的正式回复；这里不再逐字追赶，
 // 否则它会和处理过程折叠同时改变高度，形成连续闪烁。
 const shownBubble = computed(() => finalText.value || bubbleContent.value)
 
 const error = computed(() => props.messages.findLast(message => message.error)?.error || '')
-
-const defaultTarget = computed(() => [...props.messages].reverse().find(actionable) || null)
-// 落点在已落盘的消息上时用那一条，否则退回默认目标；分支和回退用同一个目标。
-const targetedMessage = computed(() => targeted(targetId.value) || defaultTarget.value)
-const rollbackTarget = computed(() => targetedMessage.value)
-const forkTarget = computed(() => targetedMessage.value)
-const menuItems = computed(() => {
-  // 任务运行中仍显示回退/分支：分支由服务端直接做（只读快照），回退在确认后先停止任务再退。
-  if (!rollbackTarget.value) return [{ value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value }]
-  return [
-    { value: 'copy', label: '复制消息', icon: 'copy', disabled: !content.value },
-    { value: 'rollback', label: '回退到这条回复', icon: 'undo' },
-    { value: 'fork', label: '从这里分支', icon: 'branch' },
-  ]
-})
-
-function onMenu(action) {
-  if (action === 'copy') copyMessage(messageText(rollbackTarget.value))
-  else if (action === 'rollback') emit('rollback', rollbackTarget.value)
-  else if (action === 'fork') emit('fork', forkTarget.value)
-}
-
-// 复制只在本区域反馈，剪贴板工具不依赖页面。
-async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
-
-// 右键打开聚光：从落点解析目标消息，找不到时退回整轮默认目标（最后一条已落盘）。
-function resolveTarget(event) {
-  if (event?.target instanceof Element) targetId.value = event.target.closest('[data-message-id]')?.getAttribute('data-message-id') || targetId.value
-  return targetId.value
-}
-// 聚光关闭或回退结束就清掉落点，下一次右键重新解析。
-function clearTarget() { targetId.value = null; emit('close') }
+const defaultTarget = computed(() => [...props.messages].reverse().find(savedTarget) || null)
 </script>
 
 <template>
   <div ref="turnEl" class="assistant-message rikka-message rikka-message--assistant">
-    <MessageActions
-      :items="menuItems"
-      :target-id="rollbackTarget?.id || null"
-      label="助手消息操作"
-      :running="running"
-      :rollback-target="rollbackTarget"
-      :rollback-preview="rollbackPreview"
-      @request-open="resolveTarget"
-      @close="clearTarget"
-      @action="onMenu"
-      @rollback-confirm="emit('rollback-confirm', $event)"
-    >
       <div v-if="treeSteps.length" class="cot-card process-fold">
         <button type="button" class="process-fold__head" :aria-expanded="processShown" @click="toggleProcess">
           <span class="process-fold__icon"><Icon name="assistant" :size="16" /></span>
@@ -348,14 +335,24 @@ function clearTarget() { targetId.value = null; emit('close') }
         </button>
         <Fold :open="processShown" :instant="approvalPending">
           <div class="process-fold__body context-sections">
-            <template v-for="section in processSections" :key="section.key">
+            <div
+              v-for="block in stepBlocks"
+              :key="block.key"
+              class="assistant-step"
+              :data-step-key="block.key"
+              :data-step-rollback="block.rollbackTarget?.id || ''"
+              :data-step-fork="block.forkTarget?.id || ''"
+              data-step-label="步骤操作"
+            >
+              <div class="assistant-step__body">
+            <template v-for="section in block.sections" :key="section.key">
               <template v-if="section.type === 'step'">
                 <RequestStatus v-if="section.step.type === 'request'" :data-message-id="section.step.messageId" :request="section.step.request" />
                 <template v-else-if="section.step.type === 'compact'">
                   <RequestStatus :data-message-id="section.step.messageId" :request="section.step.request" kind="compact" />
                   <pre v-if="section.step.request.content || section.step.request.reasoning" v-auto-scroll class="compact-stream">{{ section.step.request.content || section.step.request.reasoning }}</pre>
                 </template>
-                <div v-else-if="section.step.type === 'text'" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
+                <div v-else-if="section.step.type === 'text'" v-bind="cutAttrs(section.step)" :data-message-id="section.step.messageId" class="cot-step cot-step--text">
                   <span class="cot-step__icon"><Icon name="chat" :size="16" /></span>
                   <div class="cot-step__main">
                     <div class="cot-step__body cot-step__body--text">
@@ -373,6 +370,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                 />
                 <ToolCall
                   v-else-if="section.step.type === 'tool'"
+                  v-bind="cutAttrs(section.step)"
                   :data-message-id="section.step.messageId"
                   :tool="section.step.tool"
                   :session-id="sessionId"
@@ -380,6 +378,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                   :stream-key="streamSerial"
                   :active="isActiveTool(section.step.key)"
                   :tool-index="toolIndexByKey.get(section.step.key) ?? 0"
+                  :auto-expand="autoExpandTools"
                 />
               </template>
 
@@ -407,6 +406,7 @@ function clearTarget() { targetId.value = null; emit('close') }
                       />
                       <ToolCall
                         v-else
+                        v-bind="cutAttrs(step)"
                         :data-message-id="step.messageId"
                         :tool="step.tool"
                         :session-id="sessionId"
@@ -420,19 +420,39 @@ function clearTarget() { targetId.value = null; emit('close') }
                 </Fold>
               </div>
             </template>
+              </div>
+            </div>
           </div>
         </Fold>
       </div>
-      <div v-if="bubbleText" class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
-        <Markdown :content="shownBubble" />
-        <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
-        <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+      <div
+        v-if="bubbleText"
+        class="assistant-step assistant-step--response"
+        data-step-key="response"
+        :data-step-rollback="bubbleTarget?.id || ''"
+        :data-step-fork="bubbleTarget?.id || ''"
+        data-step-label="回复操作"
+        v-bind="bubblePartIndex === undefined ? {} : {
+          'data-cut-row': '',
+          'data-cut-message-id': bubbleTarget?.id || '',
+          'data-cut-part-index': bubblePartIndex,
+          'data-cut-kind': 'response',
+          'data-cut-label': '回复操作',
+        }"
+      >
+        <div class="assistant-step__body">
+          <div class="rikka-bubble rikka-bubble--assistant" :class="{ 'is-streaming': streaming }" :data-message-id="bubbleMessageId">
+            <Markdown :content="shownBubble" />
+            <!-- 结束工具结果已经完整时，光标只是在等连接关闭，不该继续闪。 -->
+            <span v-if="!bubbleDone && !finalText" class="stream-caret" aria-hidden="true"></span>
+          </div>
+          <p v-if="error" class="message__error" role="alert">{{ error }}</p>
+        </div>
       </div>
-
-      <p v-if="error" class="message__error" role="alert">{{ error }}</p>
-    </MessageActions>
+      <p v-else-if="error" class="message__error" role="alert">{{ error }}</p>
   </div>
 </template>
 
 <style lang="scss" src="../../styles/components/conversation/AssistantTurn.scss"></style>
+
 

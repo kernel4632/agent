@@ -6,7 +6,7 @@
  * 这一层只把两边按用户看到的顺序串起来。
  *
  * 依赖按用途分组，同一个 feature 在这里只承担一种角色：
- *   Agent    会话装配与运行状态（create/invalidate/readSettings/resolve）
+ *   Agent    运行状态、连接配置、设置解析（invalidate/settings/resolve/connection）
  *   History  会话数据的唯一读写口（load/add/save/destroy）
  *   Approval / Tool / ToolTiming  删除会话时的联动清理；工具快照供回退预览
  *   Rollback / Compact / Title / SessionGroups  各自动作的纯逻辑实现
@@ -14,7 +14,7 @@
  * 调用示例：
  *   const { sessionId } = await Session.create({ title: '写爬虫', cwd: 'D:/notes' })
  *   const session = await Session.read({ sessionId })
- *   await Session.setCwd({ sessionId, cwd: 'D:/other' })
+ *   await Session.dir({ sessionId, cwd: 'D:/other' })   // 修改会话的当前工作目录
  *   await Session.rollback({ sessionId, messageId })
  */
 
@@ -23,11 +23,14 @@ import store from '../store.js'
 import Agent from '../features/agent.js'
 import Approval from '../features/approval.js'
 import Compact from '../features/compact.js'
+import Context from '../features/context.js'
 import History from '../features/history.js'
+import Mcp from '../features/mcp.js'
+import Review from '../features/review.js'
 import ContextUsage from '../utils/context-usage.js'
+import ContextRatios from '../utils/context-ratios.js'
 import Rollback from '../features/rollback.js'
 import SessionGroups from '../features/session-groups.js'
-import Title from '../features/title.js'
 import Tool from '../features/tool.js'
 import ToolTiming from '../features/tool-timing.js'
 import SSE from '../utils/sse.js'
@@ -36,34 +39,28 @@ import TempWorkspace from '../utils/temp-workspace.js'
 import fail from '../utils/fail.js'
 import usageOf from '../utils/usage.js'
 
+// --- 工具执行前的审批关口：审批不持有工具表，工具参数由这里递给它 ---
+const checkPermission = params => Approval.check({
+    ...params,
+    snapshot: Tool.snapshot,
+    ready: Tool.ready,
+    kindOf: Tool.kind,
+    review: Review.check,
+})
+
+// --- 装配一条会话的 Agent 要用的全部材料 ---
+// 注意：compact 不再走这条路，直接用 Agent.context.build + Agent.connection。
+const agentMaterials = async sessionId => {
+    const session = await History.load(sessionId)
+    const saveSession = () => History.save(sessionId)
+    const built = await Tool.build({ sessionId, onPermission: checkPermission, saveSession, mcp: Mcp })
+    return { session, settings: Agent.settings(session), ...built, onPermission: checkPermission, saveSession, context: Context }
+}
+
 // --- 整理用户填的标题 ---
 const cleanTitle = title => {
     if (typeof title !== 'string' || !title.trim()) throw fail(400, 'title must be a non-empty string')
     return title.trim()
-}
-
-// --- 新会话用哪个模型：点名了就查它，没点名就用配置里的对话默认 ---
-const chooseModel = ({ provider, model }) => {
-    const first = Agent.defaultModel()
-    const namedProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : ''
-    const namedModel = typeof model === 'string' && model.trim() ? model.trim() : ''
-
-    // 什么都没点名：用 config.models.chat。
-    if (!namedProvider && !namedModel) {
-        if (!first.provider) return { provider: '', model: '' }
-        Agent.connection(first)
-        return first
-    }
-
-    const name = namedProvider || first.provider
-    if (!name) return { provider: '', model: '' }
-    const info = (store.config.providers || []).find(item => item.name === name)
-    if (!info) throw fail(400, `Provider not found: ${name}`)
-
-    const own = info.models?.[0]
-    const chosen = namedModel || own?.id || ''
-    Agent.connection({ provider: name, model: chosen })
-    return { provider: name, model: chosen }
 }
 
 // --- 目录必须是真实存在的文件夹 ---
@@ -77,7 +74,27 @@ const folder = async path => {
 // --- 创建会话 ---
 const create = async ({ title, cwd, provider, model }) => {
     const clean = cleanTitle(title)
-    const chosen = chooseModel({ provider, model })
+
+    // --- 选模型：点名了就查它，没点名就用配置里的对话默认 ---
+    const first = Agent.model()
+    const namedProvider = typeof provider === 'string' && provider.trim() ? provider.trim() : ''
+    const namedModel = typeof model === 'string' && model.trim() ? model.trim() : ''
+    let chosen
+    if (!namedProvider && !namedModel) {
+        if (first.provider) Agent.connection(first)
+        chosen = first.provider ? first : { provider: '', model: '' }
+    } else {
+        const name = namedProvider || first.provider
+        if (!name) chosen = { provider: '', model: '' }
+        else {
+            const info = (store.config.providers || []).find(item => item.name === name)
+            if (!info) throw fail(400, `Provider not found: ${name}`)
+            const own = info.models?.[0]
+            const id = namedModel || own?.id || ''
+            Agent.connection({ provider: name, model: id })
+            chosen = { provider: name, model: id }
+        }
+    }
     // 没有指定目录时用独立临时工作区，避免 agent 默认在项目代码旁边动手。
     const requested = typeof cwd === 'string' && cwd.trim() ? cwd : ''
     const temporary = !requested
@@ -90,9 +107,9 @@ const create = async ({ title, cwd, provider, model }) => {
             temporary,
             provider: chosen.provider,
             model: chosen.model,
-            settings: Agent.defaultSettings(),
+            settings: Agent.defaults(),
         })
-        await Agent.create({ sessionId: session.id })
+        // Agent 按需装配，不预热
     } catch (error) {
         if (temporary) await TempWorkspace.remove(cwdPath, true).catch(() => {})
         throw error
@@ -124,7 +141,7 @@ const fork = async ({ sessionId, title, messageId }) => {
             temporary: source.temporary,
             provider: source.model.provider,
             model: source.model.model,
-            settings: await Agent.readSettings(sessionId),
+            settings: Agent.settings(source),
         })
     } catch (error) {
         if (source.temporary) await TempWorkspace.remove(branchCwd, true).catch(() => {})
@@ -133,36 +150,47 @@ const fork = async ({ sessionId, title, messageId }) => {
     // 历史复制到新目录，消息重新编号，分支之后的操作不会影响原会话。
     for (const { messageId: oldId, ...message } of kept) await History.add({ sessionId: branch.id, message })
     await History.save(branch.id)
-    await Agent.create({ sessionId: branch.id })
+    // Agent 按需装配，不预热
     return { sessionId: branch.id }}
 
-// --- 读取一条会话 ---
-const HISTORY_PAGE = 200
-const read = async ({ sessionId, historyLimit, historyStart }) => {
-    await ContextUsage.hydrate(sessionId)
-    const session = await History.load(sessionId)
-    const agent = Agent.runtime().get(sessionId)
-    const visible = history => history.filter(message => !message.internal)
-    const running = Boolean(agent?.running)
-
-    let history
-    if (running) {
-        history = visible(agent.history)
-    } else {
-        history = visible(History.get({ sessionId }))
-        if (agent) agent.history = history
-        // 打开会话只读历史，不在此时装配 Agent；MCP 连接可能阻塞首次发送。
+// --- 读取一条会话：默认返回完整历史；open 走 segmented，只给 manifest + 当前段 ---
+const read = async ({ sessionId, onProgress, segmented = false, after, segment: segmentId } = {}) => {
+    // segment 模式：只读一个封存段，给折叠的历史段展开用（数据结构不同，单独处理）
+    if (segmentId) {
+        const segment = await History.segment({ sessionId, segmentId })
+        return { id: sessionId, segment: segmentId, messages: segment.messages }
     }
 
-    const total = history.length
-    const requestedStart = Number(historyStart)
-    const requestedLimit = Number(historyLimit)
-    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(500, Math.floor(requestedLimit)) : 0
-    const start = Number.isFinite(requestedStart) && requestedStart >= 0
-      ? Math.min(total, Math.floor(requestedStart))
-      : limit ? Math.max(0, total - limit) : 0
-    const windowed = start > 0 || limit ? history.slice(start) : history
+    // 加载历史、装配 agent、过滤内部消息：所有分支都需要
+    await ContextUsage.hydrate(sessionId)
+    const session = await History.load(sessionId, { onProgress })
+    const agent = Agent.runtime().get(sessionId)
+    const running = Boolean(agent?.running)
+    const visible = history => history.filter(message => !message.internal)
+    const history = running ? visible(agent.history) : visible(History.get({ sessionId }))
+    if (!running && agent) agent.history = history                      // 打开会话只读历史，不在此时装配 Agent
 
+    // 统计数据：所有分支都需要，只算一次
+    const stats = {
+        historyTotal: history.length,
+        historyStats: historyUsage(history, session.model.provider, session.model.model),
+        contextEstimate: ContextUsage.read(sessionId),
+        toolTimings: await ToolTiming.read(sessionId),
+        pending: Approval.pending(sessionId),
+        undoable: History.redos({ sessionId }),
+        running,
+    }
+
+    // after 模式：增量读，只返回指定消息之后的新增内容
+    if (after) {
+        const afterIndex = history.findIndex(m => m.messageId === after || m.id === after)
+        const delta = afterIndex >= 0 ? history.slice(afterIndex + 1) : history
+        return { id: session.id, ...stats, delta, after, updatedAt: session.updatedAt }
+    }
+
+    // 正常/分段分支：全量或当前段
+    const usePage = segmented === 'true' || segmented === true
+    const page = usePage ? History.page({ sessionId, history }) : null
     return {
         id: session.id,
         title: session.title,
@@ -172,25 +200,18 @@ const read = async ({ sessionId, historyLimit, historyStart }) => {
         model: session.model.model,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        history: windowed,
-        historyStart: start,
-        historyTotal: total,
-        historyStats: historyUsage(history, session.model.provider, session.model.model),
-        contextEstimate: ContextUsage.read(sessionId),
-        todos: latestTodos(history),
-        running,
-        toolTimings: await ToolTiming.read(sessionId),
-        pending: Approval.pending(sessionId),
-        settings: await Agent.readSettings(sessionId),
-        undoable: History.redoCount({ sessionId }),
+        history: page?.manifest ? page.current : history,
+        ...(page?.manifest ? { historyManifest: page.manifest } : {}),
+        ...stats,
+        settings: Agent.settings(session),
     }
 }
 
 // --- 会话级用量聚合：统计必须基于完整历史，而不是前端最近窗口 ---
-const MAX_TOKENS = 5_000_000
+// 挡脏值：数字合法且 >= 0 就接受，没有上限（以后上下文窗口可能超过现在的数字）。
 const safeTokens = value => {
     const number = Number(value)
-    return Number.isFinite(number) && number >= 0 && number <= MAX_TOKENS ? Math.round(number) : 0
+    return Number.isFinite(number) && number >= 0 ? Math.round(number) : 0
 }
 
 function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
@@ -202,13 +223,16 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
         const output = safeTokens(usage.output)
         const durationMs = Number(usage.durationMs || 0)
         const firstTokenMs = Number(usage.firstTokenMs || 0)
-        const generation = durationMs > firstTokenMs ? durationMs - firstTokenMs : durationMs
+        const reasoning = safeTokens(usage.reasoning)
+        // TPS 只看原始生成：usage.output 去掉 reasoning；分母用整次请求耗时，
+        // 不再减去首字时间，否则供应商把首字和正文一起返回时会冲成几千 tok/s。
+        const rawOutput = Math.max(0, output - reasoning)
         requests.push({
             input,
             output,
             cache: safeTokens(usage.cacheRead),
             cacheWrite: safeTokens(usage.cacheWrite),
-            reasoning: safeTokens(usage.reasoning),
+            reasoning,
             total: safeTokens(usage.total) || input + output,
             provider: usage.provider || fallbackProvider,
             model: usage.model || fallbackModel,
@@ -216,7 +240,7 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
             finishedAt: Number(usage.finishedAt || 0),
             firstTokenMs,
             durationMs,
-            tps: generation > 0 ? output / (generation / 1000) : 0,
+            tps: durationMs > 0 ? rawOutput / (durationMs / 1000) : 0,
         })
     }
 
@@ -244,11 +268,11 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
             lastTps: 0, lastAt: 0, latest: null,
         }
         group.count += 1
-        group.output += item.output
+        group.output += Math.max(0, item.output - item.reasoning)
         if (item.durationMs > 0) {
             group.durationMs += item.durationMs
             group.durationCount += 1
-            group.generationMs += item.durationMs > item.firstTokenMs ? item.durationMs - item.firstTokenMs : item.durationMs
+            group.generationMs += item.durationMs
         }
         if (item.firstTokenMs > 0) {
             group.firstTokenMs += item.firstTokenMs
@@ -290,17 +314,6 @@ function historyUsage(history, fallbackProvider = '', fallbackModel = '') {
     }
 }
 
-// --- 从历史里取出最新一份任务清单 ---
-const latestTodos = history => {
-    for (const message of [...history].reverse()) {
-        for (const part of Array.isArray(message.content) ? message.content : []) {
-            if (part.type !== 'tool-result' || part.toolName !== 'update_todo_list') continue
-            if (part.output?.value?.items) return part.output.value.items
-        }
-    }
-    return []
-}
-
 // --- 重命名 ---
 const rename = async ({ sessionId, title }) => {
     const session = await History.load(sessionId)
@@ -311,10 +324,10 @@ const rename = async ({ sessionId, title }) => {
 }
 
 // --- 换模型 ---
-const setModel = async ({ sessionId, provider, model }) => {
+const model = async ({ sessionId, provider, model: modelId }) => {
     const session = await History.load(sessionId)
     const chosen = typeof provider === 'string' && provider.trim() ? provider.trim() : session.model.provider
-    const name = typeof model === 'string' && model.trim() ? model.trim() : session.model.model
+    const name = typeof modelId === 'string' && modelId.trim() ? modelId.trim() : session.model.model
     if (!chosen || !name) throw fail(400, 'provider and model must be non-empty strings')
     Agent.connection({ provider: chosen, model: name })
 
@@ -325,32 +338,16 @@ const setModel = async ({ sessionId, provider, model }) => {
     const agent = Agent.runtime().get(sessionId)
     if (agent?.running) {
         // core 0.30 每轮现读 agent.config；运行中只换配置，不重建实例、不中断当前任务。
-        const settings = await Agent.readSettings(sessionId)
-        Object.assign(agent.config, await Agent.resolve({ session, settings, target: { provider: chosen, model: name } }))
+        const agentSettings = Agent.settings(session)
+        Object.assign(agent.config, await Agent.resolve({ session, settings: agentSettings, target: { provider: chosen, model: name }, context: Context }))
     } else {
         Agent.invalidate(sessionId)
-        await Agent.create({ sessionId })
     }
     return { ...session, provider: chosen, model: name }
 }
 
-// --- 按后续对话重新生成标题 ---
-const generateTitle = async ({ sessionId }) => {
-    const session = await History.load(sessionId)
-    const target = Agent.taskModel('title', session.model)
-    const messages = History.get({ sessionId }).filter(message => !message.internal)
-    const title = await Title.generate({ connection: Agent.connection(target), messages }) || Title.fallback(messages)
-    if (title) {
-        session.title = title
-        session.updatedAt = Date.now()
-        await History.save(sessionId)
-        await SSE.send({ id: sessionId, data: { type: 'title', title } })
-    }
-    return { title: session.title }
-}
-
 // --- 换目录 ---
-const setCwd = async ({ sessionId, cwd }) => {
+const dir = async ({ sessionId, cwd }) => {
     const session = await History.load(sessionId)
     const previous = session.cwd
     const wasTemporary = session.temporary === true
@@ -373,126 +370,177 @@ const remove = async ({ sessionId }) => {
     await SSE.close({ id: sessionId })
     await History.destroy(sessionId)
     if (session.temporary) await TempWorkspace.remove(session.cwd, true).catch(error => console.error(`[session ${sessionId}] 清理临时工作区失败：${error.message}`))
-    await SessionGroups.removeSession(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
+    await SessionGroups.remove(sessionId).catch(error => console.error(`[session ${sessionId}] 清理分组失败：${error.message}`))
     ToolTiming.forget(sessionId)
     ContextUsage.remove(sessionId)
     return { ok: true }
 }
 
-const readSettings = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Agent.readSettings(sessionId)
+// --- 会话级设置快照：思考强度、模型、当前目录放一起 ---
+// 这三个都是“这条会话自己的”设置，读写都走同一个结构，前端只认一份。
+const settings = async ({ sessionId }) => {
+    const session = await History.load(sessionId)
+    const settings = Agent.settings(session)
+    return {
+        reasoning: settings.reasoning,
+        provider: session.model.provider,
+        model: session.model.model,
+        cwd: session.cwd,
+        temporary: session.temporary === true,
+    }
 }
 
-const saveSettings = async ({ sessionId, ...change }) => Agent.saveSettings({ sessionId, ...change })
+// --- 改会话级设置：点名哪几项就改哪几项，最后回一份快照 ---
+// patch 是 HTTP PATCH 语义：只改传入的字段，其余保持不变。
+const patch = async ({ sessionId, reasoning, provider, model: modelName, cwd }) => {
+    // --- 改思考强度：读历史、归一、写回、必要时重建 Agent ---
+    if (reasoning !== undefined) {
+        const session = await History.load(sessionId)
+        const current = Agent.normalize(session.settings, Agent.defaults())
+        const saved = Agent.normalize({ reasoning }, current)
+        await History.settings({ sessionId, settings: saved })
+        if (reasoning !== current.reasoning) {
+            const agent = Agent.runtime().get(sessionId)
+            if (agent?.running) {
+                Object.assign(agent.config, await Agent.resolve({ session, settings: saved, context: Context }))
+            } else {
+                Agent.invalidate(sessionId)
+            }
+        }
+    }
+    if (provider !== undefined || modelName !== undefined) await model({ sessionId, provider, model: modelName })
+    if (cwd !== undefined) await dir({ sessionId, cwd })
+    return settings({ sessionId })
+}
 
 // --- 手动压缩 ---
+// --- 手动压缩 ---
 const compact = async ({ sessionId }) => {
-    const agent = await Agent.get({ sessionId })                         // 已经装配好的 agent
-    const start = agent.history.length                                  // 压缩前的位置
+    const runtimeAgent = Agent.runtime().get(sessionId)
+    let content
     let compactStartedAt = 0
     let compactUsage
-    const content = await Compact.run({
-        sessionId,
-        agent,
-        onEvent: event => {
-            if (event.type === 'compact-start') compactStartedAt = Date.now()
-            if (event.type === 'compact-finish') {
-                const finishedAt = Date.now()
-                compactUsage = usageOf({
-                    usage: event.usage,
-                    startedAt: compactStartedAt || finishedAt,
-                    finishedAt,
-                })
-            }
-            return SSE.send({ id: sessionId, data: event })
-        },
-    })
-    for (const message of agent.history.slice(start)) {
-        if (message.compact && compactUsage) message.usage = compactUsage
-        await History.add({ sessionId, message }) // 只保存新追加的总结
+    const onEvent = event => {
+        if (event.type === 'compact-start') compactStartedAt = Date.now()
+        if (event.type === 'compact-finish') {
+            const finishedAt = Date.now()
+            compactUsage = usageOf({ usage: event.usage, startedAt: compactStartedAt || finishedAt, finishedAt })
+        }
+        return SSE.send({ id: sessionId, data: event })
     }
+
+    // 不依赖 runtime Agent 实例：用静态路径，history + llm 直接发压缩请求。
+    const session = await History.load(sessionId)
+    const records = History.get({ sessionId })
+    const history = records.map(({ messageId, ...message }) => message)
+    const llm = Agent.connection(session.model)
+    const result = await Compact.run({ sessionId, history, llm, onEvent })
+    content = result.content
+    await History.add({ sessionId, message: { ...result.message, ...(compactUsage ? { usage: compactUsage } : {}) } })
     await History.save(sessionId)
+
+    // 压缩后历史已经换成摘要；下一次请求的上下文明显变小，立刻重算并写回台账，
+    // 否则底部会一直显示压缩前的 90%+。
+    // 注意必须重新读一次 History：上面的 history 是压缩前的快照，拿它估算等于没压缩。
+    const compactedRecords = History.get({ sessionId })
+    const compactedHistory = compactedRecords.map(({ messageId, ...message }) => message)
+    const system = await Context.system({ config: store.config, cwd: session.cwd })
+    const budget = ContextUsage.read(sessionId)?.budget || 128000
+    // 长会话早就有真实 usage 校准出的每字符 token 比例，重算摘要上下文时直接复用，
+    // 不要退回 core 的默认 0.6，否则压缩后的百分比会偏大。
+    const calibrated = await ContextRatios.read(session.model)
+    const tokens = Agent.estimateContext({ history: compactedHistory, system, budget, ratio: calibrated?.ratio })
+    ContextUsage.record(sessionId, { tokens, budget, compactThreshold: store.config.compact.threshold })
+
     return { ...await read({ sessionId }), content }
 }
 
-// --- 文件改动和工具回退 ---
-const changes = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Tool.diff({ sessionId })
+// --- 回退：给 messageId 退对话（可连文件），给 toolCallId 只退那次工具改的文件 ---
+// 三种回退模式：消息级（整条对话）、正文块级（一条消息里的某个块）、工具调用级（只退文件）。
+// 两个都给的时候不猜，直接报错——猜错会把用户不想退的对话退掉。
+const rollback = async (params) => {
+    const { sessionId, messageId, toolCallId, partIndex, files = true, compact = false } = params
+
+    // 参数校验：三种模式互斥
+    if (messageId && toolCallId) throw fail(400, 'give messageId or toolCallId, not both')
+    if (!messageId && !toolCallId) throw fail(400, 'messageId or toolCallId is required')
+    if (partIndex !== undefined && toolCallId) throw fail(400, 'partIndex only works with messageId')
+
+    // 分派到三种模式
+    if (partIndex !== undefined) return rollbackPart({ sessionId, messageId, partIndex, files, compact })
+    if (toolCallId) return rollbackToolCall({ sessionId, toolCallId, files })
+    return rollbackMessage({ sessionId, messageId, files, compact })
 }
 
-const toolChanges = async ({ sessionId }) => {
-    await History.load(sessionId)
-    return Tool.entries({ sessionId })
+// --- 正文块/工具调用级回退：同一条 assistant 消息只保留目标之前的内容 ---
+const rollbackPart = async ({ sessionId, messageId, partIndex, files, compact }) => {
+    await History.load(sessionId)                                        // 加载历史到内存
+    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`) // 运行中不能回退
+    const plan = Rollback.plan({ history: History, sessionId, messageId, partIndex }) // 算出回退后还留哪些消息块
+    const restored = files
+        ? await Tool.restore({ sessionId, keepMessages: plan.keepMessages, dropToolCalls: plan.dropToolCalls })
+        : []                                                             // files=false 时不恢复文件，只退消息
+    await Rollback.cut({ history: History, agent: Agent, sessionId, messageId, partIndex }) // 执行回退
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
 }
 
-// --- 回退前先看会消失多少消息、哪些文件会被恢复 ---
-const rollbackPreview = async ({ sessionId, messageId }) => {
-    await History.load(sessionId)
-    const plan = Rollback.preview({ history: History, sessionId, messageId })
-    const droppedCalls = new Set(plan.toolCalls)
-    const entries = await Tool.entries({ sessionId })
-    const dropped = new Set()
-    for (const entry of entries) {
-        // 新快照记着真实调用 id，按它精确匹配；没有调用 id 的旧快照退回按消息归属判断。
-        const hit = entry.toolCallId ? droppedCalls.has(entry.toolCallId) : !plan.keep.includes(entry.messageId)
-        if (!hit) continue
-        for (const path of entry.paths) dropped.add(path)
-    }
-    const files = (await Tool.diff({ sessionId })).filter(file => dropped.has(file.path))
-    return { messages: plan.messages, toolCalls: plan.toolCalls, files }
-}
-
-// --- 消息和文件一起回退，也可以只退消息 ---
-const rollback = async ({ sessionId, messageId, files = true }) => {
-    await History.load(sessionId)
-    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
-
-    // 先算出回退后还留哪些消息块，再恢复文件；文件失败时消息保持原样。
-    const plan = Rollback.preview({ history: History, sessionId, messageId })
-    const restored = files ? await Tool.restoreMessage({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
-    await Rollback.messages({ history: History, agent: Agent, sessionId, messageId })
-    return { ...await read({ sessionId }), restored }
-}
-
-// --- 只退某一次工具调用改的文件，对话不动 ---
-const rollbackTool = async ({ sessionId, toolCallId, files = true }) => {
+// --- 工具调用级回退：只退某一次工具改的文件，对话不动 ---
+const rollbackToolCall = async ({ sessionId, toolCallId, files }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
     const restored = files
-        ? await Tool.restoreTool({ sessionId, toolCallId })
-        : await Tool.dropTool({ sessionId, toolCallId })
-    return { restored }
+        ? await Tool.restore({ sessionId, toolCallId })              // 恢复这次工具调用改的文件
+        : await Tool.drop({ sessionId, toolCallId })                 // 只清快照，不恢复
+    return { ...await read({ sessionId }), restored }                    // 这条路径一直返回完整结果，compact 不生效，接口行为保持原样
+}
+
+// --- 消息级回退：退到某条消息之前，可连文件一起退 ---
+const rollbackMessage = async ({ sessionId, messageId, files, compact }) => {
+    await History.load(sessionId)
+    if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
+    const plan = Rollback.preview({ history: History, sessionId, messageId }) // 算出回退后还留哪些消息块
+    const restored = files ? await Tool.restore({ sessionId, keepMessages: plan.keep, dropToolCalls: plan.toolCalls }) : []
+    await Rollback.messages({ history: History, agent: Agent, sessionId, messageId }) // 执行回退
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
+}
+
+// --- 回退/撤销的紧凑响应：前端已经知道目标，不需要再拿 12k 条历史 ---
+const compactRollback = async (sessionId, restored) => {
+    const session = await History.load(sessionId)
+    return {
+        id: sessionId,
+        historyTotal: session.history.messages.length,
+        undoable: History.redos({ sessionId }),
+        restored,
+    }
 }
 
 // --- 撤销最近一次回退 ---
-const redo = async ({ sessionId, files = true }) => {
+const redo = async ({ sessionId, files = true, compact = false }) => {
     await History.load(sessionId)
     if (Agent.runtime().get(sessionId)?.running) throw fail(409, `Agent is already running: ${sessionId}`)
 
     const restored = files ? await Tool.undo({ sessionId }) : []
     await Rollback.undo({ history: History, agent: Agent, sessionId })
-    return { ...await read({ sessionId }), restored }
+    return compact ? compactRollback(sessionId, restored) : { ...await read({ sessionId }), restored }
 }
+
+// --- 列表与统计 ---
+// 分组只是显示顺序，跟列表一起返回，不再单开一条接口。
+const list = async ({ search } = {}) => ({
+    sessions: await History.list({ search }),
+    groups: (await SessionGroups.read()).groups || [],
+})
 
 // --- 统计会话数量 ---
 const count = () => History.count()
 
-// --- 历史分页与全会话大纲：前端只加载视口附近的历史 ---
-const historyPage = ({ sessionId, before, beforeOffset, limit }) => beforeOffset === undefined
-    ? History.page({ sessionId, before, limit })
-    : History.pageByOffset({ sessionId, beforeOffset, limit })
-const historyOutline = ({ sessionId }) => History.outline(sessionId)
-const searchHistory = ({ sessionId, query, limit }) => History.search({ sessionId, query, limit })
-
-// --- 统计正在运行的任务 ---
-const runningCount = () => Agent.runningCount()
+// --- 统计正在运行的任务数（注意：History.running(id, bool) 是设置运行标记，这里是只读计数）---
+const running = () => Agent.count()
 
 export default {
-    create, fork, list: History.list, read, rename, setModel, setCwd, generateTitle, remove,
-    historyPage, historyOutline, searchHistory,
-    readSettings, saveSettings, compact,
-    changes, toolChanges, rollbackPreview, rollback, rollbackTool, redo,
-    count, runningCount,
+    create, fork, list, read, rename, model, dir, remove,
+    settings, patch, compact,
+    rollback, redo,
+    count, running,
 }

@@ -37,7 +37,7 @@
 1. 先用 `/health`、监听端口和进程链确认当前实例；不要用 `taskkill /F /T` 连坐杀父进程。
 2. 停掉旧的 server 子进程，确认 3000 端口已释放。
 3. 用 DSH 的后台任务启动 `bun run server.js`（工作目录 `server/`），等 `/health` 返回且版本等于目标版本。
-4. 再验证 `/session/list`、`/config/read` 等只读接口，确认数据目录和配置没有被换掉。
+4. 再验证 `/session/list`、`/admin {op:"config.read"}` 等只读接口，确认数据目录和配置没有被换掉。
 5. 前端由 Vite HMR 更新，不需要为了新代码重启；只有构建产物或 Vite 进程异常时才处理。
 
 历史的进程管理事故仍然是教训：
@@ -84,15 +84,25 @@ CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test
 
 调试日志、构建日志、测试截图和一次性脚本统一放进 `tmp/`，根目录只保留源码、文档和项目配置。`tmp/` 已经在 `.gitignore` 里整目录忽略；需要保留的日志放 `tmp/logs/`，用完可以随时清掉。
 
-## 改接口要同时改三处
+## 路由已冻结，不能随便新增
 
-前后端之间的 HTTP 契约写在这三处，任何一处变了，另外两处必须跟着改，否则下次接手的人会按错的字段名写：
+后端路由固定在 **19 条**，已写入测试（`server/tests/api-frozen.test.js`）。
+
+- 加新功能优先**扩展现有路由的查询参数或请求体字段**
+- 管理动作走 `/admin` 总线（`commands/admin.js` 的 `OPS` 对象），op 可以随功能扩展，不受冻结限制
+- **不能新增路由**，除非用户明确说要加，或功能确实没法用现有路由实现且用户同意后
+- 测试失败说明有人在试图新增路由，必须停下来问用户
+
+## 改接口要同时改两处
+
+前后端之间的 HTTP 契约写在这两处，任何一处变了，另一处必须跟着改，否则下次接手的人会按错的字段名写：
 
 | 位置 | 作用 |
 | --- | --- |
-| `server/openapi.json` | 每个接口的参数、响应、错误码 |
-| `server/README.md` | 前端怎么对接（含 SSE 事件表） |
+| `server/README.md` | 前端怎么对接（含 SSE 事件表、权限规则、错误码） |
 | `frontend/src/utils/api.js` | 前端实际发出的请求 |
+
+路由本身只在 `server/server.js` 里写一次：`bun test` 会把它和前端调用的路径对账（`frontend/tests/server-routes.js` 直接解析这个文件），另有一份手写接口清单只会漂移。
 
 改了接口路径、请求字段、响应字段或状态码时，如果需要前端配合改代码，就在提交说明里写清楚改了什么、前端要动哪里。
 
@@ -109,6 +119,52 @@ CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test
 测试切 `AGENT_HOME` 时必须同时 `Path.lock(root)`：任务收尾是异步的，等它写盘时测试可能已经把
 `AGENT_HOME` 恢复成默认值，那些晚到的写入就落到真实的 `~/.agent` 里了（曾经因此留下几十条垃圾会话）。
 `Path.lock` 锁定之后本进程的路径解析不再看 `process.env`，测试的 `finally` 里解锁。
+
+## 后端分层规则
+
+后端分四层，同一层的文件夹内部不互相引用，这是硬约束，由 `tests/contract.test.js` 把关：
+
+- `commands/` 之间不互相 import；一个接口一个文件，负责把请求变成参数、校验、调用 features/utils、拼响应。
+- `features/` 之间不互相 import；每个文件是一个业务主体，只 import `store.js`、`utils/` 和第三方包。工具执行需要的 features 能力（如 `Tool.snapshot`、`Tool.kind`）由 commands 层通过参数传入，不在 features 里静态 import 别的 feature。
+- `tools/` 只 import `store.js` 和 `utils/`，需要 features 的能力时一律从参数传入。
+- `utils/` 是跨层共用的小工具。
+
+**禁止用 `bind()` 或运行时注入绕开上面这条**：装配材料（Agent 实例需要的 session、tools、mcp、approval 等）由 commands 层传进来，features 不自己 import 别的 feature 来装配。
+
+### 命名
+
+导出函数采用 `主体.动作()`，动作只用一个动词：`Agent.create()`、`History.save()`、`Tool.restore()`。内部辅助函数不导出。
+
+### 函数粒度
+
+一个功能操作写成一个函数。只有被多处共用的逻辑才抽成独立函数，单次调用的直接内联。大函数内部用 `// --- 小标题 ---` 分隔流程段落。
+
+### Agent 装配代码有三份
+
+`commands/chat.js`、`commands/session.js`、`server/tests/agent-helpers.js` 各有一份装配代码（`getAgent` + `checkPermission` + 取 session/settings/tools 的逻辑）。这是有意为之：把它们抽进 `commands/assemble.js` 会让 commands 之间互相引用，违反分层约束。三份重复比一个违反架构的公共模块更好。
+
+## 后端分层规则
+
+后端分四层，同一层的文件夹内部不互相引用，这是硬约束，由 `tests/contract.test.js` 把关：
+
+- `commands/` 之间不互相 import；一个接口一个文件，负责把请求变成参数、校验、调用 features/utils、拼响应。
+- `features/` 之间不互相 import；每个文件是一个业务主体，只 import `store.js`、`utils/` 和第三方包。工具执行需要的 features 能力（如 `Tool.snapshot`、`Tool.kind`）由 commands 层通过参数传入，不在 features 里静态 import 别的 feature。
+- `tools/` 只 import `store.js` 和 `utils/`，需要 features 的能力时一律从参数传入。
+- `utils/` 是跨层共用的小工具。
+
+**禁止用 `bind()` 或运行时注入绕开上面这条**：装配材料（Agent 实例需要的 session、tools、mcp、approval 等）由 commands 层传进来，features 不自己 import 别的 feature 来装配。
+
+### 命名
+
+导出函数采用 `主体.动作()`，动作只用一个动词：`Agent.create()`、`History.save()`、`Tool.restore()`。内部辅助函数不导出。
+
+### 函数粒度
+
+一个功能操作写成一个函数。只有被多处共用的逻辑才抽成独立函数，单次调用的直接内联。大函数内部用 `// --- 小标题 ---` 分隔流程段落。
+
+### Agent 装配代码有三份
+
+`commands/chat.js`、`commands/session.js`、`server/tests/agent-helpers.js` 各有一份装配代码（`getAgent` + `checkPermission` + 取 session/settings/tools 的逻辑）。这是有意为之：把它们抽进 `commands/assemble.js` 会让 commands 之间互相引用，违反分层约束。三份重复比一个违反架构的公共模块更好。
 
 ## Agent 循环来自外部包
 

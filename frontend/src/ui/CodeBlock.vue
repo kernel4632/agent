@@ -8,6 +8,7 @@ import Button from './Button.vue'
 import Dialog from './Dialog.vue'
 import Icon from './Icon.vue'
 import { Notice } from '../utils/notice.js'
+import * as MermaidCache from '../utils/mermaid-cache.js'
 const props = defineProps({ code: { type: String, default: '' }, language: { type: String, default: 'text' }, lineNumbers: Boolean })
 const status = ref('复制')
 let timer
@@ -129,7 +130,6 @@ const loadMermaid = async () => {
 // 虚拟列表只挂载视口附近的轮次，Mermaid 组件会随行卸载/重建；
 // 这里不再做第二层 IntersectionObserver 懒加载。挂载即查缓存并排队渲染，
 // 否则重新滚回底部时会先出现一大块空白占位，等观察器和渲染队列才恢复。
-const placeholderHeight = '120px'
 let drawToken = 0
 
 async function draw() {
@@ -141,6 +141,16 @@ async function draw() {
   const cached = diagramCache.get(key)
   if (cached) {
     const result = await cached
+    if (token !== drawToken) return
+    diagram.value = result.svg
+    diagramError.value = result.error
+    return
+  }
+  // 同一张图在刷新/重新打开会话后也已经画过：优先读持久缓存，不重新跑 mermaid。
+  const persisted = await MermaidCache.read(key)
+  if (persisted) {
+    const result = { svg: persisted.svg, error: '' }
+    diagramCache.set(key, Promise.resolve(result))
     if (token !== drawToken) return
     diagram.value = result.svg
     diagramError.value = result.error
@@ -165,6 +175,7 @@ async function draw() {
   })
   diagramCache.set(key, task)
   const result = await task
+  if (result.svg) void MermaidCache.write(key, result)
   if (token !== drawToken) return
   diagram.value = result.svg
   diagramError.value = result.error
@@ -202,16 +213,19 @@ const fullscreen = ref(false)
 const stage = ref(null)
 const mermaidBox = ref(null)
 const MIN_SCALE = .2
-const MAX_SCALE = 8
 const scale = ref(1)
 const pan = ref({ x: 0, y: 0 })
-const clampScale = value => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+// 不设放大上限：SVG 是矢量图，放大到多少由读者决定；只保护非有限值。
+const clampScale = value => Number.isFinite(value) ? Math.max(MIN_SCALE, value) : scale.value
 const viewStyle = computed(() => ({ transform: `translate(calc(-50% + ${pan.value.x}px), calc(-50% + ${pan.value.y}px)) scale(${scale.value})` }))
 
 // 打开与“复位”都回到初始视图：整张图收进视口（留 8% 边），量不到尺寸就保持 1。
 async function fitView() {
   scale.value = 1
   pan.value = { x: 0, y: 0 }
+  drag = null
+  pinch = null
+  pointers.clear()
   await nextTick()
   const svg = stage.value?.querySelector('svg')
   const box = stage.value?.getBoundingClientRect()
@@ -237,17 +251,92 @@ function onWheel(event) {
 }
 
 let drag = null
-function dragStart(event) {
-  if (event.button !== 0) return
-  drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
-  event.currentTarget.setPointerCapture(event.pointerId)
+const pointers = new Map()
+let pinch = null
+
+function startPinch() {
+  const [first, second] = [...pointers.values()]
+  if (!first || !second) return
+  const box = stage.value?.getBoundingClientRect()
+  if (!box?.width) return
+  const midpointX = (first.x + second.x) / 2 - box.left - box.width / 2
+  const midpointY = (first.y + second.y) / 2 - box.top - box.height / 2
+  pinch = {
+    distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+    scale: scale.value,
+    pan: { ...pan.value },
+    midpointX,
+    midpointY,
+  }
 }
+
+function movePinch() {
+  const [first, second] = [...pointers.values()]
+  if (!first || !second || !pinch) return
+  const box = stage.value?.getBoundingClientRect()
+  if (!box?.width) return
+  const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y))
+  const next = clampScale(pinch.scale * (distance / pinch.distance))
+  const ratio = next / pinch.scale
+  const midpointX = (first.x + second.x) / 2 - box.left - box.width / 2
+  const midpointY = (first.y + second.y) / 2 - box.top - box.height / 2
+  pan.value = {
+    x: midpointX - (pinch.midpointX - pinch.pan.x) * ratio,
+    y: midpointY - (pinch.midpointY - pinch.pan.y) * ratio,
+  }
+  scale.value = next
+}
+
+function dragStart(event) {
+  if (event.pointerType === 'touch') {
+    event.preventDefault()
+    window.getSelection()?.removeAllRanges()
+    try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pointers.size === 1) {
+      drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
+      pinch = null
+    } else if (pointers.size === 2) {
+      drag = null
+      startPinch()
+    }
+    return
+  }
+  if (event.button !== 0) return
+  // 拖拽平移不是选文字；不阻止默认行为时 SVG/foreignObject 里的文本会被一并选中。
+  event.preventDefault()
+  window.getSelection()?.removeAllRanges()
+  drag = { x: event.clientX - pan.value.x, y: event.clientY - pan.value.y }
+  try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
+}
+
 function dragMove(event) {
+  if (event.pointerType === 'touch') {
+    if (!pointers.has(event.pointerId)) return
+    event.preventDefault()
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    if (pinch) movePinch()
+    else if (drag) pan.value = { x: event.clientX - drag.x, y: event.clientY - drag.y }
+    return
+  }
   if (drag) pan.value = { x: event.clientX - drag.x, y: event.clientY - drag.y }
 }
+
 function dragEnd(event) {
+  if (event.pointerType === 'touch') {
+    pointers.delete(event.pointerId)
+    try { event.currentTarget.releasePointerCapture?.(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
+    pinch = null
+    if (pointers.size === 1) {
+      const remaining = [...pointers.values()][0]
+      drag = { x: remaining.x - pan.value.x, y: remaining.y - pan.value.y }
+    } else if (!pointers.size) {
+      drag = null
+    }
+    return
+  }
   drag = null
-  event.currentTarget.releasePointerCapture?.(event.pointerId)
+  try { event.currentTarget.releasePointerCapture?.(event.pointerId) } catch { /* 合成事件没有活动指针 */ }
 }
 // 点击图表外的空处关闭；点在图上是拖拽平移，不触发。
 function closeOnEmpty(event) { if (event.target === event.currentTarget) fullscreen.value = false }
@@ -370,10 +459,7 @@ async function saveImage() {
     <div v-if="isMermaid && diagram" ref="mermaidBox" class="ui-code-block__mermaid">
       <button class="ui-code-block__mermaid-view" type="button" aria-label="全屏查看图表" title="点击全屏查看" @click="fullscreen = true" v-html="diagram"></button>
     </div>
-    <!-- 虚拟行重新挂载后立即绘制；这里只留一小块过渡占位，不再按源码行数估算大块空白。 -->
-    <div v-else-if="isMermaid && !diagramError" class="ui-code-block__mermaid-placeholder" :style="{ minHeight: placeholderHeight }">
-      <span>正在绘制图表…</span>
-    </div>
+    <!-- 不再给图表留估算占位；未画完就是还没有内容，画完后按真实 SVG 尺寸布局。 -->
     <div v-else class="ui-code-block__body">
       <p v-if="diagramError" class="ui-code-block__mermaid-error">{{ diagramError }}</p>
       <pre v-if="lineNumbers" class="ui-code-block__numbers" aria-hidden="true">{{ code.split('\n').map((_, index) => index + 1).join('\n') }}</pre>
@@ -387,7 +473,7 @@ async function saveImage() {
         <div class="ui-code-block__zoombar">
           <Button icon variant="text" label="缩小" :disabled="scale <= MIN_SCALE" @click="nudge(-1)"><Icon name="zoom-out" :size="18" /></Button>
           <button class="ui-code-block__zoom-value" type="button" title="点击复位" @click="resetView">{{ Math.round(scale * 100) }}%</button>
-          <Button icon variant="text" label="放大" :disabled="scale >= MAX_SCALE" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
+          <Button icon variant="text" label="放大" @click="nudge(1)"><Icon name="zoom-in" :size="18" /></Button>
           <Button icon variant="text" label="复位视图" @click="resetView"><Icon name="refresh" :size="18" /></Button>
           <Button icon variant="text" label="复制图表图片" @click="copyImage"><Icon name="image" :size="18" /></Button>
           <Button icon variant="text" label="下载图表" @click="saveImage"><Icon name="download" :size="18" /></Button>

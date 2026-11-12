@@ -12,7 +12,9 @@
  *   await SSE.close({ id: sessionId })   // 会话结束，断开并释放缓存
  */
 
-const HEARTBEAT_MS = 15000
+// Bun/Elysia 的空闲连接会在几秒内被关掉；心跳必须比它短，否则安静等待模型时
+// 实时连接会被当成空闲连接清掉，下一批事件只能在页面刷新后从历史里补。
+const HEARTBEAT_MS = 3000
 const encoder = new TextEncoder()
 const sessions = new Map()
 
@@ -28,21 +30,19 @@ const eventText = (id, data) => {
 const sessionState = id => {
     let state = sessions.get(id)
     if (!state) {
-        state = { nextId: 1, events: [], connection: null, controller: null }
+        state = { nextId: 1, events: [], connections: new Set() }
         sessions.set(id, state)
     }
     return state
 }
 
 // --- 建立实时连接 ---
+// 同一个会话可以同时有多个订阅者（多个标签页/窗口）；每个连接独立重放缓存、
+// 独立心跳、独立断开，不能让新连接把旧连接踢掉。
 const connect = async ({ id, request }) => {
     const state = sessionState(id)
 
-    // 同一个会话只允许一个连接；新连接替换旧连接，但保留事件缓存供新连接补发。
-    if (state.controller) state.controller.abort()
-
     const controller = new AbortController()
-    state.controller = controller
     const abortFromRequest = () => controller.abort()
     request?.signal?.addEventListener('abort', abortFromRequest, { once: true })
     if (request?.signal?.aborted) controller.abort()
@@ -51,15 +51,14 @@ const connect = async ({ id, request }) => {
     let closed = false
     let heartbeat = null
 
-    // 关闭连接：只关自己，不碰后来替换上来的连接。
+    // 关闭这个连接：只处理自己，不碰同会话的其他订阅者。
     const shutdown = () => {
         if (closed) return
         closed = true
         if (heartbeat) clearInterval(heartbeat)
         controller.abort()
         request?.signal?.removeEventListener('abort', abortFromRequest)
-        if (state.connection === connection) state.connection = null
-        if (state.controller === controller) state.controller = null
+        state.connections.delete(connection)
         try { stream?.close() } catch {}
     }
 
@@ -74,7 +73,9 @@ const connect = async ({ id, request }) => {
             }
         },
         close: shutdown,
+        controller,
     }
+    state.connections.add(connection)
 
     controller.signal.addEventListener('abort', shutdown, { once: true })
 
@@ -91,7 +92,6 @@ const connect = async ({ id, request }) => {
                 return
             }
 
-            state.connection = connection
             for (const event of state.events) connection.push(event.data, event.id)
 
             if (closed) return
@@ -128,14 +128,16 @@ const send = async ({ id, data }) => {
     const state = sessionState(id)
     const event = { id: state.nextId++, data }
     state.events.push(event)
-    if (state.connection?.isConnected) state.connection.push(event.data, event.id)
+    for (const connection of state.connections) {
+        if (connection.isConnected) connection.push(event.data, event.id)
+    }
 }
 
-// --- 关闭实时连接 ---
+// --- 关闭会话的全部实时连接 ---
 const close = async ({ id }) => {
     const state = sessions.get(id)
     if (!state) return
-    if (state.controller) state.controller.abort()
+    for (const connection of [...state.connections]) connection.close()
     sessions.delete(id)
 }
 

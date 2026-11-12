@@ -14,6 +14,7 @@ import Icon from '../ui/Icon.vue'
 import Button from '../ui/Button.vue'
 // 面板顺序和视觉组件属于本页面；功能保存仍调用 features/settings。
 import AppearanceSettings from '../components/preferences/AppearanceSettings.vue'
+import ConversationSettings from '../components/preferences/ConversationSettings.vue'
 import ContextSettings from '../components/preferences/ContextSettings.vue'
 import ModelSettings from '../components/providers/ModelSettings.vue'
 import ProviderList from '../components/providers/ProviderList.vue'
@@ -21,24 +22,33 @@ import PromptSettings from '../components/preferences/PromptSettings.vue'
 import DataSettings from '../components/preferences/DataSettings.vue'
 import ReviewSettings from '../components/capabilities/ReviewSettings.vue'
 import MCPList from '../components/capabilities/MCPList.vue'
-import SkillList from '../components/capabilities/SkillList.vue'
+import ExtensionList from '../components/capabilities/ExtensionList.vue'
+
+import { extensionSettings } from '../features/extensions.js'
 
 const settingsPages = [
   { id: 'appearance', label: '通用', description: '主题、强调色和界面偏好', icon: 'settings', group: '通用设置', tone: 'primary', component: AppearanceSettings },
+  { id: 'conversation', label: '对话', description: '工具过程和回答的展开方式', icon: 'chat', group: '通用设置', tone: 'secondary', component: ConversationSettings },
   { id: 'providers', label: '模型供应商', description: '连接模型服务并管理可用模型', icon: 'globe', group: '模型与服务', tone: 'primary', component: ProviderList, nested: true },
   { id: 'model', label: '模型', description: '默认模型和任务分工', icon: 'spark', group: '模型与服务', tone: 'primary', component: ModelSettings },
-  { id: 'context', label: '上下文', description: '自动压缩阈值和压缩后保留的原文', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
+  { id: 'context', label: '上下文', description: '自动压缩阈值、保留原文和上下文用量', icon: 'stats', group: '模型与服务', tone: 'tertiary', component: ContextSettings },
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
   { id: 'review', label: '自动审核', description: '用模型审核工具调用，决定放行、拒绝或交给你确认', icon: 'permission', group: '模型与服务', tone: 'secondary', component: ReviewSettings },
   // 工具权限不在这里：它是「发这条消息时要不要拦」的判断，
   // 放在对话框输入区（ComposerTools），干活时不用离开当前上下文去翻设置。
-  { id: 'skills', label: '技能', description: '识别并管理本机的操作说明', icon: 'idea', group: '模型与服务', tone: 'tertiary', component: SkillList },
+  // 技能页由 skill 扩展注入，不在框架里硬编码
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
+  { id: 'extensions', label: '扩展', description: '开关、重载扩展，查看依赖和加载状态', icon: 'grid-plus', group: '模型与服务', tone: 'tertiary', component: ExtensionList },
   { id: 'data', label: '数据管理', description: '配置备份、恢复与导入导出', icon: 'folder', group: '数据设置', tone: 'secondary', component: DataSettings },
 ]
 
+const allSettingsPages = computed(() => [
+  ...settingsPages,
+  ...extensionSettings.value,
+])
+
 // 按登记顺序分组；新增页面落在哪个 group，设置首页就自动出现对应卡片。
-function groupSettingsPages(pages = settingsPages) {
+function groupSettingsPages(pages) {
   const groups = []
   for (const page of pages) {
     let group = groups.find(item => item.label === page.group)
@@ -58,10 +68,10 @@ const selected = computed({
 })
 const stack = ref(null)
 const selectedPage = computed(() => {
-  const page = settingsPages.find(item => item.id === selected.value)
+  const page = allSettingsPages.value.find(item => item.id === selected.value)
   return page?.component && !page.disabled ? page : null
 })
-const groups = groupSettingsPages(settingsPages)
+const groups = computed(() => groupSettingsPages(allSettingsPages.value))
 const draft = computed(() => store.settings.draft)
 const detail = computed(() => store.ui.settingsDetail)
 const detailBadge = layer => {

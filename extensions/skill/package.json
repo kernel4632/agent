@@ -1,0 +1,10 @@
+{
+  "name": "@agent-extension/skill",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "atomically": "^2.0.3"
+  }
+}

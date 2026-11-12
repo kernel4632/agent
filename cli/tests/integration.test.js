@@ -131,7 +131,7 @@ test('control-tool final answers and approval work without a web browser', async
     const answer = await cli('ask', '[complete]', '--title', 'completion')
     expect(answer.code).toBe(0)
     expect(answer.out.trim()).toBe('工具最终答复')
-    const allowed = await cli('ask', '[tool]', '--title', 'approval', '--permission', 'allow-once')
+    const allowed = await cli('ask', '[tool]', '--title', 'approval', '--permission', 'allow')
     expect(allowed.code).toBe(0)
     expect(allowed.out).toContain('CLI 中文回复')
     const pending = await cli('ask', '[tool]', '--title', 'pending')
@@ -251,7 +251,7 @@ test('remembered approval crosses sessions and hard deny cannot be bypassed', as
     const pending = await cli('ask', '[tool]', '--title', 'remember permission')
     expect(pending.code).toBe(1)
     const id = pending.err.match(/会话: (\S+)/)[1]
-    expect((await cli('sessions', 'decide', id, 'read-1', 'allow-always')).code).toBe(0)
+    expect((await cli('sessions', 'decide', id, 'read-1', 'allow')).code).toBe(0)
     const completed = await waitIdle(id)
     expect(JSON.stringify(completed.history)).toContain('fixture file contents')
     expect((await cli('ask', '[tool]', '--session', id)).code).toBe(0)
@@ -259,7 +259,7 @@ test('remembered approval crosses sessions and hard deny cannot be bypassed', as
 
     config.permission = { '*': 'ask', read_file: 'deny' }
     await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
-    const denied = await cli('ask', '[tool]', '--title', 'hard deny', '--json', '--permission', 'allow-once')
+    const denied = await cli('ask', '[tool]', '--title', 'hard deny', '--json', '--permission', 'allow')
     expect(denied.code).toBe(0)
     const events = denied.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
     expect(events.some(event => event.type === 'permission-blocked')).toBe(true)
@@ -275,7 +275,7 @@ test.skip('nested task approval reaches the CLI and completes', async () => {
     config.providers[0].stream = false
     config.permission = { '*': 'ask' }
     await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
-    const answer = await cli('ask', '[delegate]', '--title', 'nested approval', '--json', '--permission', 'allow-once')
+    const answer = await cli('ask', '[delegate]', '--title', 'nested approval', '--json', '--permission', 'allow')
     expect(answer.code).toBe(0)
     const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
     expect(events.some(event => event.type === 'permission' && event.tool === 'read_file')).toBe(true)

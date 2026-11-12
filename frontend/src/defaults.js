@@ -21,5 +21,8 @@ export const COMPACT_RANGE = { min: 0.1, max: 0.99 }
 // 和 server/features/config.js 的默认值一致，方便对账。
 export const DEFAULT_CONTEXT_KEEP = { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 }
 
+// 模型请求重试次数：null 表示沿用 agent-core 的无限重试。
+export const DEFAULT_RETRY = { maxTries: null }
+
 // 设置页里保留轮数的上限；0 是合法值，表示这段原文一点不保留。
 export const CONTEXT_KEEP_TURN_MAX = 10

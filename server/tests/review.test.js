@@ -24,7 +24,7 @@ import '../server.js'
 
 const realChat = options => AgentCore.llm.chat(options)
 const fakeAgent = {
-    taskModel: () => ({ provider: 'local', model: 'model' }),
+    model: () => ({ provider: 'local', model: 'model' }),
     connection: () => ({ model: 'model', baseURL: 'http://127.0.0.1:1/v1', apiKey: '', protocol: 'chat', provider: { headers: {}, body: {} } }),
 }
 
@@ -69,6 +69,10 @@ const check = (toolCallId, extra = {}) => Approval.check({
     toolCallId,
     toolName: 'execute_command',
     input: { command: 'ls' },
+    snapshot: async () => {},
+    ready: async () => {},
+    kindOf: () => 'normal',
+    review: Review.check,
     ...extra,
 })
 
@@ -206,7 +210,7 @@ describe('审批关口接入 AI 审核', () => {
             const waiting = await Approval.pending('s')
             expect(waiting[0].review).toEqual({ reviewer: 'llm', decision: 'ask', reason: '目标不明确' })
 
-            await Approval.decide({ sessionId: 's', toolCallId: 'a3', decision: 'allow-once' })
+            await Approval.decide({ sessionId: 's', toolCallId: 'a3', decision: 'allow' })
             expect(await pending).toBe(true)
         })
     })
@@ -224,22 +228,17 @@ describe('审批关口接入 AI 审核', () => {
         })
     })
 
-    test('对 review 动作点“始终允许”只记住这一组参数，同工具其他参数仍走审核', async () => {
+    test('人工允许只执行这一次，不改审核规则', async () => {
         await withHome(async () => {
             await configure()
             Review.bind({ agent: fakeAgent, chat: reply('{"decision":"ask","reason":"要确认"}') })
             const pending = check('a6', { input: { command: 'make build' } })
             await waitForPending('a6')
-            await Approval.decide({ sessionId: 's', toolCallId: 'a6', decision: 'allow-always' })
+            await Approval.decide({ sessionId: 's', toolCallId: 'a6', decision: 'allow' })
             expect(await pending).toBe(true)
 
-            expect(store.config.permission.execute_command['*']).toBe('review')
-            expect(store.config.permission.execute_command['make build*']).toBe('allow')
-
-            let reviewed = 0
-            Review.bind({ agent: fakeAgent, chat: async () => { reviewed += 1; return { text: '{"decision":"allow","reason":"ok"}' } } })
-            expect(await check('a7', { input: { command: 'make deployed' } })).toBe(true)
-            expect(reviewed).toBe(1) // 其他参数仍然走审核，而不是降级成人工询问
+            // 长期规则由输入区的「工具自动批准」维护；弹窗里的允许不写权限。
+            expect(store.config.permission).toEqual({ '*': 'review' })
         })
     })
 

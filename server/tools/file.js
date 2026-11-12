@@ -91,6 +91,8 @@ const filePaths = ({ toolName, input }) => {
 
 // 快照清单跟着会话走；value 是 { checkpoints: [], redone: [] }。
 const manifests = new Map()
+const manifestLoads = new Map()
+const manifestQueues = new Map()
 // 文件指纹缓存：文件没变时不用重新读一遍。
 const fingerprints = new Map()
 
@@ -120,18 +122,51 @@ const backupKnown = async ({ sessionId, path, hash }) => {
 }
 
 // --- 读取快照清单，第一次读时从磁盘装进来 ---
+// 并发的工具调用必须拿到同一个 manifest 对象；否则后加载的会把前面的快照覆盖掉。
 const loadManifest = async sessionId => {
     if (manifests.has(sessionId)) return manifests.get(sessionId)
-    const file = Bun.file(Path.checkpoints(sessionId))
-    const manifest = await file.exists() ? await file.json() : { checkpoints: [], redone: [] }
-    manifests.set(sessionId, manifest)
-    return manifest
+    if (manifestLoads.has(sessionId)) return manifestLoads.get(sessionId)
+    const task = (async () => {
+        const file = Bun.file(Path.checkpoints(sessionId))
+        const manifest = await file.exists() ? await file.json() : { checkpoints: [], redone: [] }
+        manifests.set(sessionId, manifest)
+        return manifest
+    })()
+    manifestLoads.set(sessionId, task)
+    void task.finally(() => {
+        if (manifestLoads.get(sessionId) === task) manifestLoads.delete(sessionId)
+    }).catch(() => {})
+    return task
 }
 
 // --- 保存快照清单 ---
+// Windows/Bun 下并发 Bun.write 同一文件会偶发 UV_EBADF；
+// 同一会话的 manifest 写入串成队列，并对 EBADF 做一次有限重试。
+const writeManifest = async (file, text) => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            await Bun.write(file, text)
+            return
+        } catch (error) {
+            const message = `${error?.code || ''} ${error?.message || error}`
+            if (attempt === 2 || !/EBADF|bad file descriptor/i.test(message)) throw error
+            await Bun.sleep(25 * (attempt + 1))
+        }
+    }
+}
+
 const saveManifest = async ({ sessionId, manifest }) => {
-    await mkdir(Path.snapshots(sessionId), { recursive: true })
-    await Bun.write(Path.checkpoints(sessionId), JSON.stringify(manifest, null, 2))
+    const text = JSON.stringify(manifest, null, 2)
+    const previous = manifestQueues.get(sessionId) || Promise.resolve()
+    const task = previous.catch(() => {}).then(async () => {
+        await mkdir(Path.snapshots(sessionId), { recursive: true })
+        await writeManifest(Path.checkpoints(sessionId), text)
+    })
+    manifestQueues.set(sessionId, task)
+    void task.finally(() => {
+        if (manifestQueues.get(sessionId) === task) manifestQueues.delete(sessionId)
+    }).catch(() => {})
+    return task
 }
 
 // --- 工具真正执行之前：把要改的文件原样存一份 ---

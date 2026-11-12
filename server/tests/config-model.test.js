@@ -13,11 +13,10 @@ import { tmpdir } from 'node:os'
 
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
+import Context from '../features/context.js'
 import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import store from '../store.js'
-// 有状态模块在服务入口装配；单独 import 命令时也要走一遍，和启动时是同一条路径。
-import '../server.js'
 
 // 每个测试用独立的临时数据目录，互不影响。
 const withHome = async callback => {
@@ -39,7 +38,8 @@ const withHome = async callback => {
 
 const resolve = async ({ provider, model, settings = {} }) => Agent.resolve({
     session: { model: { provider, model } },
-    settings: { ...Agent.defaultSettings(), ...settings },
+    settings: { ...Agent.defaults(), ...settings },
+    context: Context,
 })
 
 // 起一个假模型服务，把收到的请求体交出来。
@@ -279,14 +279,15 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('模型请求使用 agent-core 的无限重试，只把单次退避上限收紧到 120s', async () => {
+    test('模型请求重试完全继承 agent-core 的默认值', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
             const config = await resolve({ provider: 'local', model: 'm1' })
-            expect(config.retryMaxDelay).toBe(120000)
-            // 基数和总时长不覆盖，继续使用 core 的 5000ms / 无限总时长。
+            // 不覆盖 core 的退避和总时长：默认无限重试。
+            expect(config.retryMaxDelay).toBeUndefined()
             expect(config.retryBaseDelay).toBeUndefined()
             expect(config.retryMaxElapsed).toBeUndefined()
+            expect(config.retryMaxTries).toBeUndefined()
         })
     })
 
@@ -328,7 +329,8 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('400 请求错误不进入无限重试', async () => {
+    // 重试默认完全继承 agent-core（4xx 也重试、不限次数）；只有 retry.maxTries 显式配置时才收口。
+    test('retry.maxTries 为 0 时 400 请求错误只发一次', async () => {
         await withHome(async () => {
             let attempts = 0
             const server = Bun.serve({
@@ -342,7 +344,10 @@ describe('交给 agent-core 的 config', () => {
                 },
             })
             try {
-                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                await Settings.set({
+                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }],
+                    retry: { maxTries: 0 },
+                })
                 const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
                 const agent = AgentCore.create({ history: [], config, callbacks: {} })
                 await expect(agent.send({ input: '不应重试' })).rejects.toBeTruthy()

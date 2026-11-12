@@ -10,8 +10,8 @@
  *   const catalog = await Tool.list()                       // 设置页用
  *   const { tools } = await Tool.build({                   // 会话启动时装配
  *       sessionId,
- *       taskConfig,
- *       onPermission: Approval.check,                        // 工具执行前的审批关口
+ *       mcp: Mcp,                                  // 外部 MCP 服务由调用方传入
+ *       onPermission: checkPermission,                        // 工具执行前的审批关口
  *       saveSession: () => History.save(sessionId),          // 工具改会话后落盘
  *   })
  *   // 返回 { tools, mcpRevision, release }；release 由 Agent 销毁时调用。
@@ -24,12 +24,9 @@ import { join } from 'node:path'
 import Agent from '@kernel4632/agent-core'
 import store, { TOOL_KINDS } from '../store.js'
 import Path from '../utils/path.js'
-import Skill from '../tools/skill.js'
 import * as File from '../tools/file.js'
 
-// MCP 和技能由命令层在启动时绑定；本文件不 import 别的 feature。
-let services = {}
-const bind = value => { services = value }
+// MCP 由调用方传入；技能由扩展注入；本文件不 import 别的 feature。
 
 /*
  * 工具类别：工具文件自己写 kind，扫描时登记；
@@ -78,14 +75,9 @@ const permissionOf = name => {
     return actionOf(rules['*'])
 }
 
-// --- 给设置页列出全部工具 ---
+// --- 给设置页列出全部工具；skill 由扩展注入，这里只列框架内置的 ---
 const list = async () => {
     const { tools } = await scan()
-    const extra = new Map([
-        ['skill', { name: 'skill', kind: 'read', ui: { view: 'skill', icon: 'book', title: '读取技能', summary: '{name}' } }],
-    ])
-    for (const [name, tool] of extra) if (!tools.has(name)) tools.set(name, tool)
-
     return [...tools.values()]
         .sort((first, second) => first.name.localeCompare(second.name))
         .map(tool => {
@@ -109,10 +101,9 @@ const ready = async () => {
     return scan()
 }
 
-// --- 这个工具属于哪一类；MCP 工具按配置里的服务名前缀认 ---
-const kindOf = ({ toolName, mcpServers = [] }) => {
+// --- 这个工具属于哪一类；MCP 工具按配置里的服务名前缀认；skill 由扩展注册 ---
+const kind = ({ toolName, mcpServers = [] }) => {
     if (mcpServers.some(name => toolName.startsWith(`${name}_`))) return 'mcp'
-    if (toolName === 'skill') return 'read'
     return current.tools.get(toolName)?.kind || 'other'
 }
 
@@ -127,11 +118,11 @@ const attach = (tool, sessionId, { saveSession }) => ({
     }),
 })
 
-// --- 组装一条会话的工具表：主 Agent 使用全部工具 ---
+// --- 组装一条会话的工具表：主 Agent 使用全部工具；skill 由扩展 patch 这个函数注入 ---
 // 外部 MCP 工具按配置版本租用；Agent 销毁时释放租约，最后一个 Agent 释放后才关连接。
-const build = async ({ sessionId, onPermission, saveSession }) => {
-    const session = store.sessions[sessionId]                       // 本次装配对应的会话
-    const lease = await services.mcp.acquire({ sessionId })
+const build = async ({ sessionId, onPermission, saveSession, mcp }) => {
+    const session = store.sessions[sessionId]
+    const lease = await mcp.acquire({ sessionId })
     try {
         const { tools: registered } = await scan()                  // 扫描内置工具和用户工具
         const catalog = new Map(registered)                         // 按名字索引，后面同名会覆盖
@@ -141,10 +132,7 @@ const build = async ({ sessionId, onPermission, saveSession }) => {
             catalog.set(name, { ...tool, name, kind: 'mcp' })
         }
 
-        // 技能不把正文塞进工具表，只给一个按需读正文的工具；
-        // 技能清单的扫描能力（features/skills）由启动装配注入。
-        const skill = await Skill.build({ cwd: session.cwd, skills: services.skills })  // 技能正文留在磁盘上，用时才读
-        if (skill) catalog.set(skill.name, skill)
+        // 技能工具由扩展注入（如果加载了 extensions/skill 的话）
 
         const bound = [...catalog.values()].map(tool => attach(tool, sessionId, { saveSession })) // 每个工具都带上会话上下文
         const set = Agent.tool.adopt(bound)                         // 转成 agent-core 认识的工具表
@@ -155,8 +143,8 @@ const build = async ({ sessionId, onPermission, saveSession }) => {
     }
 }
 
-// --- 当前 MCP 配置版本；Agent 用它判断自己的工具快照是否过期 ---
-const mcpRevision = () => services.mcp?.revision?.() || 0
+// --- 当前 MCP 配置版本；由调用方传入 mcp 对象调用 ---
+const revision = mcp => mcp?.revision?.() || 0
 
 // --- 工具真正执行之前：交给工具自己的快照钩子 ---
 const snapshot = async call => {
@@ -167,11 +155,25 @@ const snapshot = async call => {
 
 // --- 文件回退和 diff 都由文件工具实现 ---
 const entries = args => File.entries(args)
-const restoreTool = args => File.restoreTool(args)
-const restoreMessage = args => File.restoreMessage(args)
-const dropTool = args => File.dropTool(args)
+// --- 某一次工具调用改过的文件：随 tool-result 一起推给前端 ---
+const paths = async ({ sessionId, toolCallId } = {}) => {
+    if (!sessionId || !toolCallId) return []
+    const list = await entries({ sessionId })
+    const found = new Set()
+    for (const entry of list) {
+        if (entry.toolCallId !== toolCallId) continue
+        for (const path of entry.paths) found.add(path)
+    }
+    return [...found]
+}
+// --- 恢复文件：带 toolCallId 退回这一次工具调用之前；带 keepMessages 退回某条消息之前 ---
+// 两个都给时走 toolCallId 分支（restoreTool），不要混传。
+const restore = args => args?.toolCallId ? File.restoreTool(args) : File.restoreMessage(args)
+// --- 只丢掉这次工具调用的快照，不动文件 ---
+const drop = args => File.dropTool(args)
 const undo = args => File.undo(args)
-const clearUndo = args => File.clearUndo(args)
+// --- 清空撤销栈：新消息代表新的时间线 ---
+const clear = args => File.clearUndo(args)
 const diff = args => File.diff(args)
 const remove = args => File.remove(args)
 
@@ -179,17 +181,16 @@ export default {
     KINDS,
     list,
     build,
-    mcpRevision,
-    bind,
+    revision,
     ready,
-    kindOf,
+    kind,
     snapshot,
     entries,
-    restoreTool,
-    restoreMessage,
-    dropTool,
+    paths,
+    restore,
+    drop,
     undo,
-    clearUndo,
+    clear,
     diff,
     remove,
 }

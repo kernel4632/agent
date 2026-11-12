@@ -1,0 +1,8 @@
+{
+  "name": "技能",
+  "description": "读取 SKILL.md 操作说明，提供 skill 工具和技能设置页",
+  "version": "1.0.0",
+  "requires": [],
+  "backend": "backend.js",
+  "frontend": "frontend/index.js"
+}

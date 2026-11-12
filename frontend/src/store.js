@@ -4,7 +4,7 @@
 调用示例：store.sessionList、store.sessions[sessionID]、store.ui.activeSessionID。
 */
 import { computed, reactive } from 'vue'
-import { DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_KEEP } from './defaults.js'
+import { DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_KEEP, DEFAULT_RETRY } from './defaults.js'
 
 
 export const DEFAULT_APPEARANCE = Object.freeze({
@@ -18,6 +18,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
   tint: 0,                                          // 背景着色强度 0~1（预留）
   strongFocus: false,
   reduceMotion: false,
+  autoExpandTools: true,                            // 工具运行中自动展开、结束后自动收起
 })
 
 export function normalizeAppearance(value = {}) {
@@ -47,10 +48,12 @@ export const store = reactive({
     draftCwd: '',                                       // 草稿页预选的工作区；空字符串表示发送时创建临时工作区
     toast: '',                                         // 短时全局反馈
     isLoading: true,                                   // 首次 API 数据加载状态
+    sessionLoading: null,                              // 正在打开的完整会话：{ active, sessionId, percent, phase, speed, eta, bytes, totalBytes }
     errorMessage: '',                                  // 最近一次跨页面 API 错误
   },
 
   sessionList: [],                                     // /session/list 返回的会话摘要，cwd 是每条会话自己的属性
+  sessionGroups: [],                                   // 分组与顺序，跟列表一起从服务端回来
   sessions: {},                                       // 已读取的完整会话，以 Session ID 为键
   config: {
     providers: {},                                    // 设置页可编辑供应商目录
@@ -62,6 +65,7 @@ export const store = reactive({
     compact: { threshold: DEFAULT_COMPACT_THRESHOLD }, // 全局压缩阈值
     review: { enabled: false, policy: '', timeout: 15000 }, // 工具调用 AI 审核
     contextKeep: { ...DEFAULT_CONTEXT_KEEP },        // 压缩后保留多少原文；首屏先用默认值，读到配置后再覆盖
+    retry: { ...DEFAULT_RETRY },                     // 模型请求最多重试几次；null 为无限
     mcp: [],                                          // MCP 编辑目录与运行状态
     prompt: '',                                       // 全局系统提示词
     appearance: loadAppearance(),                       // 从 localStorage 恢复外观偏好

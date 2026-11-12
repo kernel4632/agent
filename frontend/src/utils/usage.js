@@ -34,6 +34,10 @@ export function usageFields(usage = {}, durationMs = 0) {
     firstTokenAt: Number(usage.firstTokenAt || 0), // 第一个内容增量到达的绝对时间
     firstTokenMs: Number(usage.firstTokenMs || 0), // 首字时间（TTFT）
     durationMs: Number(durationMs || usage.durationMs || 0), // 请求完整耗时
+    // 服务端记录的“正文/工具参数第一段 → 最后一段”的生成窗口；旧请求没有这个字段。
+    ...(Object.prototype.hasOwnProperty.call(usage, 'generationMs')
+      ? { generationMs: Number(usage.generationMs || 0) }
+      : {}),
   }
 }
 

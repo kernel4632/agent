@@ -15,6 +15,7 @@ import Settings from '../commands/settings.js'
 import History from '../features/history.js'
 import Session from '../commands/session.js'
 import Agent from '../features/agent.js'
+import Context from '../features/context.js'
 import store from '../store.js'
 import SSE from '../utils/sse.js'
 import { app } from '../server.js'
@@ -193,7 +194,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -226,7 +227,7 @@ describe('重启恢复', () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('开始') } })
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'c1', toolName: 'shell', input: {} }] } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -246,7 +247,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'u1', role: 'user', content: text('我说的最后一句话') } })
-            History.setRunning(sessionId, true)   // 模拟“任务开跑后还没产出助手回复就被重启”
+            History.running(sessionId, true)   // 模拟“任务开跑后还没产出助手回复就被重启”
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -317,7 +318,7 @@ describe('重启恢复', () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
-            History.setRunning(sessionId, true)
+            History.running(sessionId, true)
             await History.save(sessionId)
             History.remove({ sessionId })
             Agent.runtime().clear()
@@ -340,29 +341,30 @@ describe('重启恢复', () => {
         })
     })
 
-    test('恢复续跑的重试有上限，不会无限空转', async () => {
+    test('默认继承 core 的无限重试，retryMaxTries 可配置次数', async () => {
         await withHome(async () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
 
-            // 恢复路径上的配置要带封顶的重试策略；用户自己发消息的路径不带。
             const session = await History.load(sessionId)
-            const settings = await Agent.readSettings(sessionId)
-            const recovery = await Agent.resolve({ session, settings, recovery: true })
-            const normal = await Agent.resolve({ session, settings })
+            const settings = Agent.settings(session)
+            const defaults = await Agent.resolve({ session, settings, recovery: true, context: Context })
+            // 默认不覆盖 core 的 retry：无限次数、无限总时长。
+            expect(defaults.retry).toBeUndefined()
+            expect(defaults.retryMaxTries).toBeUndefined()
+            expect(defaults.retryMaxElapsed).toBeUndefined()
 
-            // 恢复路径封顶；用户路径也有通用过滤，但不限制总时长/次数。
-            expect(recovery.retryMaxElapsed).toBeGreaterThan(0)
-            expect(typeof recovery.retry).toBe('function')
+            await Settings.set({
+                providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }],
+                retry: { maxTries: 3 },
+            })
+            const recovery = await Agent.resolve({ session, settings, recovery: true, context: Context })
+            const normal = await Agent.resolve({ session, settings, context: Context })
+
+            // 普通 4xx 也重试；次数由 core 原生的 retryMaxTries 收口。
+            expect(recovery.retryMaxTries).toBe(3)
+            expect(normal.retryMaxTries).toBe(3)
             expect(normal.retryMaxElapsed).toBeUndefined()
-            expect(typeof normal.retry).toBe('function')
-            expect(normal.retry({ statusCode: 400 })).toBe(false)
-            expect(normal.retry({ statusCode: 500 })).toBe(true)
-
-            // 过滤函数第 3 次开始拒绝重试；core 据此结束循环。
-            const allow = [recovery.retry(), recovery.retry(), recovery.retry()]
-            const results = [allow[0](new Error('x')), allow[0](new Error('x')), allow[0](new Error('x'))]
-            expect(results).toEqual([true, true, false])
         })
     })
 
@@ -371,7 +373,7 @@ describe('重启恢复', () => {
             const sessionId = await setup()
             await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
             await History.save(sessionId)
-            await History.saveMeta(sessionId)
+            await History.mark(sessionId)
 
             // 模拟重启后配置里的供应商没了：Agent.get 装配会抛错。
             await Settings.set({ providers: [{ name: 'other', models: [{ id: 'model', name: 'model' }], baseURL: 'http://127.0.0.1:9/v1' }] })

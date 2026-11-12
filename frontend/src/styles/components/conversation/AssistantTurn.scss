@@ -1,6 +1,22 @@
 /* AssistantTurn.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
 
 .assistant-message { display: flex; flex-direction: column; min-width: 0; }
+/* 一个模型步骤：左侧窄条由 flex 拉满，正文在右列；覆盖层绝对定位在步骤内。 */
+.assistant-step {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+}
+.assistant-step__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+.assistant-step__body > * { position: relative; z-index: 1; }
+.assistant-step--response { margin-top: 8px; }
 @keyframes label-shimmer { from { background-position: 130% 0; } to { background-position: -130% 0; } }
 .message__error { margin: 0; color: var(--la-danger); font-size: 12.5px; line-height: 18px; overflow-wrap: anywhere; }
 .stream-caret {

@@ -163,24 +163,3 @@ export function actionTarget(tool, action) {
     const value = actionValue(tool, action)
     return value == null ? '' : String(value)
 }
-
-// 三种状态的图标和文案只在这里定义，两个清单界面都从它派生，避免一处改了另一处没改。
-export const TODO_STATUS = {
-  completed: { icon: 'check', label: '已完成' },
-  in_progress: { icon: 'clock', label: '进行中' },
-  pending: { icon: 'info', label: '待处理' },
-}
-
-export const todoStatus = status => TODO_STATUS[status] || TODO_STATUS.pending
-
-/** 任务清单取最近一次工具输出，主界面和工具结果共用同一来源。 */
-export function latestTodos(messages = []) {
-  for (const message of [...messages].reverse()) {
-    for (const tool of [...(message.tools || [])].reverse()) {
-      if (tool.name !== 'update_todo_list') continue
-      const items = outputValue(tool)?.items
-      if (Array.isArray(items)) return items
-    }
-  }
-  return []
-}

@@ -115,7 +115,11 @@ describe('工具目录', () => {
 
     test('HTTP 接口返回工具数组', async () => {
         await withHome(async () => {
-            const response = await app.handle(new Request('http://localhost/tool/list'))
+            const response = await app.handle(new Request('http://localhost/admin', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ op: 'tool.list' }),
+            }))
             expect(response.status).toBe(200)
             const tools = await response.json()
             expect(Array.isArray(tools)).toBe(true)

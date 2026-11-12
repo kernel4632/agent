@@ -1,4 +1,12 @@
 /* Markdown.vue：本区域的视觉规则；共同子区域排布由父容器持有。 */
+/* markstream 默认给离屏 Markdown 放 800×600 左右的占位；时间线已经由 virtua 控制离屏轮次，
+   这里必须立即按真实内容布局，禁止再出现占位尺寸。 */
+:global(.markdown-body.markstream-vue) {
+  content-visibility: visible !important;
+  contain: layout paint;
+  contain-intrinsic-size: none !important;
+}
+
 /* KaTeX 的字体和布局样式是结构样式，只有这一份来源；配色仍由主题变量接管。 */
 @import "katex/dist/katex.min.css";
 /* markstream 的默认浅色行内代码变量对齐项目自己的 Markdown 配色。 */

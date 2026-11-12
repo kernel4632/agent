@@ -71,14 +71,14 @@ bun run dev
 
 ## 接口与数据
 
-接口和事件定义统一看 [服务端说明](../server/README.md) 与 [OpenAPI](../server/openapi.json)，实际请求在 [`src/utils/api.js`](src/utils/api.js)。前端不再保存另一份接口文档。
+接口和 SSE 事件统一看 [服务端说明](../server/README.md)，实际请求在 [`src/utils/api.js`](src/utils/api.js)。前端不保存另一份接口文档；测试直接解析 `server/server.js` 核对路径。
 
 - 会话历史以服务端为准。实时连接按 SSE 帧解析，重连时刷新历史。
 - 配置保存保留未编辑字段；仅改外观时只写浏览器 localStorage。
 - API Key 只保存在表单内存和后端配置中，不写入浏览器持久存储。
 - 附件只支持文本和代码，每个不超过 1 MiB；正文随本轮消息发送。
 - 模型对象保留名称、上下文窗口和能力；全局按任务选择模型，压缩阈值使用 `compact.threshold`，压缩后保留多少原文使用 `contextKeep`。会话设置只保存思考强度。
-- MCP 和技能页打开时读取本机识别结果（`/mcp/list`、`/skill/list`）；导入 MCP、启停技能和外部目录走 `/mcp/*`、`/skill/*`，不会修改其他软件的配置。
+- MCP 和技能页打开时读取本机识别结果（`POST /admin` 的 `mcp.list` / `skill.list`）；导入 MCP、启停技能和外部目录也走同一个管理总线，不会修改其他软件的配置。
 - 会话直接来自 `/session/list`，每条会话有自己的 `cwd`。前端不再调用工作区、智能体列表和斜杠命令接口，也不显示后端已移除的设置。
 
 ## 验证
@@ -94,6 +94,6 @@ bun run build
 
 浏览器测试使用现有 Chrome，不需下载新浏览器。其他环境可安装 Playwright Chromium 后不设置 `PLAYWRIGHT_CHANNEL`。
 
-协议测试检查每个前端请求都存在于现行 OpenAPI。`test:ui` 使用受接口表约束的模拟响应检查交互；`test:live` 启动真实后端和前端，检查配置保存、连接测试、发送、思考强度及刷新后的历史。联调模型由本机固定回复服务提供，不使用用户密钥；测试数据、截图与日志都在根目录 `tmp/`。
+协议测试检查每个前端请求都存在于 `server/server.js` 注册的路由里。`test:ui` 使用受同一份路由约束的模拟响应检查交互；`test:live` 启动真实后端和前端，检查配置保存、连接测试、发送、思考强度及刷新后的历史。联调模型由本机固定回复服务提供，不使用用户密钥；测试数据、截图与日志都在根目录 `tmp/`。
 
 生产构建在 `dist/`。`vite preview` 已配置同源 API 代理；正式静态部署需自行将 `/api/*` 转发至原始后端并移除 `/api` 前缀，SSE 不应缓冲。模型发现使用已有 Vite `/openai-proxy/models` 开发代理；静态部署无此代理时可手动添加模型 ID。

@@ -93,7 +93,7 @@ const decisionOf = value => value === 'allow' || value === 'deny' || value === '
 const check = async ({ sessionId, toolName, input = {}, signal }) => {
     if (store.config.review?.enabled !== true) return { decision: 'ask', reason: '未启用 AI 审核' }
 
-    const target = services.agent.taskModel('review')
+    const target = services.agent?.model('review')
     if (!target?.provider || !target?.model) return { decision: 'ask', reason: '没有可用的审核模型' }
 
     const controller = new AbortController()

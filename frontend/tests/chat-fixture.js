@@ -8,19 +8,55 @@
 */
 import { expect } from '@playwright/test'
 import { createServer } from 'node:http'
-import { readFileSync } from 'node:fs'
+import { patternOf, serverRoutes } from './server-routes.js'
 
-// 模拟接口也受现行 OpenAPI 约束，已经删掉的路径不能继续假装返回成功。
-const contract = JSON.parse(readFileSync(new URL('../../server/openapi.json', import.meta.url), 'utf8'))
-const routes = Object.entries(contract.paths).flatMap(([path, methods]) => Object.keys(methods).map(method => ({
-  method: method.toUpperCase(), pattern: new RegExp(`^${path.replace(/\{[^}]+\}/g, '[^/]+')}$`),
-})))
+// 模拟接口按 server.js 的真实注册来：已经删掉的路径不能继续假装返回成功。
+const routes = serverRoutes.map(route => ({ method: route.method, pattern: patternOf(route.path) }))
+
+// 管理总线的 op → 旧分支：测试沿用旧的路径写法，实现不用重写。
+const ADMIN_ROUTES = {
+  'config.read': ['GET', '/config/read'],
+  'config.set': ['PATCH', '/config/set'],
+  'config.meta': ['GET', '/config/meta'],
+  'config.export': ['GET', '/config/export'],
+  'config.import': ['POST', '/config/import'],
+  'config.backup.list': ['GET', '/config/backups'],
+  'config.backup.read': ['GET', '/config/backups'],
+  'config.restore': ['POST', '/config/restore'],
+  'config.test': ['POST', '/config/test'],
+  'mcp.list': ['GET', '/mcp/list'],
+  'mcp.save': ['POST', '/mcp/save'],
+  'mcp.import': ['POST', '/mcp/import'],
+  'mcp.remove': ['POST', '/mcp/remove'],
+  'mcp.toggle': ['PATCH', '/mcp/toggle'],
+  'mcp.test': ['POST', '/mcp/test'],
+  'skill.list': ['GET', '/skill/list'],
+  'skill.read': ['GET', '/skill/read'],
+  'skill.save': ['POST', '/skill/save'],
+  'skill.remove': ['POST', '/skill/remove'],
+  'skill.toggle': ['PATCH', '/skill/toggle'],
+  'skill.source': ['PATCH', '/skill/source'],
+  'storage.status': ['GET', '/storage/sessions'],
+  'storage.set': ['PUT', '/storage/sessions'],
+  'storage.cancel': ['DELETE', '/storage/sessions'],
+  'session.groups.set': ['PUT', '/session/groups'],
+  'model.family': ['GET', '/model/family'],
+  'model.icon': ['GET', '/model/icon'],
+  'fs.entries': ['GET', '/filesystem/entries'],
+  'tool.list': ['GET', '/tool/list'],
+  'tool.kinds': ['GET', '/tool/kinds'],
+  'extension.list': ['GET', '/extension/list'],
+  'extension.frontend': ['GET', '/extension/frontend'],
+  'extension.toggle': ['POST', '/extension/toggle'],
+  'extension.reload': ['POST', '/extension/reload'],
+}
 
 export async function backend(page, { configured = true } = {}) {
   let config = {
     providers: configured ? [{ name: 'Test Provider', enabled: true, protocol: 'openai-compatible', stream: true, baseURL: 'https://model.example.test/v1', apiKey: 'test-only-key', models: [{ id: 'test-model', name: 'test-model', context: 64000, capabilities: ['text', 'tools'] }], headers: { 'x-preserve': 'yes' }, body: { temperature: 0.25 } }] : [],
     models: { chat: { provider: configured ? 'Test Provider' : '', model: configured ? 'test-model' : '' }, compact: { provider: '', model: '' }, title: { provider: '', model: '' }, task: { provider: '', model: '' }, review: { provider: '', model: '' } },
     prompt: { system: 'Be helpful.', seeded: true }, compact: { threshold: 0.8 },
+    retry: { maxTries: null },
     review: { enabled: false, policy: '', timeout: 15000 },
     // 和 server/features/config.js 的 normalize 一样：压缩后保留多少原文。
     contextKeep: { firstTurns: 3, recentTurns: 3, firstShare: 0.2, recentShare: 0.3 },
@@ -82,7 +118,6 @@ export async function backend(page, { configured = true } = {}) {
   const connections = new Map()
   const queued = new Map()
   const errors = []
-  const tuning = { historyDelay: 0 }
   const CONTINUE_TEXT = '继续上次未完成的任务，从现有进度接着做，不要重复已经完成的内容；完成后调用结束工具。' // 真实后端隐藏的内部提示
   page.on('pageerror', error => errors.push(error.message))
 
@@ -154,18 +189,35 @@ export async function backend(page, { configured = true } = {}) {
   }
   await page.route('**/api/**', async route => {
     const request = route.request()
-    const path = new URL(request.url()).pathname.replace('/api', '')
-    const method = request.method()
-    const body = request.postData() ? request.postDataJSON() : undefined
+    let path = new URL(request.url()).pathname.replace('/api', '')
+    let method = request.method()
+    let body = request.postData() ? request.postDataJSON() : undefined
     calls.push({ path, method, body })
     if (!routes.some(route => route.method === method && route.pattern.test(path))) {
       errors.push(`不存在的接口：${method} ${path}`)
       return route.fulfill({ status: 404, json: { error: 'NOT_FOUND' } })
     }
+    // 管理总线：把 { op, ...参数 } 翻回具体分支，下面的实现一行不用改。
+    if (path === '/admin' && body?.op) {
+      const [aliasMethod, aliasPath] = ADMIN_ROUTES[body?.op] || []
+      if (!aliasMethod) {
+        errors.push(`未知的管理 op：${body?.op}`)
+        return route.fulfill({ status: 400, json: { error: `unknown op: ${body?.op}` } })
+      }
+      const { op, ...args } = body
+      path = op === 'config.backup.read' ? `/config/backups/${encodeURIComponent(args.id)}` : aliasPath
+      method = aliasMethod
+      // config.set 的旧分支直接吃整份配置，这里把 op 拆掉后的 config 展开。
+      body = op === 'config.set' ? (args.config || {}) : args
+    }
     const json = data => route.fulfill({ status: 200, json: data })
+    // GET /admin 只有模型图标（<img src> 用），直接给一个占位 SVG。
+    if (path === '/admin' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' })
+    }
     if (path === '/filesystem/entries') {
-      const target = new URL(request.url()).searchParams.get('path') || 'C:/mock'
-      const mode = new URL(request.url()).searchParams.get('mode') || 'directory'
+      const target = body?.path || new URL(request.url()).searchParams.get('path') || 'C:/mock'
+      const mode = body?.mode || new URL(request.url()).searchParams.get('mode') || 'directory'
       const directories = {
         'C:/mock/.agent/sessions': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
         'C:/mock': { current: 'C:/mock', parent: null, entries: [{ name: 'D:', path: 'D:/', type: 'directory' }] },
@@ -188,6 +240,10 @@ export async function backend(page, { configured = true } = {}) {
       }
     }
     if (path === '/config/read') return json(config)
+    if (path === '/extension/list' || path === '/extension/toggle' || path === '/extension/reload') {
+      return json({ extensions: [], loaded: [], changed: [] })
+    }
+    if (path === '/extension/frontend') return json({ code: '' })
     if (path === '/config/meta') return json({
       models: [
         { task: 'chat', label: '对话', hint: '会话默认使用的模型' },
@@ -244,7 +300,7 @@ export async function backend(page, { configured = true } = {}) {
     if (path === '/mcp/test') return json({ ok: true, name: body.name, tools: ['echo'] })
     if (path === '/skill/list') return json(skills)
     if (path === '/skill/read') {
-      const name = new URL(request.url()).searchParams.get('name')
+      const name = body?.name || new URL(request.url()).searchParams.get('name')
       const skill = skills.skills.find(item => item.name === name)
       return skill ? json(skill) : route.fulfill({ status: 404, json: { error: 'Skill not found' } })
     }
@@ -283,7 +339,7 @@ export async function backend(page, { configured = true } = {}) {
       if (root) root.enabled = body.enabled
       return json({ path: body.path, enabled: body.enabled })
     }
-    if (path === '/session/list') return json([...sessions.values()])
+    if (path === '/session/list') return json({ sessions: [...sessions.values()], groups: [] })
     if (path === '/session/groups') {
       if (method === 'GET') return json({ groups: sessionGroups })
       if (method === 'PUT') {
@@ -355,6 +411,26 @@ export async function backend(page, { configured = true } = {}) {
       })
       return json({ sessionId: id })
     }
+    // /session/read/:id?segment=<segmentId> 读某个封存段，?segmented=true 只返回当前段
+    if (path.startsWith('/session/read/')) {
+      const id = path.split('/').at(-1)
+      const session = sessions.get(id)
+      if (!session) return json({ error: 'Session not found' }, 404)
+      const url = new URL(request.url())
+      const segmentId = url.searchParams.get('segment')
+      if (segmentId) {
+        return json({ id, segment: segmentId, messages: session.segmentData?.[segmentId] || [] })
+      }
+      const segmented = url.searchParams.get('segmented') === 'true'
+      if (segmented && session.historyManifest) {
+        const visible = session.history.filter(item => !item.internal)
+        const currentStart = session.historyManifest.current?.startIndex ?? 0
+        const current = visible.slice(currentStart)
+        const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+        return json({ ...session, history: current, historyTotal: total })
+      }
+      // 走下面的正常 read 逻辑（全量）
+    }
     const id = path.split('/').at(-1)
     const session = sessions.get(id)
     if (path.startsWith('/session/model/')) {
@@ -392,20 +468,6 @@ export async function backend(page, { configured = true } = {}) {
       }
       return json(session.settings)
     }
-    if (path.startsWith('/session/history/')) {
-      if (tuning.historyDelay) await new Promise(resolve => setTimeout(resolve, tuning.historyDelay))
-      const before = Number(new URL(request.url()).searchParams.get('before'))
-      const limit = Number(new URL(request.url()).searchParams.get('limit') || 200)
-      const end = Number.isInteger(before) && before > 0 ? Math.min(before, session.history.length) : session.history.length
-      const start = Math.max(0, end - Math.min(500, Math.max(1, limit || 200)))
-      return json({
-        messages: session.history.slice(start, end),
-        start,
-        end,
-        total: session.history.length,
-        hasMore: start > 0,
-      })
-    }
     if (path.startsWith('/session/outline/')) {
       const turns = []
       let current = null
@@ -429,27 +491,45 @@ export async function backend(page, { configured = true } = {}) {
       })
       return json({ turns, totalMessages: session.history.length })
     }
+    if (path.startsWith('/session/open/')) {
+      const visible = session.history.filter(item => !item.internal)
+      const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+      const payload = { type: 'session', session: { ...session, history: visible, historyTotal: total } }
+      return route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+        body: `data: ${JSON.stringify(payload)}\n\n`,
+      })
+    }
     // 真实 Server 的 read 会过滤 internal 消息；mock 也照做，才能测到“继续提示不出现”。
     if (path.startsWith('/session/read/')) {
       const visible = session.history.filter(item => !item.internal)
-      return json({ ...session, history: visible, historyStart: 0, historyTotal: visible.length })
+      const total = session.historyManifest && Number.isInteger(session.historyTotal) ? session.historyTotal : visible.length
+      const after = new URL(request.url()).searchParams.get('after')
+      if (after) {
+        const index = visible.findIndex(item => item.messageId === after || item.id === after)
+        return json({ ...session, delta: index < 0 ? [] : visible.slice(index + 1), historyTotal: total })
+      }
+      return json({ ...session, history: visible, historyTotal: total })
     }
     if (path.startsWith('/session/rename/')) { session.title = body.title; return json(session) }
     if (path.startsWith('/session/remove/')) { sessions.delete(id); return json({ ok: true }) }
-    if (path.startsWith('/session/rollback/preview/')) return json({ messages: 1, files: [] })
+    if (path.startsWith('/session/rollback/redo/')) {
+      session.history = session.redo || []
+      session.redo = []
+      session.undoable = 0
+      return json({ ...session, restored: [] })
+    }
     if (path.startsWith('/session/rollback/')) {
       session.redo = session.history
       session.history = []
       session.undoable = 1
       return json({ ...session, restored: [] })
     }
-    if (path.startsWith('/session/redo/')) {
-      session.history = session.redo || []
-      session.redo = []
-      session.undoable = 0
-      return json({ ...session, restored: [] })
-    }
     if (path.startsWith('/agent/send/')) {
+      // 新消息代表新的时间线，之前的回退不能再撤销。
+      session.undoable = 0
+      session.redo = []
       const number = session.history.filter(item => item.role === 'user' && !item.internal).length + 1
       session.history.push({ messageId: `user-${number}`, id: `core-user-${number}`, role: 'user', content: body.input })
       await json({ ok: true })
@@ -457,11 +537,16 @@ export async function backend(page, { configured = true } = {}) {
         session.running = true
         return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 5000 }, { type: 'text-delta', text: '正在处理' }])
       }
+      if (body.input === 'keep waiting') {
+        session.running = true
+        // 只发 agent-start，故意不发 llm-start：界面必须在按下发送后就有请求状态。
+        return emit(id, [{ type: 'agent-start' }])
+      }
       const text = '已收到你的想法。\n\n**接下来**，我们可以一步步实现。'
       session.history.push({
         messageId: `assistant-${number}`,
         role: 'assistant',
-        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
+        usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800, provider: 'Test Provider', model: 'test-model', startedAt: Date.now() - 800, finishedAt: Date.now() },
         content: [
           { type: 'text', text },
           {
@@ -475,7 +560,7 @@ export async function backend(page, { configured = true } = {}) {
         ],
       })
       session.title = '一个新的项目'
-      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, durationMs: 800, provider: 'Test Provider', model: 'test-model' } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
+      return emit(id, [{ type: 'agent-start' }, { type: 'llm-start', startedAt: Date.now() - 900 }, { type: 'text-delta', text: '已收到' }, { type: 'text-delta', text: '你的想法。' }, { type: 'llm-finish', text, usage: { input: 30, output: 20, cacheRead: 10, total: 50, firstTokenMs: 200, generationMs: 800, durationMs: 800, provider: 'Test Provider', model: 'test-model' } }, { type: 'title', title: '一个新的项目' }, { type: 'agent-finish' }])
     }
     if (path.startsWith('/agent/stop/')) {
       session.running = false
@@ -496,16 +581,17 @@ export async function backend(page, { configured = true } = {}) {
       return emit(id, [{ type: 'agent-finish', reason: 'stopped' }])
     }
     if (path.startsWith('/agent/resume/')) {
-      await json({ ok: true })
       session.running = false
-      // 真实后端会先追加一条内部提示，再让模型接着写；read 时必须过滤掉它。
+      // 真实后端会先追加一条内部提示和助手回复，再返回并推 SSE；
+      // 先落 history 再 fulfill，避免前端 agent-finish 刷新时读到旧历史。
       session.history.push({ messageId: 'internal-continue', role: 'user', internal: true, content: CONTINUE_TEXT })
-      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
+      session.history.push({ messageId: 'assistant-2', role: 'assistant', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, generationMs: 600, durationMs: 600, provider: 'Test Provider', model: 'test-model' }, content: [{ type: 'text', text: '继续完成' }] })
+      await json({ ok: true })
       return emit(id, [
         { type: 'agent-resume' },
         { type: 'llm-start', startedAt: Date.now() - 700 },
         { type: 'text-delta', text: '继续完成' },
-        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, durationMs: 600, provider: 'Test Provider', model: 'test-model' } },
+        { type: 'llm-finish', text: '继续完成', usage: { input: 12, output: 6, total: 18, firstTokenMs: 300, generationMs: 600, durationMs: 600, provider: 'Test Provider', model: 'test-model' } },
         { type: 'agent-finish' },
       ])
     }
@@ -515,7 +601,7 @@ export async function backend(page, { configured = true } = {}) {
     }
     return route.fulfill({ status: 500, json: { error: `Unexpected API: ${method} ${path}` } })
   })
-  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } }, get delayHistory() { return tuning.historyDelay }, set delayHistory(value) { tuning.historyDelay = value } }
+  return { calls, sessions, errors, emit, config: () => config, setHealth: value => { healthState = { ...healthState, ...value } } }
 }
 
 // 手机没有常驻主页，会话列表在左侧抽屉；桌面横向布局下抽屉常驻、菜单按钮隐藏。

@@ -82,7 +82,7 @@ agent sessions remove SESSION_ID
 | 停止当前任务，保存半段回复 | Esc / Ctrl+C |
 | 停止并退出 | Ctrl+Q |
 | 空闲时退出 | Ctrl+C 或 `/quit` |
-| 审批：允许一次 / 始终允许 / 拒绝 | y / a / n，确认卡固定在输入框上方 |
+| 审批：允许 / 拒绝 | y / n，确认卡固定在输入框上方；长期规则在网页输入区的「工具自动批准」里设 |
 
 `/help` 打开命令和按键说明，不写进对话，Esc 关闭。`/sessions` 打开可搜索的会话列表，`/open ID` 切换，`/new [标题]` 新建。`/model`、`/reasoning`、`/cwd` 不带参数时打开选择器，带参数时直接修改。在模型选择器里回车后，会接着打开思考强度，再回车就生效，不用再单独敲一次 `/reasoning`。`/changes` 看文件改动，`/rollback` 回退选中消息并询问是否恢复文件，`/fork` 从选中消息分支，`/copy` 复制，`/title` 重新生成标题，`/todos` 打开任务清单，`/usage` 打开用量统计。`/resume` 继续助手，`/refresh` 重新读取历史，`/rename 标题` 改标题。路径和标题包含空格时直接输入整段，不加引号。
 
@@ -92,15 +92,14 @@ agent sessions remove SESSION_ID
 
 供应商或模型名含空格时使用引号，例如 `/model "provider with spaces" gpt-model`；单引号也支持。
 
-`ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow-once`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
+`ask` 默认遇到待审批工具就返回非零退出码，显示会话 ID 和调用 ID，任务保留在服务端等待。可以显式选择 `--permission deny` 或 `--permission allow`，应用于本次运行遇到的审批，不写全局规则。已有全局 `deny` 仍由后端执行。
 
 ```powershell
-agent sessions decide SESSION_ID CALL_ID allow-once
+agent sessions decide SESSION_ID CALL_ID allow
 agent sessions decide SESSION_ID CALL_ID deny
-agent sessions decide SESSION_ID CALL_ID allow-always
 ```
 
-`allow-always` 会按后端语义保存全局权限规则。Ctrl+C 会请求停止，并提交当前模型已经生成的半段正文与思考。网络错误不会重发消息；重连失败时会提示任务可能仍在运行，可用 `sessions show/stop` 检查或停止。
+决定只有 allow / deny 两种：弹窗只管这一次，长期规则去「工具自动批准」里设。Ctrl+C 会请求停止，并提交当前模型已经生成的半段正文与思考。网络错误不会重发消息；重连失败时会提示任务可能仍在运行，可用 `sessions show/stop` 检查或停止。
 
 ## 验证
 

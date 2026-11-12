@@ -64,21 +64,53 @@
 .rikka-bubble--user { max-width: 100%; }
 }
 .conversation-flow { width: 100%; margin: 0; padding: 16px var(--la-chat-gutter); display: flex; flex-direction: column; gap: 12px; }
-/* 虚拟行：总高度由 TanStack 给出，每行绝对定位，行内的间距算进被测量的高度。 */
-.conversation-flow--virtual {
-  position: relative;
-  display: block;
-  padding: 0;
+/* 步骤浮层的透明事件层：只让浮层本体接收指针，不挡住对话。 */
+.step-action-anchor {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
 }
-.conversation-flow__row {
-  position: absolute;
-  top: 0;
-  left: 0;
-  box-sizing: border-box;
+
+.history-fold {
+  display: flex;
   width: 100%;
-  padding: 8px var(--la-chat-gutter) 12px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
 }
-.conversation-flow--virtual .message { width: 100%; }
+.history-fold__head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--la-line);
+  border-radius: 12px;
+  background: var(--la-layer-02);
+  color: var(--la-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.history-fold__head:hover { background: var(--la-layer-03); }
+.history-fold__icon { display: inline-flex; color: var(--la-muted); flex: none; }
+.history-fold__title { font-weight: 650; flex: none; }
+.history-fold__meta { min-width: 0; flex: 1; overflow: hidden; color: var(--la-muted); text-overflow: ellipsis; white-space: nowrap; }
+.history-fold__caret { flex: none; color: var(--la-muted); transition: transform .16s ease; }
+.history-fold__caret.is-open { transform: rotate(180deg); }
+.history-fold__body { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 2px 0 6px; }
+.timeline-compaction { width: 100%; min-width: 0; }
+.conversation-flow__row {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 6px 0;
+}
+.conversation-flow .message { width: 100%; }
 .conversation-latest-layer {
   position: fixed;
   z-index: 4;

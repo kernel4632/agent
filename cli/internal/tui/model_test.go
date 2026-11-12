@@ -75,7 +75,7 @@ func TestApprovalKeyboardControlsRealRequestAndFinishesRun(t *testing.T) {
 	for _, choice := range []struct {
 		key      rune
 		decision string
-	}{{'y', "allow-once"}, {'a', "allow-always"}, {'n', "deny"}} {
+	}{{'y', "allow"}, {'n', "deny"}} {
 		t.Run(choice.decision, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()

@@ -11,7 +11,8 @@ import { Notice } from '../utils/notice.js'
 import { AgentAPI } from '../utils/api.js'
 import { store } from '../store.js'
 import { readSSE } from '../utils/sse.js'
-import { History } from '../features/history.js'
+import { History, clearRollback } from '../features/history.js'
+import { estimateTokens } from '../features/stats.js'
 import { Settings } from '../features/settings.js'
 import { formatToolOutput, toolStatus, applySubagentEvent, subagentSteps } from '../utils/tool.js'
 import { usageFields } from '../utils/usage.js'
@@ -20,6 +21,11 @@ import { readAttachments } from '../utils/attachment.js'
 const current = () => store.sessions[store.ui.activeSessionID] || null
 const streaming = session => session.messages.findLast(message => message.role === 'assistant' && message.isStreaming)
 const stopping = new Set()                                // 停止请求还没返回的会话，暂时不允许发新消息
+
+// 本地错误气泡只属于上一轮；重新发送或继续时先清掉，不能让它挂在新请求下面。
+function dropLocalErrors(session) {
+  if (session) session.messages = session.messages.filter(message => !String(message.id || '').startsWith('error_'))
+}
 const flushingQueues = new Set()                          // 正在把排队消息送入下一轮的会话
 
 // SSE 兼容旧后端：Error 对象/错误对象不能直接 String() 成 "[object Object]"。
@@ -37,7 +43,11 @@ function errorTextOf(value, fallback = '模型请求失败') {
 }
 
 function createAssistant(session) {
-  const message = { id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '', tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(), request: { status: 'running', input: 0, output: 0, cache: 0 } }
+  const message = {
+    id: `pending_${crypto.randomUUID()}`, role: 'assistant', content: '', reasoning: '',
+    tools: [], steps: [], requests: [], isStreaming: true, startedAt: Date.now(),
+    request: { status: 'running', input: 0, output: 0, cache: 0 },
+  }
   session.messages.push(message)
   return message
 }
@@ -50,7 +60,29 @@ function finishRequest(request, usage, durationMs) {
   request.status = 'completed'
   request.finishedAt = Date.now()
   Object.assign(request, usageFields(usage, durationMs ?? request.finishedAt - request.startedAt))
+  // TPS 只算模型真正展示给用户的内容：正文 + 工具参数，不含 reasoning。
+  // 分母也只取“第一段正文/工具参数 → 最后一段正文/工具参数”，
+  // 不从请求开始或思考首字算，否则思考越长速度越假。
+  const raw = `${request.rawText || ''}${request.rawToolInput || ''}`
+  request.rawOutput = estimateTokens(raw)
+  const generationMs = request.contentStartedAt && request.lastContentAt
+    ? Math.max(0, request.lastContentAt - request.contentStartedAt)
+    : 0
+  request.generationMs = generationMs
+  // 只有一个可见片段时没有可测的生成窗口；不能拿一个瞬时时间戳除出天文数字。
+  request.rawTps = generationMs > 0 && (request.contentEvents || 0) >= 2 && request.rawOutput > 0
+    ? request.rawOutput / (generationMs / 1000)
+    : 0
   return request
+}
+
+// 正文和工具参数才是可见输出；reasoning 不算 TPS 的起点或 token。
+function markContent(request) {
+  if (!request) return
+  const now = Date.now()
+  if (!request.contentStartedAt) request.contentStartedAt = now
+  request.lastContentAt = now
+  request.contentEvents = (request.contentEvents || 0) + 1
 }
 
 // --- 运行中排队：先记在本地，等这一轮空闲后按顺序发出去 ---
@@ -153,7 +185,7 @@ function unsubscribe(sessionID) {
 
 async function send(sessionID, content, queuedFiles = null) {
   const session = store.sessions[sessionID]
-  if (!session || !content.trim() || session.status === 'running' || stopping.has(sessionID)) return false
+  if (!session || !content.trim() || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
   const provider = store.config.providers[session.provider]
   if (!session.model || !provider?.baseURL || provider.enabled === false) { Notice.show('请先配置并启用此会话使用的模型供应商'); return false }
   const files = queuedFiles ?? session.files ?? []
@@ -164,6 +196,7 @@ async function send(sessionID, content, queuedFiles = null) {
   const input = imageParts.length
     ? [...(text.trim() ? [{ type: 'text', text }] : []), ...imageParts]
     : text
+  dropLocalErrors(session)
   void subscribe(sessionID)
   // content 保留完整输入（回退后还能重新发送附件正文），气泡只读 displayContent。
   session.messages.push({
@@ -181,6 +214,7 @@ async function send(sessionID, content, queuedFiles = null) {
   try {
     await AgentAPI.sendMessage(sessionID, input)
     if (queuedFiles == null) session.files = []
+    clearRollback(sessionID)
     return true
   } catch (error) {
     const assistant = streaming(session)
@@ -200,6 +234,7 @@ async function send(sessionID, content, queuedFiles = null) {
 async function resume(sessionID) {
   const session = store.sessions[sessionID]
   if (!session || session.status === 'running' || stopping.has(sessionID)) return false
+  dropLocalErrors(session)
   void subscribe(sessionID)
   session.status = 'running'
   session.connection = 'connecting'
@@ -274,21 +309,15 @@ function resumeRun(session) {
 }
 
 // --- 上下文压缩：同样是一次模型请求，在时间线里单独占一行，用户不会觉得界面卡住了 ---
-function startCompact(session, event) {
-  const assistant = streaming(session) || createAssistant(session)
-  if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
-    Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
-  } else if (event.reason === 'overflow-retry') {
-    Notice.show('模型报告上下文超长，正在压缩后继续')
-  }
-  const request = {
+function compactRequest(event = {}, local = false) {
+  return {
     id: `compact_${crypto.randomUUID()}`,
     status: 'running',
     startedAt: Number(event.startedAt) || Date.now(),
     firstTokenAt: 0,
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
     content: '', reasoning: '',
-    compactReason: event.reason || '',
+    compactReason: event.reason || (local ? 'manual' : ''),
     compactToken: Number(event.token) || 0,
     compactBudget: Number(event.budget) || 0,
     compactThreshold: Number(event.compactThreshold) || 0,
@@ -296,14 +325,41 @@ function startCompact(session, event) {
     compactChars: Number(event.chars) || 0,
     compactMedia: Number(event.media) || 0,
     compactCalibrated: event.calibrated === true,
+    ...(local ? { local: true } : {}),
   }
-  assistant.steps.push({ type: 'compact', request })
+}
+
+function startCompact(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  // 手动压缩会先放本地占位；SSE 的 compact-start 到了就复用它，不能叠两行。
+  let step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  if (!step) {
+    step = { type: 'compact', request: compactRequest(event) }
+    assistant.steps.push(step)
+  } else {
+    Object.assign(step.request, {
+      compactReason: event.reason || step.request.compactReason,
+      compactToken: Number(event.token) || step.request.compactToken,
+      compactBudget: Number(event.budget) || step.request.compactBudget,
+      compactThreshold: Number(event.compactThreshold) || step.request.compactThreshold,
+      compactRatio: Number(event.ratio) || step.request.compactRatio,
+      compactChars: Number(event.chars) || step.request.compactChars,
+      compactMedia: Number(event.media) || step.request.compactMedia,
+      compactCalibrated: event.calibrated === true,
+    })
+  }
+  if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
+    Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
+  } else if (event.reason === 'overflow-retry') {
+    Notice.show('模型报告上下文超长，正在压缩后继续')
+  }
   assistant.isStreaming = true
 }
 
 function finishCompact(session, event) {
   const assistant = streaming(session) || createAssistant(session)
   const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  assistant.isStreaming = false
   if (!step) return
   step.request = {
     ...step.request,
@@ -325,6 +381,11 @@ function startRequest(session, event = {}) {
     retryRequest.firstTokenAt = Number(event.firstTokenAt) || 0
     retryRequest.provider = event.provider || retryRequest.provider
     retryRequest.model = event.model || retryRequest.model
+    retryRequest.rawText = ''
+    retryRequest.rawToolInput = ''
+    retryRequest.contentStartedAt = 0
+    retryRequest.lastContentAt = 0
+    retryRequest.contentEvents = 0
     assistant.request = retryRequest
     assistant.isStreaming = true
     return
@@ -336,6 +397,7 @@ function startRequest(session, event = {}) {
     firstTokenAt: Number(event.firstTokenAt) || 0,
     provider: event.provider || '', model: event.model || '',
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+    rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0,
   }
   assistant.requests.push(request)
   assistant.steps.push({ type: 'request', requestId: request.id })
@@ -367,10 +429,11 @@ function finishRunRequest(session, event) {
   let request = assistant.requests.at(-1)
   // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
   if (!request) {
-    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0 }
+    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0 }
     assistant.requests.push(request)
     assistant.steps.push({ type: 'request', requestId: request.id })
   }
+  if (event.text && !request.rawText) request.rawText = event.text
   finishRequest(request, event.usage, event.durationMs)
   assistant.request = request
   session.contextTokens = request?.input || 0
@@ -452,16 +515,30 @@ async function finishRun(sessionID, session, event) {
   await History.refresh(sessionID)
   const refreshed = store.sessions[sessionID]
   refreshed.status = 'idle'
+  if (error) {
+    // 只收到 agent-finish 错误时，本地请求行还停在 running；先把它标成失败，
+    // 后面才能挂回请求条自己的错误折叠里。
+    for (const message of localMessages) {
+      if (message.role !== 'assistant') continue
+      for (const request of message.requests || []) {
+        if (request.status !== 'running') continue
+        request.status = 'failed'
+        request.error = error
+        request.finishedAt = Date.now()
+        request.durationMs = Math.max(0, request.finishedAt - Number(request.startedAt || request.finishedAt))
+      }
+    }
+  }
   const failed = localMessages
     .flatMap(message => message.role === 'assistant' ? (message.requests || []) : [])
     .filter(request => request.status === 'failed')
   const target = [...refreshed.messages].reverse().find(message => message.role === 'assistant')
   if (target && failed.length) {
-    // 刷新会用磁盘历史重建 messages；失败尝试只存在于前端，重新挂回最后一轮，
-    // 这样重试结束后错误行不会凭空消失。
-    target.error = error || target.error
+    // 刷新会用磁盘历史重建 messages；失败尝试只存在于前端，重新挂回最后一轮。
+    // 错误留在失败请求行自己的 request.error 里，不再额外挂一条消息级错误。
     target.requests = [...(target.requests || []), ...failed]
     target.steps = [...(target.steps || []), ...failed.map(request => ({ type: 'request', requestId: request.id }))]
+    target.error = ''
   } else if (error) {
     refreshed.messages.push({ id: `error_${crypto.randomUUID()}`, role: 'assistant', content: '', tools: [], error })
   }
@@ -500,17 +577,73 @@ function findTool(session, id) {
   return null
 }
 
+function applyMessageDelta(session, event) {
+  const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
+  // 全会话共享的流序号：工具结束后的折叠靠它判断“下一段模型内容真的到了”，
+  // 即使下一段正文落在另一条 assistant 消息里也能收到。
+  session.streamRevision = (session.streamRevision || 0) + 1
+  markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
+  const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
+  const text = event.text || '' // 服务端只承诺 text 一个字段
+  assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
+  if (event.type === 'text-delta') {
+    const request = assistant.requests.at(-1)
+    if (request) {
+      markContent(request)
+      request.rawText = `${request.rawText || ''}${text}`
+    }
+  }
+  appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
+}
+
+// 后台标签页不逐条渲染 delta：网络还在收，但 rAF/绘制被节流。
+// 这里把连续正文/思考合并成一个字符串，切回前台只触发一次渲染。
+const pendingDeltas = new Map()
+let visibilityBound = false
+const isHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+const scheduleFrame = callback => typeof requestAnimationFrame === 'function' ? requestAnimationFrame(callback) : setTimeout(callback, 0)
+
+function queueDelta(sessionID, event) {
+  if (!visibilityBound) {
+    visibilityBound = true
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') for (const id of [...pendingDeltas.keys()]) flushDeltas(id)
+    })
+  }
+  let queue = pendingDeltas.get(sessionID)
+  if (!queue) { queue = []; pendingDeltas.set(sessionID, queue) }
+  const last = queue.at(-1)
+  if (last && last.type === event.type && last.request === (event.request || '')) last.text += event.text || ''
+  else queue.push({ type: event.type, request: event.request || '', text: event.text || '' })
+  if (!queue.frame) queue.frame = scheduleFrame(() => flushDeltas(sessionID))
+}
+
+function flushDeltas(sessionID) {
+  const queue = pendingDeltas.get(sessionID)
+  const session = store.sessions[sessionID]
+  if (!queue || !session) return
+  queue.frame = 0
+  const batch = queue.splice(0, queue.length)
+  for (const item of batch) {
+    if (item.request === 'compact') applyCompactDelta(session, item)
+    else applyMessageDelta(session, item)
+  }
+  History.syncSummary(session)
+  if (queue.length) queue.frame = scheduleFrame(() => flushDeltas(sessionID))
+  else pendingDeltas.delete(sessionID)
+}
+
+function applyCompactDelta(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  if (!step) return
+  const field = event.type === 'text-delta' ? 'content' : 'reasoning'
+  step.request[field] = (step.request[field] || '') + (event.text || '')
+}
+
 function receiveMessage(session, event) {
   if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-    const assistant = streaming(session) || createAssistant(session) // 没有流式消息时补一条
-    // 全会话共享的流序号：工具结束后的折叠靠它判断“下一段模型内容真的到了”，
-    // 即使下一段正文落在另一条 assistant 消息里也能收到。
-    session.streamRevision = (session.streamRevision || 0) + 1
-    markFirstToken(assistant)                                       // 第一段输出到了，请求行改说正在接收
-    const field = event.type === 'text-delta' ? 'content' : 'reasoning' // 正文和思考分开放
-    const text = event.text || '' // 服务端只承诺 text 一个字段
-    assistant[field] += text                                       // 旧字段继续累计，方便复制和用量展示
-    appendTextStep(assistant, event.type === 'text-delta' ? 'text' : 'reasoning', text) // 时间线按事件顺序排
+    applyMessageDelta(session, event)
   } else if (event.type === 'subagent-tool' || event.type === 'subagent-tool-result') {
     // 子任务事件挂到发起它的 new_task 工具下面；找不到父节点时宁可只显示描述，也不串到别的工具上。
     const assistant = streaming(session) || createAssistant(session) // 子任务事件也要有承载消息
@@ -533,6 +666,7 @@ function receiveTool(session, event) {
     if (tool) {
       tool.assembling = true
       tool.streamInput = ''
+      markContent(streaming(session)?.requests.at(-1))
     }
   } else if (event.type === 'tool-input-delta') {
     const tool = toolFor(session, event)
@@ -540,6 +674,11 @@ function receiveTool(session, event) {
       tool.assembling = true
       // 只留尾巴，参数可以很长；完整内容由后面的 tool-call 给。
       tool.streamInput = `${tool.streamInput || ''}${event.delta || ''}`.slice(-6000)
+      const request = streaming(session)?.requests.at(-1)
+      if (request) {
+        markContent(request)
+        request.rawToolInput = `${request.rawToolInput || ''}${event.delta || ''}`
+      }
     }
   } else if (event.type === 'tool-input-end') {
     const tool = toolFor(session, event)
@@ -550,6 +689,11 @@ function receiveTool(session, event) {
       tool.assembling = false
       // 保留最后一段 raw 参数：工具完成到下一次请求之间还要继续显示，
       // 不能在这里清空导致内容先消失、Fold 再收高度。
+      const request = streaming(session)?.requests.at(-1)
+      if (request) {
+        markContent(request)
+        if (!request.rawToolInput && event.input) request.rawToolInput = JSON.stringify(event.input)
+      }
     }
     markFirstToken(streaming(session) || createAssistant(session))
   } else if (event.type === 'permission') {
@@ -593,19 +737,23 @@ function receiveTool(session, event) {
 async function receive(sessionID, event) {
   const session = store.sessions[sessionID]
   if (!session) return
+  const deltaEvent = event.type === 'text-delta' || event.type === 'reasoning-delta'
+  // 工具/请求/结束事件到达前，先把后台积压的正文按顺序落下去。
+  if (!deltaEvent) flushDeltas(sessionID)
   session.eventRevision = (session.eventRevision || 0) + 1
   session.lastEventAt = Date.now()
   // 压缩的开始和结束显示成一行；压缩流里的正文留在这一行里实时显示，不进正常回答。
   if (event.type === 'compact-start') return startCompact(session, event)
   if (event.type === 'compact-finish') return finishCompact(session, event)
   if (event.request === 'compact') {
-    if (event.type === 'text-delta' || event.type === 'reasoning-delta') {
-      const assistant = streaming(session) || createAssistant(session)
-      const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
-      if (step) {
-        const field = event.type === 'text-delta' ? 'content' : 'reasoning'
-        step.request[field] = (step.request[field] || '') + (event.text || '')
-      }
+    if (deltaEvent) applyCompactDelta(session, event)
+    return
+  }
+  if (deltaEvent) {
+    if (isHidden()) queueDelta(sessionID, event)
+    else {
+      receiveMessage(session, event)
+      History.syncSummary(store.sessions[sessionID])
     }
     return
   }
@@ -615,8 +763,42 @@ async function receive(sessionID, event) {
   History.syncSummary(store.sessions[sessionID])
 }
 
-async function stop(sessionID) {
+async function compact(sessionID) {
   const session = store.sessions[sessionID]
+  if (!session || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
+  // 先放本地请求行，SSE 慢/断线时也能立刻看到“正在压缩”，和模型请求的行一致。
+  const assistant = streaming(session) || createAssistant(session)
+  const step = { type: 'compact', request: compactRequest({ reason: 'manual' }, true) }
+  assistant.steps.push(step)
+  assistant.isStreaming = true
+  session.compacting = true
+  Notice.show('正在压缩上下文…')
+  try {
+    const result = await AgentAPI.compactSession(sessionID)
+    // 压缩结果由 SSE 的 compact-start / compact-finish 实时更新；服务端还会
+    // 返回压缩后的上下文估算，立刻替换本地旧值，底部才能从 95% 降下来。
+    if (result?.contextEstimate) session.contextEstimate = result.contextEstimate
+    if (result?.historyStats) session.historyStats = result.historyStats
+    if (result?.contextTokens !== undefined) session.contextTokens = result.contextTokens
+    // SSE 的 compact-finish 可能先到；本地占位始终保留，这里只补齐最终结果。
+    step.request.status = step.request.status === 'running' ? 'completed' : step.request.status
+    if (typeof result?.content === 'string' && !step.request.content) step.request.content = result.content
+    assistant.isStreaming = false
+    Notice.show('上下文已压缩')
+    return true
+  } catch (error) {
+    step.request.status = 'failed'
+    step.request.error = error.message
+    step.request.finishedAt = Date.now()
+    assistant.isStreaming = false
+    Notice.show(error.message)
+    return false
+  } finally {
+    if (store.sessions[sessionID]) store.sessions[sessionID].compacting = false
+  }
+}
+
+async function stop(sessionID) {  const session = store.sessions[sessionID]
   // 停止是用户动作，先把本地状态收回来：停止按钮立刻消失，重连提示也关掉。
   // SSE 订阅本身会无限重连；不在这里 abort，界面会一直显示“正在重连”。
   stopping.add(sessionID)
@@ -714,4 +896,4 @@ export function imagePasteNotice({ hasImage, provider, model }) {
   })
 }
 
-export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, attach, removeFile, enqueue, withdrawQueued, flushQueue, imagePasteNotice }
+export const Chat = { current, subscribe, unsubscribe, send, resume, receive, stop, compact, attach, removeFile, enqueue, withdrawQueued, flushQueue, imagePasteNotice }

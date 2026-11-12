@@ -17,14 +17,14 @@ HTTP/SSE → server.js → commands/* → features/* → store.js / utils/
 | --- | --- |
 | `server.js` | 注册路由、统一错误、健康检查、启动 |
 | `store.js` | 全局数据中心：`config` 和 `sessions` 两个纯对象 |
-| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`capabilities.js`；命令文件之间不互相 import，有状态 feature 需要的兄弟服务由 `server.js` 在启动时接起来 |
+| `commands/` | HTTP 动作和运行编排，一个文件一组：`session.js`、`chat.js`、`settings.js`、`admin.js`；命令文件之间不互相 import，Agent 装配写在 `chat.js` 和 `session.js` 各自的文件里 |
 | `features/` | 独立业务模块：历史、回退、Agent、审批、上下文、压缩、标题、工具登记、MCP、本机识别（discover）、技能管理（skills）；feature 文件之间不互相 import |
 | `utils/` | 无业务状态的共用小工具：带状态码的错误、数据路径拼接、SSE 服务端、子进程管理、命令分词、上下文用量台账，以及文件与文本的通用判断（`fs.js`、`text.js`）。不依赖任何 feature |
 | `tools/` | 按类别分组的工具，一个文件一组；只依赖 `store.js`、`utils/` 和运行时 context |
 
 根目录只放入口和数据文件；脚本类产物（比如文档生成器）放 `scripts/`。加一类工具只往 `tools/` 放一个文件，删掉就消失；加一条会话动作只改 `commands/session.js`。
 
-Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。实际使用的版本看 `package.json`，这里不重复写——写死的版本号一定会过期。只按当前版本契约接入，不保留旧版适配。继续任务直接调用 `agent.resume()`，不再插入并删除用户占位消息。
+Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel4632/agent-core)）：模型请求、工具执行、上下文压缩由这个包完成。实际使用的版本看 `package.json`，这里不重复写——写死的版本号一定会过期。只按当前版本契约接入，不保留旧版适配。助手/工具末尾继续调用 `agent.resume()`；用户末尾由宿主补内部续跑提示调用 `agent.send()`，不再插入并删除用户占位消息。
 
 循环轮数不设上限（早期版本的 `maxSteps` / `step-limit` 已移除）；运行中修改 `agent.config`（模型、思考强度、system、工具表）会在下一笔请求生效，切模型和保存思考强度不再要求任务空闲。
 
@@ -37,15 +37,16 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - 任务开跑前把 `running: true` 写进 meta，收尾（成功、失败、被停止）后清掉；
 - 服务启动时扫描全部会话，对所有还带着 `running: true` 的会话逐条处理：
   - 历史末尾是助手回复（包括悬着没有结果的工具调用）→ 直接 `Chat.resume` 自动续跑，过程和手动发送一样走 SSE；
+- 历史末尾是用户消息（模型还没返回就被打断）→ 也走 `Chat.resume`，宿主补一条内部续跑提示重新请求；提示标为 `internal`，不写入历史、不出现在界面，用户不用回退重发；
   - 历史末尾是用户消息 → 只清标记，等用户自己发下一句；
   - 尾部 tool 消息里已经有 `attempt_completion` / `ask_followup_question` 的结果 → 任务其实已正常收尾，只清标记；
 - 恢复异步进行，不挡启动；单条会话失败（比如供应商配置丢了）只记日志并清标记，不影响其他会话和服务启动。
-- 恢复路径的重试有上限（总时长 2 分钟、3 次封顶）：provider 挂了或密钥过期时，无限重试会变成一个永不结束、永不清标记的空转任务，每次重启又续一次。用户自己发消息仍走 core 默认的无限重试，不因慢供应商而失败。
+- 恢复续跑和用户发送一样继承 agent-core 的重试策略；默认无限，只有 `retry.maxTries` 显式配置时才按次数收口。
 
 ## 五个核心概念
 
 1. **会话**：唯一的长期容器。标题、当前目录 `cwd`、模型、历史、设置都在会话里。
-2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/cwd/{sessionId}` 改，agent 可以用 `cwd` 工具自己改。
+2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/settings/{sessionId}` 的 `cwd` 字段改，agent 可以用 `cwd` 工具自己改。
 3. **运行**：从发送消息开始，到结束或停止为止；过程通过 SSE 推送。
 4. **工具**：agent 改变外部世界的唯一方式，按类别放在 `tools/`。
 5. **扩展**：MCP、技能、子智能体、自动标题都是基座能力。
@@ -59,11 +60,14 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   config.json          模型服务、按任务的默认模型、MCP、权限、提示词、压缩阈值
   config-backups/      配置自动备份，保留最近 20 份
   session-groups.json  会话自定义分组、组顺序和组内顺序
+  context-ratios.json  按 provider + model 记住真实 usage 学到的字符/token 比例，重启后作为 contextRatio 种子
   sessions-path.json   自定义会话目录指针（仅在改过会话位置后存在）
   sessions-move.json   等待重启执行的会话迁移（仅迁移期间存在）
   sessions/<id>/       每条会话一个目录；默认位置，也可单独放到其他磁盘
     meta.json          标题、当前目录、模型、时间；任务运行中会临时多出 running: true
-    history.jsonl      追加式消息历史；正常保存只追加
+    history.jsonl      未发生上下文压缩时的追加式历史
+    history-index.json 压缩会话的分段索引：每个 compact 边界、段文件、当前段和压缩摘要
+    history/           压缩会话的封存段（segment-XXXX.jsonl）和当前段（current.jsonl）
     history-redo.json  回退撤销栈
     settings.json      思考强度
     tool-timings.json  工具开始/结束时间，刷新后恢复计时
@@ -77,6 +81,16 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 默认情况下全局技能在 `%USERPROFILE%\.agents\skills`，不在数据目录里；测试或容器里把 `AGENT_HOME` 指到临时目录时，全局技能跟着放到 `<AGENT_HOME>/skills`，不会碰真实用户数据。项目技能放在会话当前目录的 `.agent/skills`，同名时项目版覆盖全局版。
 
 会话历史、文件快照和工具输出占用会持续增长，可通过「设置 → 数据管理 → 会话数据目录」把整个 `sessions/` 单独放到其他磁盘。服务只写入待迁移标记，重启后在加载会话前复制并切换；旧目录保留。启动时也可以用 `AGENT_SESSIONS` 直接指定会话目录，此时界面为只读。
+
+第一次出现 `compact` 消息时，后端会按压缩边界把历史分段存到磁盘（`history-index.json + history/`）。HTTP 层只暴露 `GET /session/read/{sessionId}`，一次返回完整历史；分段是存储细节，前端不再按需展开。
+
+`POST /session/rollback/{sessionId}` 支持三种回退粒度：
+
+- `{ messageId, files }`：从整条消息之前回退，这条和之后全部删除；
+- `{ messageId, partIndex, files }`：从 assistant content 的指定正文/工具调用之前回退，保留同一条消息里它前面的内容；
+- `{ toolCallId, files }`：只恢复这次工具调用改过的文件，对话历史不动。
+
+回退请求带 `compact: true` 时只返回 `historyTotal`、`undoable` 和 `restored`，不再回传完整历史；前端已经在本地知道切口，可直接截断渲染。
 
 新会话如果没有传 `cwd`，会在系统临时目录的 `agent/` 下创建独立工作区（`session-*`），避免 agent 默认在项目代码旁边动手。删除会话时清理该临时目录；用户在「切换工作区」里换成真实目录后，会话的 `temporary` 变为 `false`，旧临时目录也会被清理。可以用 `AGENT_TMP` 改临时工作区的根目录。
 
@@ -117,6 +131,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
   },
   "compact": { "threshold": 0.8 },
   "contextKeep": { "firstTurns": 3, "recentTurns": 3, "firstShare": 0.2, "recentShare": 0.3 },
+  "retry": { "maxTries": null },
   "permission": { "*": "ask" },
   "review": { "enabled": false, "policy": "", "timeout": 15000 }
 }
@@ -128,7 +143,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 - `compact.threshold` 是自动压缩的触发比例。`contextKeep` 决定压缩后还留多少总结之前的原文：`firstTurns` 是开场最多保留几个用户回合（**填 0 就是压缩后不再带上最初那几轮原始对话**，只用总结 + 最近的现场），`recentTurns` 是总结之前最多保留几个回合，两个 `*Share` 分别是这两段最多占多少上下文预算。轮数写 0 就是 0，不会被当成“没填”退回默认值；本次发送的用户输入永远保留。
 - `review` 是工具调用 AI 审核：`enabled` 打开后，权限动作为 `review` 的调用先交给 `models.review` 判断；`policy` 留空用内置策略，`timeout` 限制单次审核时长（1000–120000 毫秒，默认 15000）。
 - 配置只认当前形状；旧字段不迁移，直接忽略。
-- 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，其余错误无限次指数退避；首次 5 秒，单次退避上限 120 秒，总重试时长不限。
+- 模型请求失败沿用 agent-core 的重试：取消和上下文超长除外，默认无限次指数退避；`retry.maxTries` 缺省或 `null` 为无限，正整数为最多重试次数，`0` 为不重试。
 - `prompt.seeded` 表示默认提示词已经填过一次；用户保存空字符串后不会被重新填回。
 
 ### 权限规则
@@ -157,7 +172,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 }
 ```
 
-`deny` 是硬规则，写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
+`deny` 是硬规则，写错的动作按 `ask` 处理。`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
 
 ### 自动审核
 
@@ -194,7 +209,6 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 | `tools/background.js` | `background`（log/stop/kill/list：查看和停止后台进程；`log` 支持 `waitFor` / `waitMs` 等待新输出或特定行，不再靠反复轮询。启动进程只有 `execute_command` 的 `background: true` 一条路） |
 | `tools/web.js` | `webfetch` |
 | `tools/context.js` | `ctx_usage`（当前上下文用量、压缩点和剩余量；数据来自 `onInject` 每轮上报的真实估算，让模型自己决定何时落盘、何时收口） |
-| `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
 | `tools/history.js` | `history_search`（在本会话历史里按关键词/正则找当时确认过的细节；上下文压缩后用，命中返回 messageId + 片段，默认只搜当前会话） |
 | `tools/skill.js` | `skill` |
@@ -227,7 +241,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 工具名会带服务名前缀，例如 `everything_echo`；两个服务撞名时不会互相覆盖。
 
 一个服务连不上（命令不存在、握手超时）只跳过它，并通过 SSE 的 `mcp-error` 告诉前端；
-失败原因同时会出现在 `GET /mcp/list` 对应服务的 `error` 字段上，设置页能直接看到。
+失败原因同时会出现在管理总线 `mcp.list` 返回的对应服务 `error` 字段上，设置页能直接看到。
 **失败不会改你的配置**：进程内跳过重试（不重复白等 5 秒），但 `enabled` 保持你写的值，
 修好命令后重新保存或重启即可重新连上。
 
@@ -316,20 +330,26 @@ notepad "C:\temp\agent-data\config.json"
 bun start
 ```
 
-默认地址是 `http://localhost:3000`。浏览器打开 `http://localhost:3000/config/read` 能返回 JSON 就说明后端已启动。
+默认地址是 `http://localhost:3000`。用 `curl -X POST http://localhost:3000/admin -H "content-type: application/json" -d '{"op":"config.read"}'` 能返回 JSON 就说明后端已启动。
 
 ## 接口
 
-接口的唯一来源是 `openapi.json`，它由 `api.js`（每个接口的说明）和 `server.js`（实际注册的路由）生成：
+路由只有一处来源：`server.js` 里的注册语句（路径、方法、Elysia 入参校验都写在那里）。没有单独的接口清单文件，也没有生成步骤。
 
-```bash
-cd server
-bun run openapi          # 生成 openapi.json
-bun run openapi:check    # 只检查是否过期
-```
+- 前端测试直接解析 `server.js` 得到路由表（`frontend/tests/server-routes.js`）：mock 后端只回应真实注册过的路径，前端发起的每一次请求都必须在里面。
+- `bun test` 里的契约测试盯着需要对齐的东西：健康检查版本 = `package.json`、工具类别、按任务的模型、结束工具名单，以及下面的 SSE 事件表。
+- 改接口时改两处：本文档（前端怎么接）和 `frontend/src/utils/api.js`（前端实际发的请求）。
 
-生成时逐条对账：少了说明、多了幽灵路由、缺 summary / operationId / responses，都直接报错退出。
-版本号只从 `package.json` 取。不存在第二份手写的接口清单——两份必然漂移。
+### SSE 事件
+
+`GET /sse/connect/{sessionId}` 推的事件类型：`agent-start`、`agent-resume`、`agent-finish`、`text-delta`、`reasoning-delta`、`retry`、`llm-start`、`llm-first-token`、`llm-finish`、`tool-call`、`tool-output`、`tool-result`、`tool-input-start`、`tool-input-delta`、`tool-input-end`、`permission`、`permission-review`、`permission-blocked`、`mcp-error`、`compact-start`、`compact-finish`、`title`。同一会话允许同时有多个订阅者（多个标签页/窗口）：每个连接都会先收到缓存事件，之后的新事件广播给所有连接，断开其中一个不影响其他连接。
+
+- `permission` 在 AI 审核不确定时另带 `review`（`reviewer`、`decision`、`reason`），说明为什么转人工；`permission-review` 是 AI 审核直接放行，带 `callID`、`tool`、`input`、`reviewer`、`decision`、`reason`；`permission-blocked` 在 AI 拒绝时也带 `review`。
+
+- `llm-start` 带 `startedAt`（这次请求的真实开始时间）和 `provider` / `model`。
+- `llm-first-token` 带 `firstTokenAt` / `firstTokenMs`；`llm-finish.usage` 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 `provider` / `model`。
+- 压缩请求的原生流事件带 `request=compact`，不能追加到助手正文、思考或停止时的 partial；`compact-start` 带 `messages` 和 `startedAt`，`compact-finish` 带 `content`、`durationMs` 和统一后的 `usage`。
+- `agent-finish.usage` 包含自动压缩用量；工具拒绝、取消和无效调用也会发一条 `tool-result`。
 
 ## 部署注意事项
 

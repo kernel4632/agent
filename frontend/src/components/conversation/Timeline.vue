@@ -1,8 +1,8 @@
 <!--
   会话时间线：按顺序显示消息、思考过程、工具调用与审批，以及回退和分支操作。
   只被会话页使用；会话从 store 读，滚动容器必须由调用方传入。
-  用户消息和助手回复按轮排布；虚拟滚动和端锚定由 TanStack Virtual 负责。
-  按钮和图标按钮走 ui/；右键直接进聚光引导（MessageActions 内置），回退确认也在同一张卡片里。
+  用户消息和助手回复按轮排布；历史按 compact 边界折叠，最后一次压缩之后始终展开。
+  按钮和图标按钮走 ui/；右键和长按交还浏览器，步骤回退/分支由每条步骤左侧的窄条打开。
   调用示例：
   <Timeline :key="session.id" :scroll-root="conversationScroll" />
 -->
@@ -11,20 +11,16 @@ import { History } from "../../features/history.js"
 import { Navigation } from '../../commands/navigation.js'
 
 import { Notice } from "../../utils/notice.js"
-import { copyText } from '../../utils/clipboard.js'
 import { readScroll, saveScroll } from '../../utils/session-view.js'
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { store } from '../../store.js'
 import { groupMessageTurns } from "../../features/turns.js"
-import { isSavedMessage } from "../../features/turns.js"
 import Icon from '../../ui/Icon.vue'
-import Markdown from '../../ui/Markdown.vue'
-import MessageActions from './MessageActions.vue'
+import Fold from '../../ui/Fold.vue'
 import CompactionNotice from '../feedback/CompactionNotice.vue'
-
-import AssistantTurn from './AssistantTurn.vue'
+import StepActions from './StepActions.vue'
+import TurnItem from './TurnItem.vue'
 
 const props = defineProps({
     // 滚动容器由页面显式传入，不在组件里靠 class 查找祖先。
@@ -32,130 +28,162 @@ const props = defineProps({
 })
 const session = computed(() => store.sessions[store.ui.activeSessionID])
 const messages = computed(() => session.value?.messages || [])
-// 一条用户消息和它后面自动接续的所有助手消息算一轮，头像和名字每轮只显示一次。
-// 流式输出只改最后一轮；前面已经完成的轮次复用原对象，避免每个 token 都让整条时间线重渲染。
-let turnCache = []
-const turns = computed(() => {
-  const next = groupMessageTurns(messages.value)
-  const previous = turnCache
-  const merged = next.map((turn, index) => {
-    const old = previous[index]
-    return old
-      && old.id === turn.id
-      && old.messages.length === turn.messages.length
-      && old.messages.every((message, offset) => message === turn.messages[offset])
-      ? old
-      : turn
-  })
-  turnCache = merged
-  return merged
+// compact 记录只增不减：每次流式增量只扫新追加的消息，折叠历史段不重算。
+let compactCache = { source: null, scanned: 0, items: [] }
+const compactItems = computed(() => {
+  const list = messages.value
+  if (compactCache.source !== list || list.length < compactCache.scanned) {
+    compactCache = { source: list, scanned: 0, items: [] }
+  }
+  let changed = false
+  for (let index = compactCache.scanned; index < list.length; index += 1) {
+    if (list[index].compact) {
+      compactCache.items.push({ message: list[index], index })
+      changed = true
+    }
+  }
+  compactCache.scanned = list.length
+  // 数组内容变了要换一个新引用，否则下游 computed 看不到新 compact。
+  if (changed) compactCache.items = [...compactCache.items]
+  return compactCache.items
 })
-const turnCount = computed(() => turns.value.length)
-// 只让轮次结构（数量、id）驱动虚拟器配置；正文增长不会重建 options。
-const turnRevision = computed(() => {
-  let signature = `${turns.value.length}:`
-  for (const turn of turns.value) signature += `${turn.id},`
-  return signature
+// 历史段只在出现新的 compact 时重建；流式输出只影响最后一段。
+let historyCache = { source: null, items: null, blocks: [] }
+const historyBlocks = computed(() => {
+  const items = compactItems.value
+  if (historyCache.source === messages.value && historyCache.items === items) return historyCache.blocks
+  const list = messages.value
+  const blocks = []
+  let start = 0
+  for (const item of items) {
+    const segment = list.slice(start, item.index)
+    const segmentTurns = groupMessageTurns(segment)
+    if (segmentTurns.length) {
+      blocks.push({
+        type: 'history',
+        id: `history-${item.message.id}`,
+        turns: segmentTurns,
+        count: segment.length,
+        messages: segment,
+      })
+    }
+    blocks.push({ type: 'compact', id: `compact-${item.message.id}`, message: item.message })
+    start = item.index + 1
+  }
+  historyCache = { source: list, items, blocks }
+  return blocks
+})
+const currentMessages = computed(() => {
+  const last = compactItems.value.at(-1)
+  return messages.value.slice(last ? last.index + 1 : 0)
+})
+const currentTurns = computed(() => groupMessageTurns(currentMessages.value))
+const currentBlock = computed(() => currentTurns.value.length ? {
+  type: 'current',
+  id: 'current',
+  turns: currentTurns.value,
+  messages: currentMessages.value,
+} : null)
+const blocks = computed(() => {
+  if (manifestBlocks.value) {
+    return currentBlock.value ? [...manifestBlocks.value, currentBlock.value] : manifestBlocks.value
+  }
+  return currentBlock.value
+    ? [...historyBlocks.value, currentBlock.value]
+    : historyBlocks.value
+})
+const expandedHistory = reactive(new Set())
+const loadingSegments = reactive(new Set())
+const segmentTurnCache = new Map()
+const compactBlockCache = new Map()
+
+function turnsOfSegment(segment) {
+  const loaded = session.value?.segmentMessages?.[segment.id]
+  if (!Array.isArray(loaded)) return []
+  const cached = segmentTurnCache.get(segment.id)
+  if (cached?.source === loaded) return cached.turns
+  const turns = groupMessageTurns(loaded)
+  segmentTurnCache.set(segment.id, { source: loaded, turns })
+  return turns
+}
+
+function compactOfSegment(segment) {
+  if (compactBlockCache.has(segment.id)) return compactBlockCache.get(segment.id)
+  const compact = History.normalizeCompact(segment.compact)
+  compactBlockCache.set(segment.id, compact)
+  return compact
+}
+
+const manifestBlocks = computed(() => {
+  const segments = session.value?.historyManifest?.segments
+  if (!Array.isArray(segments)) return null
+  const list = []
+  for (const segment of segments) {
+    const turns = turnsOfSegment(segment)
+    if (segment.count > 0) {
+      list.push({
+        type: 'history',
+        id: segment.id,
+        turns,
+        count: segment.count,
+        segment,
+      })
+    }
+    const compact = compactOfSegment(segment)
+    if (compact) list.push({ type: 'compact', id: `compact-${segment.id}`, message: compact })
+  }
+  return list
 })
 const timelineSessionID = session.value?.id || ''
 const savedView = readScroll(timelineSessionID)
 const following = ref(savedView ? savedView.pinned : true)
 const latestPosition = ref({ right: '24px', bottom: '96px' })
-const rollbackTarget = ref(null)
-const rollbackPreview = ref(null)
 const flow = ref(null)
-const scrollElement = shallowRef(null)
+// 全局只有一个步骤浮层；数据来自悬停步骤的 data-step-*，不占正文宽度。
+const stepAction = reactive({
+  visible: false,
+  left: 0,
+  top: 0,
+  rollbackId: '',
+  forkId: '',
+  partIndex: undefined,
+  kind: 'step',
+  label: '步骤操作',
+})
+let stepActionElement = null
+let stepActionTimer = 0
+let stepActionBusy = false
+let stepActionPinned = false
 let scrollParent = null
+let contentObserver = null
+let followFrame = 0
+let bottomTimer = 0
 let jumpTimer = 0
 let jumping = false
 let saveTimer = 0
 let pointerActive = false
 let touchStartY = null
 let touchStartTop = 0
+let lastScrollTop = 0
 let resumeFollow = false
-let loadingEarlier = false
-let restoringHistory = false
 
-async function restoreLatestHistory() {
-  if (restoringHistory || !scrollParent || !session.value?.temporaryHistory) return
-  restoringHistory = true
-  try {
-    const restored = History.restoreRecent(session.value.id)
-    if (!restored) await History.refresh(session.value.id)
-    await nextTick()
-    // 在浏览器绘制前直接换回最近窗口并贴底，避免中间帧出现旧高度。
-    virtualizer.value.measure()
-    virtualizer.value.scrollToEnd({ behavior: 'auto' })
-    setFollowing(true)
-  } finally {
-    restoringHistory = false
-  }
+const maxScrollTop = () => scrollParent ? Math.max(0, scrollParent.scrollHeight - scrollParent.clientHeight) : 0
+const atBottom = (threshold = 8) => Boolean(scrollParent) && maxScrollTop() - scrollParent.scrollTop <= threshold
+
+function scrollToLatest(behavior = 'auto') {
+  if (!scrollParent) return
+  scrollParent.scrollTo({ top: scrollParent.scrollHeight, behavior })
 }
 
-async function loadEarlier() {
-  if (loadingEarlier || !scrollParent || !session.value || following.value) return
-  if (!Number.isInteger(session.value.historyStart) || session.value.historyStart <= 0) return
-  loadingEarlier = true
-  const beforeHeight = scrollParent.scrollHeight
-  const beforeTop = scrollParent.scrollTop
-  try {
-    const loaded = await History.loadOlder(session.value.id)
-    if (!loaded) return
-    await nextTick()
-    requestAnimationFrame(() => {
-      if (!scrollParent) return
-      scrollParent.scrollTop = beforeTop + (scrollParent.scrollHeight - beforeHeight)
-    })
-  } finally {
-    loadingEarlier = false
-  }
-}
-
-// 按轮虚拟化：data 是完整轮次数组，虚拟器只挂载视口附近的行。
-// anchorTo: 'end' + followOnAppend 让贴底时的流式增长和追加都自动保持在末尾，
-// 不再手写 scrollHeight / scrollTop 补偿。
-const getItemKey = index => turns.value[index]?.id ?? index
-const virtualizerOptions = computed(() => {
-  turnRevision.value // 只有轮次结构变化才重新配置虚拟器
-  return {
-    count: turnCount.value,
-    getScrollElement: () => scrollElement.value,
-    estimateSize: () => 220,
-    getItemKey,
-    anchorTo: 'end',
-    followOnAppend: true,
-    scrollEndThreshold: 8,
-    overscan: 6,
-    initialOffset: () => savedView && savedView.pinned === false && Number.isFinite(savedView.top)
-      ? savedView.top
-      : 0,
-  }
-})
-const virtualizer = useVirtualizer(virtualizerOptions)
-const virtualItems = computed(() => virtualizer.value.getVirtualItems())
-const totalSize = computed(() => virtualizer.value.getTotalSize())
-// 虚拟项变化时尽量复用行对象，让已经稳定的历史轮次跳过组件更新。
-let rowCache = new Map()
-const rows = computed(() => {
-  const next = []
-  const seen = new Set()
-  for (const item of virtualItems.value) {
-    const turn = turns.value[item.index]
-    if (!turn) continue
-    const cacheKey = `${item.index}:${item.key}`
-    const previous = rowCache.get(cacheKey)
-    const row = previous && previous.turn === turn && previous.item.start === item.start ? previous : { item, turn }
-    rowCache.set(cacheKey, row)
-    seen.add(cacheKey)
-    next.push(row)
-  }
-  for (const key of rowCache.keys()) {
-    if (!seen.has(key)) rowCache.delete(key)
-  }
-  return next
-})
-const measureElement = element => {
-  if (element) virtualizer.value.measureElement(element)
+// 流式增长、工具卡展开都只通过 rAF 贴一次底；读者上滚后 following=false，这里不再抢滚动。
+function requestFollow() {
+  if (!following.value || followFrame) return
+  followFrame = requestAnimationFrame(() => {
+    followFrame = 0
+    if (!following.value || !scrollParent) return
+    const max = maxScrollTop()
+    if (max > scrollParent.scrollTop + 1) scrollParent.scrollTop = max
+  })
 }
 
 // “回到最新”用 fixed 覆盖在聊天区右下角，不能参与 flow 布局。
@@ -171,6 +199,32 @@ function syncLatestPosition() {
 watch(following, value => {
   if (!value) nextTick(syncLatestPosition)
 })
+watch(flow, element => {
+  contentObserver?.disconnect()
+  contentObserver = null
+  if (!element) return
+  contentObserver = new ResizeObserver(() => {
+    // 流式正文、工具展开、代码块异步排版都会改内容高度；只读 following，
+    // 读者一旦上滚就不再跟随。
+    if (following.value) requestFollow()
+    else syncLatestPosition()
+  })
+  contentObserver.observe(element)
+}, { flush: 'post' })
+
+// 记录当前视口最上方的轮次及其相对偏移；刷新后按“同一轮 + 同一偏移”恢复，
+// 不拿会随 Markdown/图片高度变化的 scrollTop 当锚点。
+function visibleAnchor() {
+  if (!scrollParent) return null
+  const rect = scrollParent.getBoundingClientRect()
+  const element = [...scrollParent.querySelectorAll('[data-turn-id]')]
+    .find(item => item.getBoundingClientRect().bottom > rect.top + 1)
+  if (!element) return null
+  return {
+    id: element.getAttribute('data-turn-id') || '',
+    offset: element.getBoundingClientRect().top - rect.top,
+  }
+}
 
 // 滚动事件很密，先记在内存里，停手后再落一次 localStorage。
 function rememberScroll() {
@@ -182,16 +236,41 @@ function flushScroll() {
   clearTimeout(saveTimer)
   saveTimer = 0
   if (!scrollParent || !timelineSessionID) return
+  const anchor = visibleAnchor()
   saveScroll(timelineSessionID, {
     top: scrollParent.scrollTop,
+    anchorId: anchor?.id || '',
+    anchorOffset: anchor?.offset || 0,
     pinned: following.value,
   })
+}
+
+async function toggleHistory(block) {
+  const id = block.id
+  if (expandedHistory.has(id)) {
+    expandedHistory.delete(id)
+    return
+  }
+  // manifest 段在第一次展开时才拉取；拉到之前保持折叠，不先撑开空白。
+  if (block.segment && block.count > 0 && !block.turns.length) {
+    loadingSegments.add(id)
+    try {
+      await History.loadSegment(session.value.id, id)
+    } catch (error) {
+      Notice.show(error.message)
+      return
+    } finally {
+      loadingSegments.delete(id)
+    }
+  }
+  expandedHistory.add(id)
 }
 
 function setFollowing(value) {
   if (!value) resumeFollow = false
   scrollParent?.classList.toggle('is-following', value)
   following.value = Boolean(value)
+  if (value) requestFollow()
 }
 
 // 跳转期间不接受滚轮/程序滚动的跟随判定；结束后重新根据是否到底决定。
@@ -201,7 +280,7 @@ function beginJump() {
   jumpTimer = window.setTimeout(() => {
     jumping = false
     if (!scrollParent) return
-    following.value = virtualizer.value.isAtEnd(8)
+    following.value = atBottom()
     scrollParent.classList.toggle('is-following', following.value)
     rememberScroll()
   }, 1500)
@@ -225,16 +304,130 @@ function nestedScroller(target) {
 
 function onScroll() {
   if (!scrollParent) return
+  const top = scrollParent.scrollTop
   if (!jumping) {
-    const atEnd = virtualizer.value.isAtEnd(8)
-    if (atEnd && session.value?.temporaryHistory) void restoreLatestHistory()
-    else if (!atEnd && following.value) setFollowing(false)
+    const atEnd = atBottom()
+    // 内容测量/虚拟器自身调整也会触发 scroll，不能把它当用户上滚；
+    // 只有按住指针或滚轮/触摸明确上滚时才关闭跟随。
+    if (pointerActive && top < lastScrollTop - 1) setFollowing(false)
     else if (atEnd && (resumeFollow || pointerActive)) setFollowing(true)
-    if (scrollParent.scrollTop < 160) void loadEarlier()
   }
+  lastScrollTop = top
+  positionStepAction()
   syncLatestPosition()
   rememberScroll()
 }
+
+function positionStepAction() {
+  if (!stepAction.visible || !stepActionElement?.isConnected) return
+  const rect = stepActionElement.getBoundingClientRect()
+  if (rect.bottom < 0 || rect.top > window.innerHeight) {
+    hideStepAction()
+    return
+  }
+  // 对齐到这一行自己的图标；没有图标的用户消息按行顶对齐。
+  const icon = stepActionElement.querySelector('.cot-step__icon, .request-status__icon, .context-group__icon')
+  const anchor = icon ? icon.getBoundingClientRect() : rect
+  const anchorTop = icon ? anchor.top + anchor.height / 2 : anchor.top + 8
+  // 桌面放在行图标左侧的空白；手机没有空白，浮层缩成图标大小盖在原图标上，不挤正文。
+  stepAction.left = window.innerWidth < 768
+    ? Math.max(4, anchor.left - 4)
+    : Math.max(8, anchor.left - 64)
+  stepAction.top = Math.max(8, Math.min(window.innerHeight - 52, anchorTop - 17))
+}
+
+function showStepAction(element) {
+  if (!element) return
+  const part = element.getAttribute('data-cut-part-index')
+  const partIndex = part === null || part === '' ? undefined : Number(part)
+  const rollbackId = element.getAttribute('data-cut-message-id') || ''
+  const forkId = rollbackId
+  if (!rollbackId) return
+  clearTimeout(stepActionTimer)
+  stepActionElement = element
+  stepAction.rollbackId = rollbackId
+  stepAction.forkId = forkId
+  stepAction.partIndex = Number.isInteger(partIndex) ? partIndex : undefined
+  stepAction.kind = element.getAttribute('data-cut-kind') || 'step'
+  stepAction.label = element.getAttribute('data-cut-label') || '步骤操作'
+  stepAction.visible = true
+  positionStepAction()
+}
+
+function hideStepAction() {
+  clearTimeout(stepActionTimer)
+  stepAction.visible = false
+  stepActionElement = null
+  stepActionPinned = false
+}
+
+function scheduleHideStepAction(delay = 220) {
+  if (stepActionBusy) return
+  clearTimeout(stepActionTimer)
+  stepActionTimer = window.setTimeout(hideStepAction, delay)
+}
+
+function onStepPointerOver(event) {
+  if (event.target.closest?.('.step-actions-float')) {
+    clearTimeout(stepActionTimer)
+    return
+  }
+  const element = event.target.closest?.('[data-cut-row]')
+  if (element) {
+    // 点击选中后，后续 hover 不能再把目标换成布局移动后落到鼠标下的另一行。
+    if (stepActionPinned && stepAction.visible) return
+    showStepAction(element)
+  } else scheduleHideStepAction()
+}
+
+function onStepPointerLeave(event) {
+  // 触摸抬起后浏览器会补一个 pointerleave；这不是用户移开，不能把刚点出的操作块收掉。
+  if (event.pointerType && event.pointerType !== 'mouse') return
+  scheduleHideStepAction(260)
+}
+
+function onStepPointerDown(event) {
+  if (event.target.closest?.('.step-actions-float')) return
+  const element = event.target.closest?.('[data-cut-row]')
+  if (element) {
+    stepActionPinned = true
+    showStepAction(element)
+  }
+}
+
+function onStepActionEnter() {
+  clearTimeout(stepActionTimer)
+}
+
+function onStepActionBusy(value) {
+  stepActionBusy = value
+  if (value) clearTimeout(stepActionTimer)
+}
+
+function onStepActionLeave(event) {
+  if (event.pointerType && event.pointerType !== 'mouse') return
+  scheduleHideStepAction(180)
+}
+
+function onDocumentPointerDown(event) {
+  if (!stepAction.visible) return
+  if (event.target.closest?.('[data-cut-row]')
+    || event.target.closest?.('.step-actions-float')
+    || event.target.closest?.('.ui-dialog')) return
+  hideStepAction()
+}
+
+function onDocumentPointerMove(event) {
+  if (!stepAction.visible) return
+  if (event.target.closest?.('.step-actions-float') || event.target.closest?.('.ui-dialog')) {
+    clearTimeout(stepActionTimer)
+  }
+}
+
+function onViewportResize() {
+  positionStepAction()
+}
+
 
 function onWheel(event) {
   if (!scrollParent) return
@@ -244,10 +437,11 @@ function onWheel(event) {
     if (event.deltaY < 0 && nested.scrollTop > 0) return
     if (event.deltaY > 0 && nested.scrollTop + nested.clientHeight < nested.scrollHeight - 1) return
   }
-  if (event.deltaY < 0) setFollowing(false)
-  else if (event.deltaY > 0) {
+  if (event.deltaY < 0) {
+    setFollowing(false)
+  } else if (event.deltaY > 0) {
     resumeFollow = true
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   }
 }
 
@@ -271,10 +465,11 @@ function onTouchMove(event) {
   const touch = event.touches?.[0]
   if (!touch) return
   const distance = touch.clientY - touchStartY
-  if (distance > 8 && scrollParent.scrollTop <= touchStartTop + 1) setFollowing(false)
-  else if (distance < -8) {
+  if (distance > 8 && scrollParent.scrollTop <= touchStartTop + 1) {
+    setFollowing(false)
+  } else if (distance < -8) {
     resumeFollow = true
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   }
 }
 function onTouchEnd() {
@@ -300,7 +495,7 @@ function onKeyDown(event) {
   }
   resumeFollow = true
   requestAnimationFrame(() => {
-    if (virtualizer.value.isAtEnd(8)) setFollowing(true)
+    if (atBottom()) setFollowing(true)
   })
 }
 
@@ -315,31 +510,94 @@ function jumpToBottom() {
   beginJump()
   setFollowing(true)
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  virtualizer.value.scrollToEnd({ behavior: reduce ? 'auto' : 'smooth' })
+  scrollToLatest(reduce ? 'auto' : 'smooth')
+  // 平滑滚动期间 Markdown/图片还会继续排版，目标高度会变；落定后再补一次，
+  // 否则“回到最新”可能停在离底部一百多像素的位置。
+  clearTimeout(bottomTimer)
+  bottomTimer = window.setTimeout(() => {
+    if (following.value) scrollToLatest('auto')
+  }, 700)
 }
 
-// 定位条跳转：虚拟器按稳定 key 直接滚到目标轮次，不依赖目标是否已挂载。
-function jumpToMessage(messageId) {
-  const turnIndex = turns.value.findIndex(turn => turn.messages.some(message => message.id === messageId))
-  if (turnIndex < 0) return
+// 目标消息可能在折叠历史里：先展开所属段，再按真实 DOM 定位。
+async function jumpToMessage(messageId, targetIndex) {
+  let targetTurn = [...historyBlocks.value.flatMap(block => block.turns), ...currentTurns.value]
+    .find(turn => turn.messages.some(message => message.id === messageId))
+  const manifest = session.value?.historyManifest
+  let hiddenBlock = blocks.value.find(block => block.type === 'history'
+    && !expandedHistory.has(block.id)
+    && (block.messages?.some(message => message.id === messageId)
+      || block.segment?.messageIds?.includes(messageId)
+      || (targetIndex != null && block.segment
+        && targetIndex >= block.segment.startIndex
+        && targetIndex <= block.segment.compactIndex)))
+  if (hiddenBlock?.segment) {
+    // 段内消息按需加载；加载完再从真实 turn 里找目标。
+    if (!hiddenBlock.turns.length) await History.loadSegment(session.value.id, hiddenBlock.id)
+    expandedHistory.add(hiddenBlock.id)
+    await nextTick()
+    targetTurn = turnsOfSegment(hiddenBlock.segment)
+      .find(turn => turn.messages.some(message => message.id === messageId)) || targetTurn
+  } else if (hiddenBlock) {
+    expandedHistory.add(hiddenBlock.id)
+    await nextTick()
+  } else if (!targetTurn && manifest) {
+    // 搜索等入口可能只给 id；按已经加载的段找不到时，退回全段顺序找一次。
+    for (const segment of manifest.segments) {
+      if (!session.value.segmentMessages?.[segment.id]) await History.loadSegment(session.value.id, segment.id)
+      const turns = turnsOfSegment(segment)
+      const found = turns.find(turn => turn.messages.some(message => message.id === messageId))
+      if (found) {
+        expandedHistory.add(segment.id)
+        targetTurn = found
+        await nextTick()
+        break
+      }
+    }
+  }
+  if (!targetTurn && !messageId) return
   beginJump()
   setFollowing(false)
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  virtualizer.value.scrollToIndex(turnIndex, {
-    align: 'start',
-    behavior: reduce ? 'auto' : 'smooth',
-  })
+  await nextTick()
+  const element = scrollParent?.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`)
+    || (targetTurn && scrollParent?.querySelector(`[data-turn-id="${CSS.escape(targetTurn.id)}"]`))
+  if (!element || !scrollParent) return
+  const top = element.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top + scrollParent.scrollTop
+  scrollParent.scrollTo({ top: Math.max(0, top), behavior: reduce ? 'auto' : 'smooth' })
+  const targetId = messageId
+  const stabilize = (remaining = 8) => {
+    window.setTimeout(() => {
+      if (!remaining || !scrollParent) return
+      const current = scrollParent.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
+      if (current) {
+        const delta = current.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        if (Math.abs(delta) > 2) scrollParent.scrollTop += delta
+      }
+      stabilize(remaining - 1)
+    }, 120)
+  }
+  stabilize()
 }
 defineExpose({ jumpToMessage, jumpToBottom })
 
 onMounted(() => {
   bindScrollRoot(props.scrollRoot)
+  document.addEventListener('pointerdown', onDocumentPointerDown, { passive: true })
+  document.addEventListener('pointermove', onDocumentPointerMove, { passive: true })
+  window.addEventListener('resize', onViewportResize)
 })
 watch(() => props.scrollRoot, root => bindScrollRoot(root), { flush: 'post' })
 onBeforeUnmount(() => {
   unbindScrollRoot()
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+  document.removeEventListener('pointermove', onDocumentPointerMove)
+  window.removeEventListener('resize', onViewportResize)
+  clearTimeout(stepActionTimer)
   clearTimeout(jumpTimer)
   clearTimeout(saveTimer)
+  clearTimeout(bottomTimer)
+  if (followFrame) cancelAnimationFrame(followFrame)
 })
 
 function unbindScrollRoot() {
@@ -357,18 +615,16 @@ function unbindScrollRoot() {
   window.removeEventListener('pointercancel', onPointerUp)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('pagehide', flushScroll)
+  contentObserver?.disconnect()
+  contentObserver = null
   scrollParent = null
-  scrollElement.value = null
 }
 
 function bindScrollRoot(root) {
   // 会话切换时 Transition 可能先挂载新时间线、后交回滚动容器。
-  // 这里必须监听 scrollRoot，不能只在 onMounted 读一次，否则虚拟器拿到 null，
-  // scrollRect 永远是 0，虚拟范围为空。
   if (!root || root === scrollParent) return
   if (scrollParent) unbindScrollRoot()
   scrollParent = root
-  scrollElement.value = root
   scrollParent.classList.toggle('is-following', following.value)
   scrollParent.addEventListener('scroll', onScroll, { passive: true })
   scrollParent.addEventListener('wheel', onWheel, { passive: true })
@@ -386,138 +642,113 @@ function bindScrollRoot(root) {
   requestAnimationFrame(() => {
     if (!scrollParent) return
     const restoreTop = savedView && savedView.pinned === false && Number.isFinite(savedView.top) ? savedView.top : null
-    if (restoreTop == null) virtualizer.value.scrollToEnd({ behavior: 'auto' })
-    else virtualizer.value.scrollToOffset(restoreTop, { behavior: 'auto' })
+    if (restoreTop == null) {
+      scrollToLatest()
+    } else {
+      const anchor = savedView.anchorId && scrollParent.querySelector(`[data-turn-id="${CSS.escape(savedView.anchorId)}"]`)
+      if (anchor) {
+        const currentOffset = anchor.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top
+        scrollParent.scrollTop += currentOffset - savedView.anchorOffset
+      } else {
+        scrollParent.scrollTop = restoreTop
+      }
+    }
     requestAnimationFrame(() => {
       if (!scrollParent) return
-      // 恢复到顶部时不会产生 scroll 事件，这里主动补一页更早历史。
-      if (scrollParent.scrollTop < 160) void loadEarlier()
-      following.value = virtualizer.value.isAtEnd(8)
+      // 完整历史一次到位；这里只恢复位置或贴底，不再补页。
+      following.value = atBottom()
       scrollParent.classList.toggle('is-following', following.value)
       syncLatestPosition()
     })
   })
 }
-// 只回退后端存过的消息；pending 和本地错误消息没有可用的 messageId。
-const canRollback = message => isSavedMessage(message)
-
-// 右键打开聚光时就取代价预览：用户点“回退”切换到确认态时代价已经在了。
-async function requestRollback(message) {
-  if (!canRollback(message)) return
-  rollbackTarget.value = message
-  rollbackPreview.value = await History.previewRollback(session.value.id, message.id)
-}
-function clearRollback() {
-  rollbackTarget.value = null
-  rollbackPreview.value = null
-}
-async function confirmRollback(restoreFiles) {
+// 步骤操作：回退从步骤第一条消息开始，分支保留到步骤最后一条消息。
+async function rollbackStep({ id, message, partIndex, files = true } = {}) {
+  const messageId = id || message?.id
+  if (!messageId) return
   const sessionID = session.value.id
   if (session.value.status === 'running') {
     const { Chat } = await import('../../commands/chat.js')
     await Chat.stop(sessionID)
   }
-  await History.rollbackMessage(sessionID, rollbackTarget.value?.id, restoreFiles)
-  clearRollback()
+  hideStepAction()
+  await History.rollbackMessage(sessionID, messageId, files, partIndex)
 }
 
-// 从这条用户消息分出一个新对话，原对话不动。
-async function forkFrom(message) {
-  const id = await History.fork(session.value.id, message.id)
+async function forkStep(idOrMessage) {
+  const messageId = typeof idOrMessage === 'string' ? idOrMessage : idOrMessage?.id
+  if (!messageId) return
+  hideStepAction()
+  const id = await History.fork(session.value.id, messageId)
   if (id) await Navigation.openChat(id)
 }
-
-function userMenuItems(message) {
-  const items = [{ value: 'copy', label: '复制消息', icon: 'copy' }]
-  if (canRollback(message)) {
-    items.push({ value: 'rollback', label: '回退到这条消息', icon: 'undo' })
-    items.push({ value: 'fork', label: '从这里分支', icon: 'branch' })
-  }
-  return items
-}
-
-function onUserMenu(message, action) {
-  if (action === 'copy') copyMessage(message.displayContent ?? message.content)
-  else if (action === 'rollback') requestRollback(message)
-  else if (action === 'fork') { clearRollback(); forkFrom(message) }
-}
-
-async function copyMessage(text) { Notice.show(await copyText(text) ? '已复制' : '复制失败'); }
 </script>
 
 <template>
   <div
     ref="flow"
-    class="conversation-flow conversation-flow--virtual"
+    class="conversation-flow"
     role="log"
     aria-label="对话内容"
-    :style="{ height: `${totalSize}px` }"
+    @pointerover="onStepPointerOver"
+    @pointerdown="onStepPointerDown"
+    @pointerleave="onStepPointerLeave"
   >
-    <div
-      v-for="row in rows"
-      :key="row.item.key"
-      :data-index="row.item.index"
-      :ref="measureElement"
-      class="conversation-flow__row"
-      :style="{ transform: `translateY(${row.item.start}px)` }"
-    >
-      <article
-        :data-turn-id="row.turn.id"
-        class="message"
-        :class="[`message--${row.turn.role}`, { 'message--compact': row.turn.messages[0].compact }]"
-        :aria-label="row.turn.messages[0].compact ? '上下文压缩' : row.turn.role === 'user' ? '你的消息' : 'Agent 的回复'"
-      >
-        <CompactionNotice v-if="row.turn.messages[0].compact" :content="row.turn.messages[0].content" />
-        <template v-else-if="row.turn.role === 'user'">
-          <MessageActions
-            :items="userMenuItems(row.turn.messages[0])"
-            :target-id="row.turn.messages[0].id"
-            label="消息操作"
-            :running="session.status === 'running'"
-            :rollback-target="rollbackTarget"
-            :rollback-preview="rollbackPreview"
-            @request-open="event => requestRollback(row.turn.messages[0])"
-            @close="clearRollback"
-            @action="onUserMenu(row.turn.messages[0], $event)"
-            @rollback-confirm="confirmRollback"
-          >
-            <div class="rikka-message rikka-message--user">
-              <div class="rikka-bubble rikka-bubble--user" :data-message-id="row.turn.messages[0].id">
-                <Markdown :content="row.turn.messages[0].displayContent ?? row.turn.messages[0].content" />
-                <div v-if="row.turn.messages[0].images?.length" class="user-images">
-                  <img v-for="(image, index) in row.turn.messages[0].images" :key="index" :src="image" alt="用户发送的图片" class="user-images__thumb" />
-                </div>
-                <div v-if="row.turn.messages[0].attachments?.length" class="user-attachments">
-                  <span v-for="(file, index) in row.turn.messages[0].attachments" :key="file.id || `${index}-${file.name}`" class="user-attachment" :title="file.name">
-                    <Icon name="document" :size="14" />
-                    <span class="user-attachment__name">{{ file.name }}</span>
-                  </span>
-                </div>
-              </div>
+    <template v-for="block in blocks" :key="block.id">
+      <section v-if="block.type === 'history'" class="history-fold">
+        <button type="button" class="history-fold__head" :aria-expanded="expandedHistory.has(block.id)" @click="toggleHistory(block)">
+          <span class="history-fold__icon"><Icon name="layers" :size="15" /></span>
+          <span class="history-fold__title">已折叠的历史</span>
+          <span class="history-fold__meta">{{ block.turns.length ? `${block.turns.length} 轮 · ` : '' }}{{ block.count }} 条{{ loadingSegments.has(block.id) ? ' · 加载中…' : '' }}</span>
+          <Icon name="down" :size="14" class="history-fold__caret" :class="{ 'is-open': expandedHistory.has(block.id) }" aria-hidden="true" />
+        </button>
+        <Fold :open="expandedHistory.has(block.id)">
+          <div class="history-fold__body">
+            <div v-for="turn in block.turns" :key="turn.id" class="conversation-flow__row" :data-turn-id="turn.id">
+              <TurnItem
+                :turn="turn"
+                :session-id="session.id"
+                :active="false"
+              />
             </div>
-          </MessageActions>
-        </template>
-        <template v-else>
-          <AssistantTurn
-            :messages="row.turn.messages"
+          </div>
+        </Fold>
+      </section>
+      <div v-else-if="block.type === 'compact'" class="timeline-compaction" :data-message-id="block.message.id">
+        <CompactionNotice :content="block.message.content" />
+      </div>
+      <template v-else>
+        <div v-for="turn in block.turns" :key="turn.id" class="conversation-flow__row" :data-turn-id="turn.id">
+          <TurnItem
+            :turn="turn"
             :session-id="session.id"
-            :running="session.status === 'running'"
-            :active="session.status === 'running' && row.turn.id === turns.at(-1)?.id"
-            :rollback-target="rollbackTarget"
-            :rollback-preview="rollbackPreview"
-            @rollback="requestRollback"
-            @fork="forkFrom"
-            @rollback-confirm="confirmRollback"
+            :active="session.status === 'running' && turn.id === currentTurns.at(-1)?.id"
           />
-        </template>
-      </article>
-    </div>
+        </div>
+      </template>
+    </template>
     <div v-if="!following" class="conversation-latest-layer" :style="latestPosition">
       <button type="button" class="conversation-latest" @click="jumpToBottom">
         <Icon name="down" :size="14" />
         回到最新
       </button>
     </div>
+  </div>
+  <div class="step-action-anchor" @pointerenter="onStepActionEnter" @pointerleave="onStepActionLeave">
+    <StepActions
+      :visible="stepAction.visible"
+      :left="stepAction.left"
+      :top="stepAction.top"
+      :rollback-id="stepAction.rollbackId"
+      :fork-id="stepAction.forkId"
+      :part-index="stepAction.partIndex"
+      :kind="stepAction.kind"
+      :label="stepAction.label"
+      :running="session.status === 'running'"
+      @rollback="rollbackStep"
+      @fork="forkStep"
+      @busy="onStepActionBusy"
+    />
   </div>
 </template>
 

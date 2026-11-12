@@ -53,8 +53,11 @@ describe('会话运行设置', () => {
     test('默认设置只有思考强度', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            expect(await Session.readSettings({ sessionId })).toEqual({
+            expect(await Session.settings({ sessionId })).toMatchObject({
                 reasoning: 'auto',
+                provider: 'local',
+                model: 'model',
+                temporary: true,
             })
         })
     })
@@ -62,9 +65,9 @@ describe('会话运行设置', () => {
     test('思考强度保存七档，写错时保持原值', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            expect((await Session.saveSettings({ sessionId, reasoning: 'high' })).reasoning).toBe('high')
+            expect((await Session.patch({ sessionId, reasoning: 'high' })).reasoning).toBe('high')
             expect(Agent.runtime().get(sessionId).config.provider.body.reasoning_effort).toBe('high')
-            expect((await Session.saveSettings({ sessionId, reasoning: 'ultra' })).reasoning).toBe('high')
+            expect((await Session.patch({ sessionId, reasoning: 'ultra' })).reasoning).toBe('high')
         })
     })
 
@@ -73,7 +76,7 @@ describe('会话运行设置', () => {
             const sessionId = await newSession()
             const agent = Agent.runtime().get(sessionId)
             agent.running = true
-            await Session.saveSettings({ sessionId, reasoning: 'high' })
+            await Session.patch({ sessionId, reasoning: 'high' })
             expect(Agent.runtime().get(sessionId)).toBe(agent)
             expect(agent.config.provider.body.reasoning_effort).toBe('high')
             agent.running = false
@@ -102,12 +105,12 @@ describe('会话运行设置', () => {
     test('设置存到会话目录里，换一个进程读回来还是同一份', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, reasoning: 'high' })
+            await Session.patch({ sessionId, reasoning: 'high' })
 
             // 清掉内存缓存，强制从磁盘读，模拟后端重启。
             History.clear()
             Agent.runtime().clear()
-            const reloaded = await Session.readSettings({ sessionId })
+            const reloaded = await Session.settings({ sessionId })
             expect(reloaded.reasoning).toBe('high')
         })
     })
@@ -117,9 +120,9 @@ describe('哪件事用哪个模型', () => {
     test('不点名时压缩和标题都跟对话模型走', async () => {
         await withHome(async () => {
             await newSession()
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: 'model' })
-            expect(Agent.taskModel('title')).toEqual({ provider: 'local', model: 'model' })
-            expect(Agent.taskModel('task')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('title')).toEqual({ provider: 'local', model: 'model' })
+            expect(Agent.model('task')).toEqual({ provider: 'local', model: 'model' })
         })
     })
 
@@ -152,9 +155,9 @@ describe('哪件事用哪个模型', () => {
                     task: { provider: 'local', model: '任务模型' },
                 },
             })
-            expect(Agent.taskModel('title')).toEqual({ provider: 'local', model: '标题模型' })
-            expect(Agent.taskModel('task')).toEqual({ provider: 'local', model: '任务模型' })
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: '主模型' })
+            expect(Agent.model('title')).toEqual({ provider: 'local', model: '标题模型' })
+            expect(Agent.model('task')).toEqual({ provider: 'local', model: '任务模型' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: '主模型' })
         })
     })
 
@@ -168,7 +171,7 @@ describe('哪件事用哪个模型', () => {
                 providers: [{ name: 'local', models: [{ id: '主模型', name: '主模型' }, { id: '小模型', name: '小模型' }] }],
                 models: { compact: { provider: '', model: '' } },
             })
-            expect(Agent.taskModel('compact')).toEqual({ provider: 'local', model: '主模型' })
+            expect(Agent.model('compact')).toEqual({ provider: 'local', model: '主模型' })
         })
     })
 
@@ -179,17 +182,11 @@ describe('哪件事用哪个模型', () => {
                 models: { chat: { provider: 'local', model: '主模型' } },
             })
             const { sessionId } = await Session.create({ title: '标题跟会话' })
-            await Session.setModel({ sessionId, provider: 'local', model: '会话模型' })
+            await Session.model({ sessionId, provider: 'local', model: '会话模型' })
 
-            const original = Title.generate
-            let used
-            Title.generate = async ({ connection }) => { used = connection; return '标题' }
-            try {
-                await Session.generateTitle({ sessionId })
-            } finally {
-                Title.generate = original
-            }
-            expect(used.model).toBe('会话模型')
+            // 自动起标题用的就是这条规则：models.title 没配时，跟着会话自己的模型走。
+            const session = await Session.read({ sessionId })
+            expect(Agent.model('title', { provider: session.provider, model: session.model })).toEqual({ provider: 'local', model: '会话模型' })
         })
     })
 })
@@ -249,7 +246,7 @@ describe('会话模型切换', () => {
             })
             const { sessionId } = await Session.create({ title: 'Switch model' })
 
-            const meta = await Session.setModel({ sessionId, provider: 'other', model: 'third' })
+            const meta = await Session.model({ sessionId, provider: 'other', model: 'third' })
             expect(meta.provider).toBe('other')
             expect(meta.model).toBe('third')
             expect((await Session.read({ sessionId })).model).toBe('third')
@@ -260,7 +257,7 @@ describe('会话模型切换', () => {
     test('供应商不存在时按填错处理，不改动原模型', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await expect(Session.setModel({ sessionId, provider: 'missing', model: 'x' })).rejects.toMatchObject({ status: 400 })
+            await expect(Session.model({ sessionId, provider: 'missing', model: 'x' })).rejects.toMatchObject({ status: 400 })
             expect((await Session.read({ sessionId })).model).toBe('model')
         })
     })
@@ -272,7 +269,7 @@ describe('会话模型切换', () => {
             })
             const agent = Agent.runtime().get(sessionId)
             agent.running = true
-            const meta = await Session.setModel({ sessionId, provider: 'local', model: 'other' })
+            const meta = await Session.model({ sessionId, provider: 'local', model: 'other' })
             expect(meta.model).toBe('other')
             expect((await Session.read({ sessionId })).model).toBe('other')
             expect(Agent.runtime().get(sessionId)).toBe(agent) // 不重建实例，运行不中断
@@ -284,7 +281,7 @@ describe('会话模型切换', () => {
     test('HTTP 接口能切换模型', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            const response = await app.handle(new Request(`http://localhost/session/model/${sessionId}`, {
+            const response = await app.handle(new Request(`http://localhost/session/settings/${sessionId}`, {
                 method: 'PATCH',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ provider: 'local', model: 'other' }),
@@ -302,7 +299,7 @@ describe('会话分支', () => {
             await History.add({ sessionId, message: AgentCore.history.user({ content: '第一句' }) })
             await History.add({ sessionId, message: AgentCore.history.assistant({ content: '第二句' }) })
             await History.save(sessionId)
-            await Session.saveSettings({ sessionId, reasoning: 'high' })
+            await Session.patch({ sessionId, reasoning: 'high' })
 
             const { sessionId: branchId } = await Session.fork({ sessionId })
             expect(branchId).not.toBe(sessionId)
@@ -390,7 +387,7 @@ describe('设置接口', () => {
     test('读取会话时会带上当前设置', async () => {
         await withHome(async () => {
             const sessionId = await newSession()
-            await Session.saveSettings({ sessionId, reasoning: 'high' })
+            await Session.patch({ sessionId, reasoning: 'high' })
             const session = await Session.read({ sessionId })
             expect(session.settings).toEqual({ reasoning: 'high' })
         })

@@ -28,7 +28,12 @@ afterEach(async () => {
     await Promise.all(homes.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-const request = path => app.handle(new Request(`http://localhost/filesystem/entries?path=${encodeURIComponent(path)}&mode=directory`))
+// 目录浏览走管理总线：{ op: 'fs.entries', path, mode }
+const request = path => app.handle(new Request('http://localhost/admin', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ op: 'fs.entries', path, mode: 'directory' }),
+}))
 
 describe('文件系统浏览', () => {
     test('只返回目录，按目录优先排序', async () => {

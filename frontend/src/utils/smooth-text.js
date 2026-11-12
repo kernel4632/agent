@@ -4,13 +4,27 @@
  * 历史文本初始化时就是全文，不会重播动画；只有流式增长时才逐帧追。
  * 调用示例：const { text, done } = useSmoothText(computed(() => message.content))
  */
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 export function useSmoothText(source) {
   const text = ref(String(source.value ?? ''))
   const done = ref(true)
   let frame = 0
   let last = 0
+
+  function jumpToTarget() {
+    if (frame) cancelAnimationFrame(frame)
+    frame = 0
+    text.value = String(source.value ?? '')
+    done.value = true
+  }
+
+  function onVisibility() {
+    // 后台没有绘制，逐字追赶没有意义；切回来直接显示服务器已经推到的全文。
+    // visible 时延后到微任务，让 Chat 的积压 delta 先合并进 source。
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') queueMicrotask(jumpToTarget)
+    else jumpToTarget()
+  }
 
   function run(now) {
     const target = String(source.value ?? '')
@@ -58,6 +72,11 @@ export function useSmoothText(source) {
   onBeforeUnmount(() => {
     if (frame) cancelAnimationFrame(frame)
     frame = 0
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility)
+  })
+
+  onMounted(() => {
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility)
   })
 
   return { text, done }

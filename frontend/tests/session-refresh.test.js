@@ -12,7 +12,7 @@ const snapshot = () => ({ id: 'race', provider: 'test', model: 'm', history: [],
 test('历史读取期间收到的重试事件不会被旧快照清掉', async () => {
   const original = AgentAPI.getSession
   let complete
-  AgentAPI.getSession = () => new Promise(resolve => { complete = resolve })
+  AgentAPI.getSession = () => new Promise(resolve => { complete = () => resolve({ ...snapshot(), running: true }) })
   store.sessions.race = History.normalize({ ...snapshot(), running: true })
   try {
     const reading = History.refresh('race')
@@ -78,7 +78,7 @@ test('再次打开已连接运行中的会话保留尚未落盘的重试状态',
 test('读取开始后发生的设置修改不会被迟到的历史快照覆盖', async () => {
   const original = AgentAPI.getSession
   let complete
-  AgentAPI.getSession = () => new Promise(resolve => { complete = resolve })
+  AgentAPI.getSession = () => new Promise(resolve => { complete = () => resolve({ ...snapshot(), running: true }) })
   store.sessions.race = History.normalize(snapshot())
   try {
     const reading = History.refresh('race')
@@ -88,3 +88,4 @@ test('读取开始后发生的设置修改不会被迟到的历史快照覆盖',
     assert.equal(store.sessions.race.settings.reasoning, 'high')
   } finally { AgentAPI.getSession = original; delete store.sessions.race }
 })
+

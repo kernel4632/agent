@@ -223,7 +223,7 @@ export function sessionStats(session) {
   const currentModel = typeof session.model === 'string'
     ? session.model
     : (typeof session.model === 'object' ? session.model?.model : '') || ''
-  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${currentProvider}\u0000${currentModel}`
+  const requestSignature = `${requests.length}:${lastRequest?.id || ''}:${lastRequest?.status || ''}:${lastRequest?.finishedAt || 0}:${lastRequest?.output || 0}:${lastRequest?.firstTokenMs || 0}:${lastRequest?.durationMs || 0}:${currentProvider}\u0000${currentModel}`
   const remote = session.historyStats
   let aggregate = remote
     ? {
@@ -277,26 +277,27 @@ export function sessionStats(session) {
   // 正在流式输出的这一轮：外显速度用它当前累计的估算输出 / 首字之后的耗时，不再拿整个会话平均。
   const liveAssistant = messages.findLast(message => message.role === 'assistant' && message.isStreaming)
   const liveRequest = liveAssistant?.request || liveAssistant?.requests?.at(-1) || null
-  const liveOutput = liveAssistant ? estimateTokens(`${liveAssistant.content || ''}${liveAssistant.reasoning || ''}`) : 0
+  const liveOutput = liveAssistant ? estimateTokens(liveAssistant.content || '') : 0
   const liveFirstTokenAt = Number(liveRequest?.firstTokenAt || 0)
-  // 没有正在生成的请求时，外显的是最后一次请求的实际速度；速度面板里的平均值仍单独保留。
+  // TPS 用供应商返回的 output 除以整次请求耗时。
+  // 这是“整次请求吞吐”，和中转站口径一致；不假装是逐 token 的模型 decode 速度。
   const requestTps = item => {
     const duration = Number(item?.durationMs || 0)
-    const firstToken = Number(item?.firstTokenMs || 0)
-    const generation = duration > firstToken ? duration - firstToken : duration
-    return generation > 0 ? Number(item?.output || 0) / (generation / 1000) : 0
+    return duration > 0 ? Number(item?.output || 0) / (duration / 1000) : 0
   }
   const { input, output, total } = aggregate
   const limit = Number(session.contextLimit || 0)
-  const exactUsed = Number(last?.input || session.contextTokens || 0)
+  // 分段历史加载时当前段可能为空；这种情况下 last.usage 不存在，退回
+  // 服务端最近一次已知的上下文估算，不能把整个统计栏判成“空会话”。
+  const exactUsed = Number(last?.input || session.contextTokens || session.contextEstimate?.tokens || 0)
   // 只有缺少真实用量时才遍历消息做估算，正常会话加载不必多算一遍。
   const estimate = (!exactUsed || !requests.length) && messages.length ? estimateSession(session, messages, limit) : null
   // 有最后一次请求的真实输入 token 就用真实的；旧会话没有记录时退回估算。
   const usedApproximate = !exactUsed && Boolean(estimate)
   const used = exactUsed || estimate?.contextUsed || 0
   const usageApproximate = !requests.length && Boolean(estimate)
-  // 空会话没有内容可统计；发出第一条消息后才显示输入框下方的状态栏。
-  if (!messages.length && !requests.length && !session.contextTokens) return null
+  // 空会话没有内容可统计；分段历史里当前段为空时仍有全量 historyStats 和上下文估算。
+  if (!messages.length && !requests.length && !session.contextTokens && !session.contextEstimate && !session.historyStats) return null
   // 真实请求最多保留最近 18 次；旧会话没有请求记录时，用最近 18 条回复的估算值画同一张图。
   const estimatedSeries = usageApproximate
     ? messages
@@ -306,6 +307,7 @@ export function sessionStats(session) {
       .slice(-18)
     : []
   // 速度面板按供应商 / 模型分组；旧请求没有记录来源时退回当前会话模型。
+  const RECENT_TPS_SAMPLES = 5
   const modelGroups = () => {
     if (usageApproximate || !requests.length) return []
     const groups = new Map()
@@ -315,17 +317,17 @@ export function sessionStats(session) {
       const key = `${provider}\u0000${model}`
       const group = groups.get(key) || {
         provider, model, count: 0, output: 0, durationMs: 0, durationCount: 0, generationMs: 0, firstTokenMs: 0, firstTokenCount: 0,
-        lastFirstTokenMs: 0, lastTps: 0, latest: null,
+        lastFirstTokenMs: 0, lastTps: 0, latest: null, recentSamples: [],
       }
       group.count += 1
-      group.output += Number(item.output || 0)
       const duration = Number(item.durationMs || 0)
       const firstToken = Number(item.firstTokenMs || 0)
+      const tps = requestTps(item)
+      group.output += Number(item.output || 0)
       if (duration > 0) {
         group.durationMs += duration
         group.durationCount += 1
-        // 平均速度也只看生成阶段，和最后一次 tok/s 使用同一分母。
-        group.generationMs += duration > firstToken ? duration - firstToken : duration
+        group.generationMs += duration
       }
       if (firstToken > 0) {
         group.firstTokenMs += firstToken
@@ -333,8 +335,11 @@ export function sessionStats(session) {
         // 首字时间按字段独立保留；新请求没带这个字段时不能把旧值清成 0。
         group.lastFirstTokenMs = firstToken
       }
-      const tps = requestTps(item)
-      if (tps > 0) group.lastTps = tps
+      if (tps > 0) {
+        group.lastTps = tps
+        group.recentSamples.push(tps)
+        if (group.recentSamples.length > RECENT_TPS_SAMPLES) group.recentSamples.shift()
+      }
       // 正在请求中的这一笔还没有首字/耗时，不能覆盖该模型上一次的测量值；
       // 实时行的数据由 StatsPanel 单独从 live 补齐。
       if (item.status !== 'running' || duration > 0 || firstToken > 0) {
@@ -354,6 +359,9 @@ export function sessionStats(session) {
       averageFirstTokenMs: group.firstTokenCount ? group.firstTokenMs / group.firstTokenCount : 0,
       averageDurationMs: group.durationCount ? group.durationMs / group.durationCount : 0,
       averageTps: group.generationMs ? group.output / (group.generationMs / 1000) : 0,
+      recentTps: group.recentSamples.length
+        ? group.recentSamples.reduce((sum, value) => sum + value, 0) / group.recentSamples.length
+        : 0,
       lastFirstTokenMs: group.latest?.firstTokenMs || group.lastFirstTokenMs || 0,
       lastDurationMs: group.latest?.durationMs || 0,
       lastTps: group.latest?.tps || group.lastTps || 0,
@@ -361,15 +369,12 @@ export function sessionStats(session) {
     })).sort((a, b) => (b.averageDurationMs - a.averageDurationMs) || (a.averageTps - b.averageTps))
   }
   const cachedModels = modelGroupsCache.get(session)
-  const models = Array.isArray(remote?.models)
-    ? remote.models
-    : cachedModels?.signature === requestSignature
-      ? cachedModels.value
-      : modelGroups()
-  if (!remote && cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
+  // 速度必须由前端从请求原始输出算，不能采用服务端按 usage.output 预算的模型列表。
+  const models = cachedModels?.signature === requestSignature ? cachedModels.value : modelGroups()
+  if (cachedModels?.signature !== requestSignature) modelGroupsCache.set(session, { signature: requestSignature, value: models })
   // 空闲时外显速度跟当前模型走，不能拿全局最后一次请求去和面板的模型行对照。
   const currentSpeed = models.find(group => group.provider === currentProvider && group.model === currentModel)
-  const lastTps = currentSpeed?.lastTps || (last ? requestTps(last) : 0)
+  const lastTps = currentSpeed?.recentTps || (last ? requestTps(last) : 0)
   return {
     approximate: usedApproximate || usageApproximate,
     context: {
