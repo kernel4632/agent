@@ -258,11 +258,20 @@ const buildFrontend = async name => {
     if (!result.success) throw new Error(`前端打包失败：${result.logs.map(l => l.message || l).join('\n')}`)
     const code = await result.outputs[0].text()
     // 浏览器里没有 vue 和 @app/ 模块，把这两类 import 替换成从全局取
+    // 注意：import { a as b } → const { a: b } = ...（import 用 as，解构用冒号）
+    const convertDestructure = (names, globalRef) => {
+        const pairs = names.trim().split(',').map(part => {
+            const m = part.trim().match(/^(\w+)\s+as\s+(\w+)$/)
+            if (m) return `${m[1]}: ${m[2]}`
+            return part.trim()
+        })
+        return `const { ${pairs.join(', ')} } = ${globalRef};`
+    }
     const browserCode = code
         .replace(/import\s*\{([^}]+)\}\s*from\s*["']vue["'];?/g,
-            (_, names) => `const { ${names.trim()} } = window.__agent_vue__;`)
+            (_, names) => convertDestructure(names, 'window.__agent_vue__'))
         .replace(/import\s*\{([^}]+)\}\s*from\s*["']@app\/([^"']+)["'];?/g,
-            (_, names, path) => `const { ${names.trim()} } = window.__agent_app__[${JSON.stringify(path)}] ?? {};`)
+            (_, names, path) => convertDestructure(names, `window.__agent_app__[${JSON.stringify(path)}] ?? {}`))
         .replace(/import\s+(\w+)\s*from\s*["']@app\/([^"']+)["'];?/g,
             (_, name, path) => `const ${name} = (window.__agent_app__[${JSON.stringify(path)}] ?? {}).default ?? window.__agent_app__[${JSON.stringify(path)}];`)
     frontendCache.set(name, { code: browserCode, timestamp: entryMtime })
