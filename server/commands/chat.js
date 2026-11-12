@@ -149,7 +149,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     await History.mark(sessionId).catch(error => console.error(`[session ${sessionId}] 保存运行标记失败：${error.message}`))
 
     // --- 组装运行状态和 token ---
-    const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, contentStartedAt: 0, lastContentAt: 0, requesting: false, pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
+    const runState = { agent, llmStartedAt: 0, firstTokenAt: 0, contentStartedAt: 0, lastContentAt: 0, requesting: false, requestId: '', pendingUsage: null, compactStartedAt: 0, compactStartIndex: agent.history.length, pendingCompactUsage: [], compactReminded: false }
     const token = { stopped: false, state: runState }
     sessions.set(sessionId, { status: 'running', token, agent })
 
@@ -187,6 +187,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
             onLLMStart: request => {
                 if (runState.requesting) return                              // 重试沿用原来的开始时间，同一请求只开一行
                 runState.requesting = true
+                runState.requestId = crypto.randomUUID()
                 runState.llmStartedAt = Date.now()
                 runState.firstTokenAt = 0
                 runState.contentStartedAt = 0
@@ -199,7 +200,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 const { messages: _messages, ...meta } = request || {}
                 return SSE.send({
                     id: sessionId,
-                    data: { type: 'llm-start', ...meta, startedAt: runState.llmStartedAt, provider: runState.provider, model: runState.model },
+                    data: { type: 'llm-start', ...meta, requestId: runState.requestId, startedAt: runState.llmStartedAt, provider: runState.provider, model: runState.model },
                 })
             },
             onLLMFinish: result => {
@@ -220,7 +221,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 })
                 return SSE.send({
                     id: sessionId,
-                    data: { type: 'llm-finish', ...result, usage: runState.pendingUsage, durationMs: runState.pendingUsage.durationMs },
+                    data: { type: 'llm-finish', ...result, requestId: runState.requestId, usage: runState.pendingUsage, durationMs: runState.pendingUsage.durationMs },
                 })
             },
 
@@ -248,7 +249,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
                 const errorText = error?.message || error?.responseBody || error?.body || (typeof error === 'string' ? error : '')
                 return SSE.send({
                     id: sessionId,
-                    data: { type: 'retry', attempt: info?.attempt, delay: info?.delay, error: errorText, statusCode: error?.statusCode, kind: error?.kind },
+                    data: { type: 'retry', attempt: info?.attempt, delay: info?.delay, requestId: runState.requestId, error: errorText, statusCode: error?.statusCode, kind: error?.kind },
                 })
             },
             onToolCall: async call => {

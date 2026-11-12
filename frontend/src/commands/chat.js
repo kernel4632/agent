@@ -357,6 +357,20 @@ function finishCompact(session, event) {
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
+  // SSE 重连会重放同一个 llm-start；用服务端 requestId 复用已有请求行，不能叠出新行。
+  const sameRequest = event.requestId
+    ? assistant.requests.find(item => item.id === event.requestId || item.coreRequestId === event.requestId)
+    : null
+  if (sameRequest) {
+    sameRequest.startedAt = Number(event.startedAt) || sameRequest.startedAt
+    sameRequest.firstTokenAt = Number(event.firstTokenAt) || sameRequest.firstTokenAt
+    sameRequest.provider = event.provider || sameRequest.provider
+    sameRequest.model = event.model || sameRequest.model
+    sameRequest.coreRequestId = event.requestId
+    assistant.request = sameRequest
+    assistant.isStreaming = true
+    return
+  }
   // 重试事件已经先建好等待中的行；真正开始请求时复用它，不重复插一行。
   const retryRequest = assistant.requests.findLast(item => item.status === 'running' && item.retryAttempt)
   if (retryRequest) {
@@ -364,6 +378,7 @@ function startRequest(session, event = {}) {
     retryRequest.firstTokenAt = Number(event.firstTokenAt) || 0
     retryRequest.provider = event.provider || retryRequest.provider
     retryRequest.model = event.model || retryRequest.model
+    retryRequest.coreRequestId = event.requestId || retryRequest.coreRequestId
     retryRequest.rawText = ''
     retryRequest.rawToolInput = ''
     retryRequest.contentStartedAt = 0
@@ -374,7 +389,8 @@ function startRequest(session, event = {}) {
     return
   }
   const request = {
-    id: `request_${crypto.randomUUID()}`,
+    id: event.requestId || `request_${crypto.randomUUID()}`,
+    coreRequestId: event.requestId || '',
     status: 'running',
     startedAt: Number(event.startedAt) || Date.now(),
     firstTokenAt: Number(event.firstTokenAt) || 0,
@@ -409,10 +425,12 @@ function finishRunRequest(session, event) {
   if (event.text && !assistant.steps.some(step => step.type === 'text')) {
     assistant.steps.push({ type: 'text', text: event.text }) // 没收到增量时补一条，时间线不能空
   }
-  let request = assistant.requests.at(-1)
+  let request = event.requestId
+    ? assistant.requests.find(item => item.id === event.requestId || item.coreRequestId === event.requestId)
+    : assistant.requests.at(-1)
   // 断线重连可能漏掉 llm-start；只收到 finish 时也补一行，不能把用量丢掉。
   if (!request) {
-    request = { id: `request_${crypto.randomUUID()}`, status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0 }
+    request = { id: event.requestId || `request_${crypto.randomUUID()}`, coreRequestId: event.requestId || '', status: 'running', startedAt: assistant.startedAt || Date.now(), finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0, firstTokenAt: 0, rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0 }
     assistant.requests.push(request)
     assistant.steps.push({ type: 'request', requestId: request.id })
   }
@@ -449,6 +467,7 @@ function retryRun(session, event) {
   // 下一次尝试另开一行：等待退避、真正开始请求、失败或成功都在这行上发生。
   const request = {
     id: `retry_${crypto.randomUUID()}`,
+    coreRequestId: event.requestId || '',
     status: 'running',
     startedAt: Date.now(),
     firstTokenAt: 0,

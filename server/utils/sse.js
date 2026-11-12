@@ -8,8 +8,13 @@
  * 调用示例：
  *   await SSE.connect({ id: sessionId, request })
  *   await SSE.send({ id: sessionId, data: { type: 'text-delta', text: '你' } })
- *   await SSE.reset({ id: sessionId })   // 历史已保存，清掉已经落盘的流式事件
+ *   await SSE.reset({ id: sessionId })   // 历史已保存，清掉已经写入历史的流式事件
  *   await SSE.close({ id: sessionId })   // 会话结束，断开并释放缓存
+ *
+ * 除普通事件缓存外，还单独保存“当前仍在进行”的生命周期事件：
+ * agent-start / llm-start / retry / compact-start。History.save() 会清掉普通事件，
+ * 但这些事件还没有写进 history，新连接必须还能拿到，否则刷新/重连后会看不到
+ * 正在请求、正在重试或正在压缩。它们只保留最新一份，开销很小。
  */
 
 // Bun/Elysia 的空闲连接会在几秒内被关掉；心跳必须比它短，否则安静等待模型时
@@ -30,10 +35,48 @@ const eventText = (id, data) => {
 const sessionState = id => {
     let state = sessions.get(id)
     if (!state) {
-        state = { nextId: 1, events: [], connections: new Set() }
+        state = { nextId: 1, events: [], live: new Map(), connections: new Set() }
         sessions.set(id, state)
     }
     return state
+}
+
+// --- 记录/清除当前仍在进行的生命周期事件 ---
+// 这些事件描述的是“后端此刻正在做什么”，不是已经写进 history 的消息；
+// History.save 清缓存时必须留下，否则刷新后就只能看到一条用户消息。
+const rememberLive = (state, event) => {
+    const type = event.data?.type
+    if (type === 'agent-start' || type === 'agent-resume') {
+        state.live.clear()
+        state.live.set('agent', event)
+        return
+    }
+    if (type === 'agent-finish') {
+        state.live.clear()
+        return
+    }
+    if (type === 'llm-start') {
+        state.live.delete('retry')
+        state.live.delete('request-finish')
+        state.live.set('request-start', event)
+        return
+    }
+    if (type === 'llm-finish') {
+        state.live.set('request-finish', event)
+        return
+    }
+    if (type === 'retry') {
+        state.live.set('retry', event)
+        return
+    }
+    if (type === 'compact-start') {
+        state.live.delete('compact-finish')
+        state.live.set('compact-start', event)
+        return
+    }
+    if (type === 'compact-finish') {
+        state.live.set('compact-finish', event)
+    }
 }
 
 // --- 建立实时连接 ---
@@ -92,7 +135,17 @@ const connect = async ({ id, request }) => {
                 return
             }
 
-            for (const event of state.events) connection.push(event.data, event.id)
+            const replayed = new Set()
+            for (const event of state.events) {
+                connection.push(event.data, event.id)
+                replayed.add(event.id)
+            }
+            // reset 之后普通事件已经没了，但正在跑的生命周期事件还必须补发。
+            // 按事件 id 排序，保持 llm-start 在 llm-finish 之前。
+            for (const event of [...state.live.values()].sort((a, b) => a.id - b.id)) {
+                if (replayed.has(event.id)) continue
+                connection.push(event.data, event.id)
+            }
 
             if (closed) return
             heartbeat = setInterval(() => {
@@ -116,11 +169,11 @@ const connect = async ({ id, request }) => {
     })
 }
 
-// --- 清掉已经落盘的事件 ---
+// --- 清掉已经写进历史的事件；正在进行的生命周期事件继续保留 ---
 const reset = async ({ id }) => {
     const state = sessionState(id)
     state.events = []
-    state.nextId = 1
+    // nextId 不归零：保留的生命周期事件还带着原来的 id，重放时不能和后续事件撞号。
 }
 
 // --- 发送实时事件 ---
@@ -128,6 +181,7 @@ const send = async ({ id, data }) => {
     const state = sessionState(id)
     const event = { id: state.nextId++, data }
     state.events.push(event)
+    rememberLive(state, event)
     for (const connection of state.connections) {
         if (connection.isConnected) connection.push(event.data, event.id)
     }
