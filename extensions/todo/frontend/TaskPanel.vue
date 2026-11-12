@@ -28,7 +28,7 @@ const icon = status => todoStatus(status).icon
     class="session-todo-panel"
     :open="open"
     label="任务清单"
-    placement="drawer" plain
+    placement="right"
     @update:open="emit('update:open', $event)"
   >
     <div class="session-todo-panel__body">
