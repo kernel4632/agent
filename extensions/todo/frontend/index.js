@@ -1,7 +1,9 @@
 /*
- * todo 扩展前端：注册右侧任务清单面板、顶栏按钮、工具结果视图。
+ * todo 扩展前端：注册右侧任务清单面板和顶栏按钮。
  *
- * app 由框架传入，Dialog/Icon 从 __agentApp__ 取。
+ * app.vue  → 整个 Vue 模块（ref/computed/watch 等）
+ * app.shared → 框架模块表（'store.js'、'ui/Button.vue' 等）
+ * @app/ 在打包时被替换成 app.shared[path]，不能在这里直接 import
  */
 
 import TaskPanel from './TaskPanel.vue'
@@ -9,11 +11,13 @@ import { latestTodos } from './utils.js'
 
 export default function (app) {
     const { ref, computed, watch } = app.vue
-    const store = app.shared['store.js'].store
+    const { store } = app.shared['store.js']
+    const Dialog = app.shared['ui/Dialog.vue']
+    const Icon   = app.shared['ui/Icon.vue']
 
     // 获取当前会话
-    const session = computed(() => store.ui.view === 'chat' && store.ui.activeSessionID 
-        ? store.sessions[store.ui.activeSessionID] 
+    const session = computed(() => store.ui.view === 'chat' && store.ui.activeSessionID
+        ? store.sessions[store.ui.activeSessionID]
         : null)
 
     // 当前会话的任务清单
@@ -43,12 +47,12 @@ export default function (app) {
             todos: todos.value,
             session: session.value,
             'onUpdate:open': value => { todoOpen.value = value },
-            Dialog: app.shared['ui/Dialog.vue'].default,
-            Icon: app.shared['ui/Icon.vue'].default,
+            Dialog,
+            Icon,
         })),
     })
 
-    // 注册顶栏按钮
+    // 注册顶栏按钮；visible 控制是否出现，active 控制选中态
     app.topbar.add({
         id: 'todo',
         icon: computed(() => todoOpen.value ? 'close' : 'todo'),

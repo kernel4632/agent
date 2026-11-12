@@ -41,6 +41,8 @@ const createApp = name => {
     owned.set(name, mine)
     return {
         name,
+        vue: agentVue,         // Vue 全套 API，模板渲染函数也需要
+        shared: agentApp,      // 框架模块表（'store.js'、'ui/Button.vue' 等）
         api: (op, args = {}) => fetch('/api/admin', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
