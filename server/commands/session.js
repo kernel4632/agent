@@ -439,12 +439,15 @@ const compact = async ({ sessionId }) => {
 
     // 压缩后历史已经换成摘要；下一次请求的上下文明显变小，立刻重算并写回台账，
     // 否则底部会一直显示压缩前的 90%+。
+    // 注意必须重新读一次 History：上面的 history 是压缩前的快照，拿它估算等于没压缩。
+    const compactedRecords = History.get({ sessionId })
+    const compactedHistory = compactedRecords.map(({ messageId, ...message }) => message)
     const system = await Context.system({ config: store.config, cwd: session.cwd })
     const budget = ContextUsage.read(sessionId)?.budget || 128000
     // 长会话早就有真实 usage 校准出的每字符 token 比例，重算摘要上下文时直接复用，
     // 不要退回 core 的默认 0.6，否则压缩后的百分比会偏大。
     const calibrated = await ContextRatios.read(session.model)
-    const tokens = Agent.estimateContext({ history, system, budget, ratio: calibrated?.ratio })
+    const tokens = Agent.estimateContext({ history: compactedHistory, system, budget, ratio: calibrated?.ratio })
     ContextUsage.record(sessionId, { tokens, budget, compactThreshold: store.config.compact.threshold })
 
     return { ...await read({ sessionId }), content }
