@@ -132,14 +132,32 @@ const sync = async state => {
 }
 
 // --- 轮询代码变化：发现新改动就弹一次提示，点按钮重载 ---
+// 记录放在 localStorage：Vite HMR 或刷新页面会重建模块，内存里的 Set 会清空，
+// 同一个未重载的 changed 标记就会隔几秒重新弹一次。
+const NOTIFIED_KEY = 'agent.extensions.notified'
+const readNotified = () => {
+    try {
+        const list = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '[]')
+        return new Set(Array.isArray(list) ? list : [])
+    } catch {
+        return new Set()
+    }
+}
+const saveNotified = value => {
+    try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify([...value])) } catch { /* 隐私模式禁用存储时退化为内存去重 */ }
+}
 let pollTimer = null
-let notified = new Set()
+let notified = readNotified()
 const poll = async () => {
     try {
         const state = await AgentAPI.getExtensions()
         extensionState.value = state
-        const fresh = (state.changed || []).filter(name => !notified.has(name))
-        notified = new Set(state.changed || [])
+        const changed = Array.isArray(state.changed) ? state.changed : []
+        const fresh = changed.filter(name => !notified.has(name))
+        // changed 清空后要一起清掉旧标记；否则下次真的有改动时不会再提醒。
+        notified = new Set([...notified].filter(name => changed.includes(name)))
+        for (const name of fresh) notified.add(name)
+        saveNotified(notified)
         if (fresh.length) {
             Notice.show({
                 message: `扩展 ${fresh.join('、')} 的代码有更新`,
@@ -173,6 +191,7 @@ const reload = async name => {
         for (const item of state.extensions || []) if (item.name === name || item.requires?.includes(name)) unloadOne(item.name)
         await sync(state)
         notified.delete(name)
+        saveNotified(notified)
         Notice.show(`扩展 ${name} 已重载`)
         return true
     } catch (error) {
