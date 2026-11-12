@@ -575,6 +575,32 @@ describe('继续被中断的助手', () => {
         })
     })
 
+    test('末尾是 error 记录时仍能继续', async () => {
+        await withHome(async () => {
+            const sessionId = await setup()
+            await History.add({ sessionId, message: { id: 'a1', role: 'assistant', content: text('做到一半') } })
+            await History.add({ sessionId, message: AgentCore.history.error({ content: '模型请求失败：上下文超长' }) })
+            await History.save(sessionId)
+
+            let resumed = false
+            const agent = {
+                history: History.get({ sessionId }).map(({ messageId, ...message }) => message),
+                running: null,
+                stop: async () => ({ ok: true }),
+                resume(options) {
+                    expect(options).not.toHaveProperty('input')
+                    resumed = true
+                    return options.callbacks.onStart().then(() => ({ reason: 'finished' }))
+                },
+            }
+            Agent.runtime().set(sessionId, agent)
+
+            expect(await Chat.resume({ sessionId })).toEqual({ ok: true })
+            await Bun.sleep(50)
+            expect(resumed).toBe(true)
+        })
+    })
+
     test('read 不返回磁盘里的内部提示', async () => {
         await withHome(async () => {
             const sessionId = await setup()

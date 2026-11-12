@@ -116,10 +116,11 @@ const rememberRatio = state => {
     })
 }
 
-// 继续时的末尾判断：找最后一条非工具、非内部的对话消息。
+// 继续时的末尾判断：找最后一条非工具、非内部、非失败记录的对话消息。
+// role:'error' 只是界面/审计记录，agent-core 不把它当消息；它插在末尾时不能挡住继续。
 const lastConversationMessage = history => [...history]
     .reverse()
-    .find(message => !message.internal && message.role !== 'tool')
+    .find(message => !message.internal && message.role !== 'tool' && message.role !== 'error')
 
 // --- 输入校验用到的常量 ---
 // 图片只认 data URL 和 http(s) URL；base64 上限 8M 字符（约 6 MB 原图），防止一次请求撑爆上下文。

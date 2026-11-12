@@ -36,7 +36,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 
 - 任务开跑前把 `running: true` 写进 meta，收尾（成功、失败、被停止）后清掉；
 - 服务启动时扫描全部会话，对所有还带着 `running: true` 的会话逐条处理：
-  - 历史末尾是助手回复（包括悬着没有结果的工具调用）→ 直接 `Chat.resume` 自动续跑，过程和手动发送一样走 SSE；
+  - 历史末尾是助手回复（包括悬着没有结果的工具调用；`role:error` 只是失败审计记录，继续时会被跳过，不能挡住）→ 直接 `Chat.resume` 自动续跑，过程和手动发送一样走 SSE；
 - 历史末尾是用户消息（模型还没返回就被打断）→ 也走 `Chat.resume`，宿主补一条内部续跑提示重新请求；提示标为 `internal`，不写入历史、不出现在界面，用户不用回退重发；
   - 历史末尾是用户消息 → 只清标记，等用户自己发下一句；
   - 尾部 tool 消息里已经有 `attempt_completion` / `ask_followup_question` 的结果 → 任务其实已正常收尾，只清标记；
