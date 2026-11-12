@@ -23,12 +23,18 @@ export default ctx => {
         return original(args)
     })
 
-    // --- patch Tool.list：补充 update_todo_list 的 UI 元数据 ---
+    // --- patch Tool.list：工具不在内置目录里，原列表没有它，要自己补上；ui 直接用 tool.js 里的声明 ---
     ctx.patch(Tool, 'list', original => async () => {
-        const tools = await original()
-        return tools.map(item => item.name === 'update_todo_list' ? {
-            ...item,
-            ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度' }
-        } : item)
+        const tools = (await original()).filter(item => item.name !== tool.name)
+        tools.push({
+            name: tool.name,
+            kind: 'never',
+            kindLabel: 'never',
+            kindHint: '',
+            permission: 'ask',
+            configurable: false,
+            ui: tool.ui,
+        })
+        return tools
     })
 }

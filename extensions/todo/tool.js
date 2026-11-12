@@ -29,6 +29,8 @@ const todo = {
         icon: 'check',
         title: '任务清单',
         summary: '当前进度',
+        keepOpen: true,     // 工具结果默认展开
+        doneText: '已更新',  // 完成只代表清单已更新，不是任务都做完了
     },
     description: [
         'Replace the entire TODO list with an updated checklist reflecting the current state of the task.',

@@ -367,7 +367,7 @@ export async function backend(page, { configured = true } = {}) {
       },
       {
         name: 'update_todo_list', kind: 'never', permission: 'ask', configurable: false,
-        ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度' },
+        ui: { view: 'todo', icon: 'check', title: '任务清单', summary: '当前进度', keepOpen: true, doneText: '已更新' },
       },
       {
         name: 'attempt_completion', kind: 'never', permission: 'never', configurable: false,

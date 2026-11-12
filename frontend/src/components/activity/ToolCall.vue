@@ -1,7 +1,7 @@
 <!--
 工具步骤：结果框默认收起，运行中不再跟着状态打开再关上。
 要执行的内容最多三行，批准按钮跟在这一行下面。需要批准时由外层把处理过程展开。
-出错或被拒绝时展开结果；任务清单保持展开。点标题才打开完整结果。
+出错或被拒绝时展开结果；工具声明 ui.keepOpen 时保持展开。点标题才打开完整结果。
 调用示例：<ToolCall :tool="tool" :session-id="session.id" />
 -->
 <script setup>
@@ -25,8 +25,8 @@ const props = defineProps({
   autoExpand: { type: Boolean, default: true },
 })
 const now = ref(Date.now())
-// null 表示还没手动点过：出错、被拒绝和任务清单自动展开。运行中、等待批准都保持收起。
-const preference = ref(props.tool.name === 'update_todo_list' ? true : null)
+// null 表示还没手动点过：出错、被拒绝和声明了 ui.keepOpen 的工具自动展开。运行中、等待批准都保持收起。
+const preference = ref(uiFor(props.tool.name).keepOpen ? true : null)
 const bodyId = `tool-body-${props.tool.id || props.tool.name}`
 let timer = null
 
@@ -47,8 +47,9 @@ const summary = computed(() => {
 const statusLabel = status => ({ waiting: '等待你的许可', running: '正在执行', completed: '已完成', error: '执行失败', rejected: '已拒绝' }[status] || '等待结果')
 const statusText = computed(() => {
   if (props.tool.assembling) return '正在生成参数'
-  // 任务清单的工具完成只代表“清单已更新”，不是清单里的任务都完成了。
-  if (props.tool.name === 'update_todo_list' && props.tool.status === 'completed') return '已更新'
+  // 工具可以用 ui.doneText 声明完成时的文案（如任务清单完成只代表“清单已更新”）。
+  const doneText = uiFor(props.tool.name).doneText
+  if (props.tool.status === 'completed' && typeof doneText === 'string' && doneText) return doneText
   return statusLabel(props.tool.status)
 })
 const statusClass = status => `is-${status || 'waiting'}`
