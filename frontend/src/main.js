@@ -14,6 +14,18 @@ import './styles/base.scss'          // 全局重置与可访问性规则
 import App from './App.vue'
 import { store } from './store.js'
 import { readPath, savePath } from './utils/session-view.js'
+import { AgentAPI } from './utils/api.js'
+import { Notice } from './utils/notice.js'
+
+// 扩展前端能 import 的框架模块：'@app/ui/Button.vue' 会映射到这里的 'ui/Button.vue'。
+// 用 glob 一次收全 ui/ 下的组件，新增基础组件时不用改这里。
+const uiModules = import.meta.glob('./ui/*.vue', { eager: true })
+const sharedModules = {
+  ...Object.fromEntries(Object.entries(uiModules).map(([path, mod]) => [path.slice(2), mod.default])),
+  'utils/api.js': { AgentAPI },
+  'utils/notice.js': { Notice },
+  'store.js': { store },
+}
 
 function startWatchers() {
   // 会话列表由 Server 保存，浏览器不再留副本，所以这里没有"同步到本地"的监听。
@@ -62,6 +74,6 @@ async function restorePath() {
 
 startWatchers()
 createApp(App).mount('#app')
-Promise.all([Session.list(), Settings.load(), Extensions.init()])
+Promise.all([Session.list(), Settings.load(), Extensions.init(sharedModules)])
   .then(restorePath)
   .finally(() => { store.ui.isLoading = false })

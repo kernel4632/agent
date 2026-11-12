@@ -16,52 +16,17 @@
  *   app.style(css)                        — 注入扩展样式
  */
 
-import { ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h,
-    nextTick, provide, inject, toRef, toRefs, unref, watchEffect, reactive } from 'vue'
-import Button from '../ui/Button.vue'
-import Switch from '../ui/Switch.vue'
-import Dialog from '../ui/Dialog.vue'
-import Field from '../ui/Field.vue'
-import Select from '../ui/Select.vue'
-import Icon from '../ui/Icon.vue'
-import Fold from '../ui/Fold.vue'
-import Checkbox from '../ui/Checkbox.vue'
-import Tabs from '../ui/Tabs.vue'
-import SettingsList from '../ui/SettingsList.vue'
-import SettingsRow from '../ui/SettingsRow.vue'
-import PathInput from '../ui/PathInput.vue'
-import Markdown from '../ui/Markdown.vue'
-import SelectButton from '../ui/SelectButton.vue'
-import Menu from '../ui/Menu.vue'
+import * as Vue from 'vue'
+import { ref, markRaw } from 'vue'
 import { AgentAPI } from '../utils/api.js'
 import { Notice } from '../utils/notice.js'
-import { store } from '../store.js'
 
 // --- 传给扩展代码的两个参数（代替 window 全局）---
-const agentVue = {
-    ref, computed, watch, onMounted, onBeforeUnmount, defineComponent, h,
-    nextTick, provide, inject, toRef, toRefs, unref, watchEffect, reactive,
-}
-const agentApp = {
-    'ui/Button.vue':      Button,
-    'ui/Switch.vue':      Switch,
-    'ui/Dialog.vue':      Dialog,
-    'ui/Field.vue':       Field,
-    'ui/Select.vue':      Select,
-    'ui/Icon.vue':        Icon,
-    'ui/Fold.vue':        Fold,
-    'ui/Checkbox.vue':    Checkbox,
-    'ui/Tabs.vue':        Tabs,
-    'ui/SettingsList.vue':SettingsList,
-    'ui/SettingsRow.vue': SettingsRow,
-    'ui/PathInput.vue':   PathInput,
-    'ui/Markdown.vue':    Markdown,
-    'ui/SelectButton.vue':SelectButton,
-    'ui/Menu.vue':        Menu,
-    'utils/api.js':       { AgentAPI },
-    'utils/notice.js':    { Notice },
-    'store.js':           { store },
-}
+// 整个 Vue 模块都交给扩展：模板编译出的渲染函数会用到 openBlock、renderList 等一整套辅助函数
+const agentVue = Vue
+// 扩展能 import 的框架模块表（'ui/Button.vue' → 模块）由入口 main.js 组装后传进 init()；
+// features 层不直接 import .vue，守住前端分层规则。
+let agentApp = {}
 
 // --- 扩展注册表 ---
 export const extensionSettings  = ref([])
@@ -77,11 +42,12 @@ const createApp = () => ({
         body: JSON.stringify({ op, ...args }),
     }).then(r => r.json()),
     settings: {
-        add:    page => extensionSettings.value.push(page),
+        // 组件对象不要变成响应式，否则 Vue 会警告并白白多一层代理
+        add:    page => extensionSettings.value.push({ ...page, component: markRaw(page.component) }),
         remove: id   => { const i = extensionSettings.value.findIndex(p => p.id === id); if (i >= 0) extensionSettings.value.splice(i, 1) },
     },
     toolViews: {
-        add:    (name, component) => { extensionToolViews[name] = component },
+        add:    (name, component) => { extensionToolViews[name] = markRaw(component) },
         remove: name              => { delete extensionToolViews[name] },
     },
     style(css) {
@@ -92,7 +58,8 @@ const createApp = () => ({
 })
 
 // --- 加载所有扩展的前端代码 ---
-const init = async () => {
+const init = async (shared = {}) => {
+    agentApp = shared
     try {
         const result = await AgentAPI.getExtensions()
         extensionState.value = result
@@ -108,8 +75,11 @@ const init = async () => {
 
 // --- 加载单个扩展的前端代码 ---
 const loadOne = async name => {
-    const code = await AgentAPI.getExtensionFrontend(name)
-    if (!code || typeof code !== 'string') return
+    const { code } = await AgentAPI.getExtensionFrontend(name)
+    if (!code || typeof code !== 'string') {
+        console.warn(`[extensions] ${name} 没有前端代码`)
+        return
+    }
 
     // 去掉 export 语句，找到入口函数，末尾加 return 调用
     let fn_code = code

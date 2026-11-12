@@ -115,7 +115,8 @@ const OPS = {
     'extension.list':     () => Extension.state(),
     'extension.toggle':   ({ name } = {}) => Extension.toggle(name),
     'extension.reload':   ({ name } = {}) => Extension.reload(name),
-    'extension.frontend': ({ name } = {}) => Extension.buildFrontend(name),
+    // 前端代码包在 JSON 里返回：前端 request() 统一按 JSON 解析，纯文本会被当成错误吞掉
+    'extension.frontend': async ({ name } = {}) => ({ code: await Extension.buildFrontend(name) }),
 
     // --- 技能：由 extensions/skill/backend.js 在启动时往 OPS 里挂 skill.* 动作 ---
 

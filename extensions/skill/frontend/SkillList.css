@@ -9,7 +9,7 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;                                         // 窄屏放不下时自动换行
+  flex-wrap: wrap;
   gap: 8px 12px;
   padding: 10px 16px;
   border-radius: 16px;
@@ -18,7 +18,7 @@
 }
 .skill-bulk__count { color: var(--la-muted); font-size: 13px; line-height: 20px; }
 .skill-bulk__spacer { flex: 1; }
-.skill-bulk .ui-button { min-height: 40px; white-space: nowrap; } // 按钮文字保持单行不挤字
+.skill-bulk .ui-button { min-height: 40px; white-space: nowrap; }
 
 .skill-card {
   overflow: hidden;
@@ -100,7 +100,7 @@
   .skill-row { align-items: flex-start; flex-wrap: wrap; padding: 14px 16px; }
   .skill-row__actions { width: 100%; justify-content: flex-end; }
   .skill-bulk { gap: 6px 10px; }
-  .skill-bulk .ui-button { padding: 0 14px; }              // 按钮变短，保证文字单行
+  .skill-bulk .ui-button { padding: 0 14px; }
   .skill-root-row { padding: 12px 16px; }
   .skill-source { align-items: stretch; flex-direction: column; }
 }

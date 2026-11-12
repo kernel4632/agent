@@ -51,8 +51,10 @@ export default ctx => {
     // --- 注册技能管理命令 ---
     ctx.op('skill.list',   ({ cwd } = {}) => Skills.list({ cwd: cwd || process.cwd() }))
     ctx.op('skill.read',   ({ name, cwd } = {}) => Skills.read({ name, cwd: cwd || process.cwd() }))
-    ctx.op('skill.save',   body => Skills.save(body || {}))
-    ctx.op('skill.remove', body => Skills.remove(body || {}))
-    ctx.op('skill.toggle', body => Skills.toggle(body || {}))
+    // 没打开会话时前端传 cwd: ''，统一换成服务端当前目录，和 list/read 一致
+    const withCwd = body => ({ ...(body || {}), cwd: body?.cwd || process.cwd() })
+    ctx.op('skill.save',   body => Skills.save(withCwd(body)))
+    ctx.op('skill.remove', body => Skills.remove(withCwd(body)))
+    ctx.op('skill.toggle', body => Skills.toggle(withCwd(body)))
     ctx.op('skill.source', body => Skills.source(body || {}))
 }

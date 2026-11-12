@@ -111,4 +111,4 @@ function submit() {
   </Dialog>
 </template>
 
-<style scoped lang="scss" src="../../styles/components/capabilities/SkillEditor.scss"></style>
+<style scoped src="./SkillEditor.css"></style>

@@ -312,4 +312,4 @@ async function addSource() {
   </section>
 </template>
 
-<style scoped lang="scss" src="../../styles/components/capabilities/SkillList.scss"></style>
+<style scoped src="./SkillList.css"></style>

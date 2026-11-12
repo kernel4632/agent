@@ -286,30 +286,39 @@ const vueSfcPlugin = () => {
         async setup(build) {
             build.onLoad({ filter: /\.vue$/ }, async args => {
                 if (!compiler) compiler = await import('@vue/compiler-sfc')
-                const src = await Bun.file(args.path).text()
-                const { parse, compileScript, compileTemplate, rewriteDefault } = compiler
-                const { descriptor } = parse(src)
-                const id = Math.random().toString(36).slice(2, 10)
+                const { parse, compileScript, compileTemplate, compileStyle, rewriteDefault } = compiler
+                const { descriptor } = parse(await Bun.file(args.path).text(), { filename: args.path })
+                const id = Bun.hash(args.path).toString(36).slice(0, 8)   // 同一文件每次打包 id 不变
+                const scopeId = `data-v-${id}`
+                const scoped = descriptor.styles.some(style => style.scoped)
 
-                const script = compileScript(descriptor, { id })
-                let code = rewriteDefault(script.content, '__sfc_main__')
-
-                if (descriptor.template) {
-                    const tpl = compileTemplate({
-                        source: descriptor.template.content,
-                        filename: args.path,
+                // --- 脚本和模板：inlineTemplate 让模板直接拿到 <script setup> 里的组件和变量 ---
+                let code
+                if (descriptor.script || descriptor.scriptSetup) {
+                    const script = compileScript(descriptor, {
                         id,
-                        compilerOptions: { mode: 'module' },
+                        inlineTemplate: true,
+                        templateOptions: { scoped, compilerOptions: { scopeId: scoped ? scopeId : undefined } },
                     })
-                    code += '\n' + tpl.code.replace(/^export\s+function\s+render/, 'function render')
-                        + '\n__sfc_main__.render = render\n'
+                    code = rewriteDefault(script.content, '__sfc_main__')
+                } else {
+                    // 只有 <template> 的组件
+                    const tpl = compileTemplate({ source: descriptor.template?.content || '', filename: args.path, id, scoped })
+                    code = tpl.code.replace(/^export\s+function\s+render/m, 'function render')
+                        + '\nconst __sfc_main__ = { render }\n'
                 }
+                if (scoped) code += `\n__sfc_main__.__scopeId = ${JSON.stringify(scopeId)}\n`
 
-                if (descriptor.styles?.length) {
-                    for (const style of descriptor.styles) {
-                        code += `\nif(!__sfc_main__.__styles)__sfc_main__.__styles=[]\n`
-                        code += `__sfc_main__.__styles.push(${JSON.stringify({ content: style.content, scoped: style.scoped })})\n`
-                    }
+                // --- 样式：只支持普通 CSS（exe 里没有 sass），组件模块加载时插进 <head> ---
+                let css = ''
+                for (const style of descriptor.styles) {
+                    const source = style.src
+                        ? await Bun.file(join(dirname(args.path), style.src)).text()
+                        : style.content
+                    css += compileStyle({ source, filename: args.path, id: scopeId, scoped: style.scoped }).code + '\n'
+                }
+                if (css) {
+                    code += `\n;(() => { if (typeof document === 'undefined') return; const el = document.createElement('style'); el.dataset.extensionStyle = ${JSON.stringify(id)}; el.textContent = ${JSON.stringify(css)}; document.head.appendChild(el) })()\n`
                 }
 
                 code += '\nexport default __sfc_main__\n'
