@@ -269,11 +269,11 @@ const buildFrontend = async name => {
     }
     const browserCode = code
         .replace(/import\s*\{([^}]+)\}\s*from\s*["']vue["'];?/g,
-            (_, names) => convertDestructure(names, 'window.__agent_vue__'))
+            (_, names) => convertDestructure(names, '__agentVue__'))
         .replace(/import\s*\{([^}]+)\}\s*from\s*["']@app\/([^"']+)["'];?/g,
-            (_, names, path) => convertDestructure(names, `window.__agent_app__[${JSON.stringify(path)}] ?? {}`))
+            (_, names, path) => convertDestructure(names, `__agentApp__[${JSON.stringify(path)}] ?? {}`))
         .replace(/import\s+(\w+)\s*from\s*["']@app\/([^"']+)["'];?/g,
-            (_, name, path) => `const ${name} = (window.__agent_app__[${JSON.stringify(path)}] ?? {}).default ?? window.__agent_app__[${JSON.stringify(path)}];`)
+            (_, name, path) => `const ${name} = (__agentApp__[${JSON.stringify(path)}] ?? {}).default ?? __agentApp__[${JSON.stringify(path)}];`)
     frontendCache.set(name, { code: browserCode, timestamp: entryMtime })
     return browserCode
 }
