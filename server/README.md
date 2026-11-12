@@ -168,7 +168,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 }
 ```
 
-`deny` 是硬规则，写错的动作按 `ask` 处理。`update_todo_list`、`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
+`deny` 是硬规则，写错的动作按 `ask` 处理。`attempt_completion`、`ask_followup_question` 是控制循环用的内部工具，不受 `deny` 影响。
 
 ### 项目规则
 
@@ -193,7 +193,6 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 | `tools/background.js` | `background`（log/stop/kill/list：查看和停止后台进程；`log` 支持 `waitFor` / `waitMs` 等待新输出或特定行，不再靠反复轮询。启动进程只有 `execute_command` 的 `background: true` 一条路） |
 | `tools/web.js` | `webfetch` |
 | `tools/context.js` | `ctx_usage`（当前上下文用量、压缩点和剩余量；数据来自 `onInject` 每轮上报的真实估算，让模型自己决定何时落盘、何时收口） |
-| `tools/todo.js` | `update_todo_list` |
 | `tools/control.js` | `attempt_completion`、`ask_followup_question` |
 | `tools/history.js` | `history_search`（在本会话历史里按关键词/正则找当时确认过的细节；上下文压缩后用，命中返回 messageId + 片段，默认只搜当前会话） |
 | `tools/skill.js` | `skill` |

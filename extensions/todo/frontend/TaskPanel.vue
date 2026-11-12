@@ -5,14 +5,14 @@
 -->
 <script setup>
 import { computed } from 'vue'
-import Dialog from '../../ui/Dialog.vue'
-import Icon from '../../ui/Icon.vue'
-
-import { todoStatus } from "../../utils/tool.js"
+import { todoStatus } from './utils.js'
 
 const props = defineProps({
   open: Boolean,
   todos: { type: Array, default: () => [] },
+  session: { type: Object, default: null },
+  Dialog: { type: Object, required: true },
+  Icon: { type: Object, required: true },
 })
 const emit = defineEmits(['update:open'])
 
@@ -24,11 +24,11 @@ const icon = status => todoStatus(status).icon
 </script>
 
 <template>
-  <Dialog
+  <component :is="props.Dialog"
     class="session-todo-panel"
     :open="open"
     label="任务清单"
-    placement="right"
+    placement="drawer" plain
     @update:open="emit('update:open', $event)"
   >
     <div class="session-todo-panel__body">
@@ -44,7 +44,7 @@ const icon = status => todoStatus(status).icon
         <section v-if="current" class="session-todo-panel__section session-todo-panel__section--current">
           <span class="session-todo-panel__eyebrow">正在执行</span>
           <div class="session-todo-panel__card is-current">
-            <Icon :name="icon(current.status)" :size="17" class="session-todo-panel__icon" :class="`is-${current.status}`" />
+            <component :is="props.Icon" :name="icon(current.status)" :size="17" class="session-todo-panel__icon" :class="`is-${current.status}`" />
             <span class="session-todo-panel__text">{{ current.text }}</span>
           </div>
         </section>
@@ -56,7 +56,7 @@ const icon = status => todoStatus(status).icon
           </div>
           <div class="session-todo-panel__list">
             <div v-for="(item, index) in pending" :key="`pending-${index}-${item.text}`" class="session-todo-panel__card">
-              <Icon :name="icon(item.status)" :size="17" class="session-todo-panel__icon" :class="`is-${item.status}`" />
+              <component :is="props.Icon" :name="icon(item.status)" :size="17" class="session-todo-panel__icon" :class="`is-${item.status}`" />
               <span class="session-todo-panel__text">{{ item.text }}</span>
             </div>
           </div>
@@ -69,7 +69,7 @@ const icon = status => todoStatus(status).icon
           </div>
           <div class="session-todo-panel__list session-todo-panel__list--done">
             <div v-for="(item, index) in completed" :key="`done-${index}-${item.text}`" class="session-todo-panel__card is-done">
-              <Icon :name="icon(item.status)" :size="17" class="session-todo-panel__icon" :class="`is-${item.status}`" />
+              <component :is="props.Icon" :name="icon(item.status)" :size="17" class="session-todo-panel__icon" :class="`is-${item.status}`" />
               <span class="session-todo-panel__text">{{ item.text }}</span>
             </div>
           </div>
@@ -77,8 +77,8 @@ const icon = status => todoStatus(status).icon
       </template>
       <p v-else class="session-todo-panel__empty">还没有任务。模型更新清单后会显示在这里。</p>
     </div>
-  </Dialog>
+  </component>
 </template>
 
-<style scoped lang="scss" src="../../styles/components/activity/TaskPanel.scss"></style>
+<style scoped lang="scss" src="./TaskPanel.scss"></style>
 

@@ -753,7 +753,7 @@ describe('server Agent integration boundary', () => {
             expect(Object.keys(agent.tools.schema)).toEqual(expect.arrayContaining([
                 'read_file', 'write_file', 'find_files', 'search_text', 'edit',
                 'move_file', 'copy_file',
-                'execute_command', 'background', 'update_todo_list', 'webfetch', 'ctx_usage',
+                'execute_command', 'background', 'webfetch', 'ctx_usage',
                 'attempt_completion', 'ask_followup_question',
             ]))
             // cwd / test 工具已删除；new_task 已下架（子智能体正式版再引入）。

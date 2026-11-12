@@ -173,15 +173,6 @@ const read = async ({ sessionId, onProgress, segmented = false, after, segment: 
         historyTotal: history.length,
         historyStats: historyUsage(history, session.model.provider, session.model.model),
         contextEstimate: ContextUsage.read(sessionId),
-        todos: (() => {
-            for (const message of [...history].reverse()) {
-                for (const part of Array.isArray(message.content) ? message.content : []) {
-                    if (part.type !== 'tool-result' || part.toolName !== 'update_todo_list') continue
-                    if (part.output?.value?.items) return part.output.value.items
-                }
-            }
-            return []
-        })(),
         toolTimings: await ToolTiming.read(sessionId),
         pending: Approval.pending(sessionId),
         undoable: History.redos({ sessionId }),

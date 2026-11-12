@@ -30,7 +30,6 @@ const homeDraft = ref('')
 const homeFiles = ref([])
 const creating = ref(false)
 const drawerOpen = ref(false)
-const todoOpen = ref(false)
 const searchOpen = ref(false)
 // 新对话先保留思考强度，创建后写进会话设置。
 const draftReasoning = ref(DEFAULT_SETTINGS.reasoning)
@@ -60,7 +59,6 @@ async function goHome() {
   drawerOpen.value = false
   homeDraft.value = ''
   homeFiles.value = []
-  todoOpen.value = false
   return true
 }
 
@@ -81,13 +79,12 @@ async function openSettings(section) {
   return Navigation.openSettings(section)
 }
 
-// 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉和任务面板。
+// 打开设置后可能从命令面板或快捷键进入，统一在这里收起抽屉。
 let settingsOpener
 watch(() => store.ui.settingsOpen, open => {
   if (!open) return
   settingsOpener = document.activeElement // 原页面一直在，返回时可以把焦点交还原按钮
   drawerOpen.value = false
-  todoOpen.value = false
 }, { flush: 'sync' })
 
 function leaveSettingsPage(element) {
@@ -180,11 +177,9 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
       <div class="rikka-main" :inert="store.ui.settingsOpen" :aria-hidden="store.ui.settingsOpen || undefined">
         <TopBar
           :session="session"
-          :todo-open="todoOpen"
           @menu="drawerOpen = true"
           @settings="openSettings()"
           @search="searchOpen = true"
-          @update:todo-open="todoOpen = $event"
         />
         <RestartNotice />
 
@@ -198,7 +193,6 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts))
             :files="homeFiles"
             :error="store.ui.errorMessage"
             :busy="creating || store.ui.isLoading || !!store.ui.errorMessage"
-            v-model:todo-open="todoOpen"
             @update:reasoning="draftReasoning = $event"
             @submit="submitMessage"
             @attach="attachFiles"

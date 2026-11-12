@@ -7,7 +7,6 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch }
 import Button from '../ui/Button.vue'
 import Composer from '../components/composer/Composer.vue'
 import ConnectionError from '../components/feedback/ConnectionError.vue'
-import TaskPanel from '../components/activity/TaskPanel.vue'
 import StatsPanel from '../components/activity/StatsPanel.vue'
 import ConversationRail from '../components/conversation/ConversationRail.vue'
 import { Session } from "../features/session.js"
@@ -16,18 +15,18 @@ import { Chat } from '../commands/chat.js'
 import { History } from "../features/history.js"
 import { canContinueSession } from "../features/turns.js"
 import { Navigation } from '../commands/navigation.js'
-import { latestTodos } from "../utils/tool.js"
 import { sessionStats } from "../features/stats.js"
 import { ComposerDraft } from "../features/composer-draft.js"
 import { savePath } from '../utils/session-view.js'
+import { extensionPanels } from '../features/extensions.js'
 
 const Timeline = defineAsyncComponent(() => import('../components/conversation/Timeline.vue'))
 const props = defineProps({
   session: { type: Object, default: null }, model: String,
-  reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean, todoOpen: Boolean,
+  reasoning: { type: String, default: 'auto' }, files: { type: Array, default: () => [] }, busy: Boolean,
   error: { type: String, default: '' },
 })
-const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:todoOpen', 'update:reasoning'])
+const emit = defineEmits(['submit', 'attach', 'remove-file', 'update:reasoning'])
 const homeDraft = defineModel('draft', { type: String, default: '' })
 const composer = ref(null)
 const timeline = ref(null)
@@ -78,11 +77,6 @@ window.addEventListener('pagehide', flushDraftSaves)
 const reasoning = computed(() => props.session?.settings.reasoning || props.reasoning)
 const resumable = computed(() => canContinueSession(props.session))
 const stats = computed(() => props.session ? sessionStats(props.session) : null)
-const todos = computed(() => {
-  if (!props.session) return []
-  const latest = latestTodos(props.session.messages)
-  return latest.length ? latest : props.session.todos || []
-})
 
 // 打开已有会话就接上实时事件：刷新页面或任务在别的客户端跑着时，也能继续看到进度。
 // 同时把当前会话记成“上次位置”，刷新后 main.js 会按它恢复。
@@ -191,7 +185,7 @@ function chooseReasoning(reasoning) {
         <div v-if="stats" class="session-composer__stats"><StatsPanel :stats="stats" /></div>
       </div>
     </div>
-    <TaskPanel v-if="session" :open="todoOpen" :todos="todos" @update:open="emit('update:todoOpen', $event)" />
+    <component v-for="panel in extensionPanels" :key="panel.id" :is="panel.component" v-bind="panel.props || {}" />
   </section>
 </template>
 <style scoped lang="scss" src="../styles/views/ChatView.scss"></style>

@@ -61,7 +61,7 @@ async function saveTitle() {
 
     <div class="topbar__actions">
       <Button v-if="session" icon class="topbar__search" label="搜索聊天记录" title="搜索聊天记录" @click="emit('search')"><Icon name="search" :size="18" /></Button>
-      <Button icon v-if="session && hasTodos" class="topbar__todo session-todo-toggle" label="任务清单" title="任务清单" :active="todoOpen" @click="emit('update:todoOpen', !todoOpen)"><Icon :name="todoOpen ? 'close' : 'todo'" :size="18" /></Button>
+      <Button v-for="item in extensionTopbarItems" :key="item.id" icon :label="item.label" :title="item.label" :active="item.active?.value" @click="item.onClick"><Icon :name="item.icon" :size="18" /></Button>
       <Button icon label="设置" title="设置" @click="emit('settings')"><Icon name="settings" :size="18" /></Button>
     </div>
   </header>

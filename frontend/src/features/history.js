@@ -394,7 +394,6 @@ function applyDelta(id, delta, { settingsAtStart, revisionAtStart } = {}) {
   if (delta.historyTotal != null) current.historyTotal = delta.historyTotal
   if (delta.historyStats) current.historyStats = delta.historyStats
   if (delta.contextEstimate !== undefined) current.contextEstimate = delta.contextEstimate
-  if (delta.todos) current.todos = delta.todos
   if (delta.toolTimings) current.toolTimings = delta.toolTimings
   if (delta.undoable != null) current.undoable = delta.undoable
   if (delta.running != null) current.status = delta.running ? 'running' : 'idle'

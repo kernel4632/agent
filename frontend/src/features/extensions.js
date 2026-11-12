@@ -26,16 +26,18 @@ import { Notice } from '../utils/notice.js'
 const agentVue = Vue           // 模板编译出的渲染函数要用 openBlock 等整套辅助函数
 let agentApp = {}              // 框架模块表（'ui/Button.vue' → 组件），由 main.js 组装后传入
 
-// --- 注册表：设置页和工具结果视图从这里取 ---
+// --- 注册表：设置页、工具结果视图、聊天面板、顶栏按钮都从这里取 ---
 export const extensionSettings = ref([])
 export const extensionToolViews = reactive({})
+export const extensionPanels = ref([])           // 聊天区右侧面板：{ id, icon, label, component, props?, visible? }
+export const extensionTopbarItems = ref([])      // 顶栏图标按钮：{ id, icon, label, active?, onClick }
 export const extensionState = ref({ extensions: [], loaded: [], changed: [] })
 
-const owned = new Map()        // 扩展名 → { pages: [], toolViews: [], styles: [] }
+const owned = new Map()        // 扩展名 → { pages: [], toolViews: [], panels: [], topbarItems: [], styles: [] }
 
 // --- 给一个扩展的 app：注册的东西都记到它名下 ---
 const createApp = name => {
-    const mine = { pages: [], toolViews: [], styles: [] }
+    const mine = { pages: [], toolViews: [], panels: [], topbarItems: [], styles: [] }
     owned.set(name, mine)
     return {
         name,
@@ -56,11 +58,24 @@ const createApp = name => {
                 mine.toolViews.push(toolName)
             },
         },
+        panels: {
+            add(panel) {
+                extensionPanels.value = [...extensionPanels.value.filter(p => p.id !== panel.id), { ...panel, component: markRaw(panel.component), extension: name }]
+                mine.panels.push(panel.id)
+            },
+        },
+        topbar: {
+            add(item) {
+                extensionTopbarItems.value = [...extensionTopbarItems.value.filter(i => i.id !== item.id), { ...item, extension: name }]
+                mine.topbarItems.push(item.id)
+            },
+        },
         style(css) {
             const el = document.createElement('style')
             el.dataset.extension = name
             el.textContent = css
             document.head.appendChild(el)
+            mine.styles.push(true)
         },
     }
 }
@@ -70,6 +85,8 @@ const unloadOne = name => {
     const mine = owned.get(name)
     if (mine) {
         extensionSettings.value = extensionSettings.value.filter(p => p.extension !== name)
+        extensionPanels.value = extensionPanels.value.filter(p => p.extension !== name)
+        extensionTopbarItems.value = extensionTopbarItems.value.filter(i => i.extension !== name)
         for (const toolName of mine.toolViews) delete extensionToolViews[toolName]
         owned.delete(name)
     }

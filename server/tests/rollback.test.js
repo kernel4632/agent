@@ -413,12 +413,12 @@ describe('权限规则的拒绝动作', () => {
         })
     })
 
-    test('全局 deny 不拦记清单和结束循环', async () => {
+    test('全局 deny 不拦结束循环', async () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'model', name: 'model' }] }], permission: { '*': 'deny' } })
             const { sessionId } = await Session.create({ title: 'Internal tools' })
 
-            expect(await checkPermission({ sessionId, toolCallId: 'todo-1', toolName: 'update_todo_list', input: { todos: '' } })).toBe(true)
+            expect(await checkPermission({ sessionId, toolCallId: 'done-1', toolName: 'attempt_completion', input: { result: 'ok' } })).toBe(true)
             expect(await checkPermission({ sessionId, toolCallId: 'shell-deny', toolName: 'execute_command', input: { command: 'ls' } })).toBe(false)
         })
     })

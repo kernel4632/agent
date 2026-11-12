@@ -1,0 +1,8 @@
+{
+  "name": "任务清单",
+  "description": "模型更新任务进度，右侧面板显示当前任务和完成情况",
+  "version": "1.0.0",
+  "requires": [],
+  "backend": "backend.js",
+  "frontend": "frontend/index.js"
+}
