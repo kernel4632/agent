@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import AgentCore from '@kernel4632/agent-core'
 import Agent from '../features/agent.js'
 import Context from '../features/context.js'
+import ContextRatios from '../utils/context-ratios.js'
 import Path from '../utils/path.js'
 import Settings from '../commands/settings.js'
 import store from '../store.js'
@@ -276,6 +277,25 @@ describe('交给 agent-core 的 config', () => {
         await withHome(async () => {
             await Settings.set({ providers: [{ name: 'local', models: [{ id: 'm1', name: 'm1' }] }] })
             expect((await resolve({ provider: 'local', model: 'm1' })).model).toBe('m1')
+        })
+    })
+
+    test('resolve 按目标模型读取倍率，没有记录时清掉旧值', async () => {
+        await withHome(async () => {
+            await Settings.set({
+                providers: [
+                    { name: 'local', models: [{ id: 'm1', name: 'm1' }, { id: 'm2', name: 'm2' }] },
+                ],
+            })
+            ContextRatios.clear()
+            await ContextRatios.remember({ provider: 'local', model: 'm1', ratio: 0.297, source: 'usage' })
+            await ContextRatios.flush()
+
+            const first = await resolve({ provider: 'local', model: 'm1' })
+            const second = await resolve({ provider: 'local', model: 'm2' })
+            expect(first.contextRatio).toBe(0.297)
+            // 关键：换到没有记录的模型必须返回 undefined，不能沿用 m1 的倍率。
+            expect(second.contextRatio).toBeUndefined()
         })
     })
 

@@ -139,6 +139,8 @@ const resolveFor = async ({ session, settings, target, recovery = false, context
     const provider = (store.config.providers || []).find(item => item.name === chosen.provider)
     const profileModel = provider?.models?.find(item => item.id === chosen.model)
     const maxTries = retryTries()
+    // 倍率按 provider + model 存；换模型时必须同时换种子，也要在没有记录时清掉旧倍率。
+    const rememberedRatio = await ContextRatios.read(chosen)
     const generation = {}
     for (const field of ['temperature', 'topP', 'seed']) {
         if (profileModel?.[field] !== undefined) generation[field] = profileModel[field]
@@ -158,6 +160,8 @@ const resolveFor = async ({ session, settings, target, recovery = false, context
         },
         maxContextTokens: info.context,
         maxTokens: profileModel?.maxOutput,
+        // undefined 也要显式写回：运行中切模型时 Object.assign 必须覆盖旧模型的倍率。
+        contextRatio: rememberedRatio?.ratio,
         compactThreshold: threshold(),
         // 流式输出是连接配置，不是模型能力；模型能力只从 capabilities 读。
         stream: provider?.stream !== false,
@@ -256,8 +260,6 @@ const refreshSystem = async (instance, session, context) => {
 // 所有装配材料由调用方传入；本函数只做实例化和缓存。
 const create = async ({ sessionId, session, settings, tools, mcpRevision: rev, release, onPermission, saveSession, context }) => {
     const config = await resolveFor({ session, settings, context })
-    const rememberedRatio = await ContextRatios.read({ provider: config.providerName, model: config.model })
-    if (rememberedRatio) config.contextRatio = rememberedRatio.ratio
     let instance
     try {
         instance = AgentCore.create({

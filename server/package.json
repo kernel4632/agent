@@ -1,6 +1,6 @@
 {
   "name": "universal-agent",
-  "version": "0.101.12",
+  "version": "0.101.13",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
