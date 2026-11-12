@@ -116,11 +116,10 @@ const rememberRatio = state => {
     })
 }
 
-// 继续时的末尾判断：找最后一条非工具、非内部、非失败记录的对话消息。
-// role:'error' 只是界面/审计记录，agent-core 不把它当消息；它插在末尾时不能挡住继续。
-const lastConversationMessage = history => [...history]
+// 继续只看模型真正认识的三种消息。error 是宿主审计记录，不属于对话边界。
+const lastModelMessage = history => [...history]
     .reverse()
-    .find(message => !message.internal && message.role !== 'tool' && message.role !== 'error')
+    .find(message => !message.internal && (message.role === 'user' || message.role === 'assistant' || message.role === 'tool'))
 
 // --- 输入校验用到的常量 ---
 // 图片只认 data URL 和 http(s) URL；base64 上限 8M 字符（约 6 MB 原图），防止一次请求撑爆上下文。
@@ -331,7 +330,7 @@ const startRun = async ({ sessionId, input, resume, agent, recovery = false }) =
     // --- 发出请求 ---
     let task
     try {
-        const last = lastConversationMessage(agent.history)
+        const last = lastModelMessage(agent.history)
         const resumeUser = resume && last?.role === 'user'
         if (resumeUser) {
             // 末尾还没有助手内容，core 的 resume 不接受；补一条内部续跑消息重新请求。
@@ -368,10 +367,8 @@ const run = async ({ sessionId, input, resume = false, recovery = false }) => {
 
     // --- 校验续跑位置 ---
     if (resume) {
-        const last = lastConversationMessage(agent.history)
-        if (!last || (last.role !== 'assistant' && last.role !== 'user')) {
-            throw fail(409, '最后一条消息不是用户或助手回复，不能继续')
-        }
+        const last = lastModelMessage(agent.history)
+        if (!last) throw fail(409, '没有可继续的对话记录')
     }
 
     // --- 归一化输入：纯文本原样；内容块数组校验后原样交给 core ---
