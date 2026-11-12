@@ -131,7 +131,11 @@ export const AgentAPI = {
   getExtensions:    ()                          => admin('extension.list'),
   getExtensionFrontend: (name)                  => admin('extension.frontend', { name }),
   toggleExtension:  (name)                      => admin('extension.toggle', { name }),
-  // --- 以下全部走管理总线 ---
+  // 扩展管理
+  getExtensions:         ()       => admin('extension.list'),
+  getExtensionFrontend:  (name)   => admin('extension.frontend', { name }),
+  toggleExtension:       (name)   => admin('extension.toggle', { name }),
+  reloadExtension:       (name)   => admin('extension.reload', { name }),
   getConfig:        ()                          => admin('config.read'),
   getConfigMeta:    ()                          => admin('config.meta'),
   getConfigBackups: ()                          => admin('config.backup.list'),

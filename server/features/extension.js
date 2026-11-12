@@ -195,14 +195,16 @@ const load = async (ops) => {
     }
     if (loaded.length) console.log(`[extensions] 已加载：${loaded.join(', ')}`)
 
-    if (process.env.NODE_ENV !== 'production') startWatch(roots)
+    startWatch(roots)   // 监听文件变化，变化时清除缓存并记录到状态里，前端可以查询并手动重载
     return { loaded, failed: failedList }
 }
 
-// --- 热更新 ---
+// --- 文件变化监听：只记录已变化的扩展名，不自动重载
+// 前端通过 state().changed 知道哪些扩展有指待重载，弹出提示后用户点击重载。
+const changedExtensions = new Set()
+
 const startWatch = roots => {
     for (const root of roots) {
-        // fs.watch 返回 AsyncIterator，不是 Promise；用 for-await 遍历
         void (async () => {
             try {
                 const w = watch(root, { recursive: true })
@@ -210,20 +212,13 @@ const startWatch = roots => {
                     const filename = event.filename
                     if (!filename) continue
                     const extName = filename.split(sep)[0]
-                    if (!extName) continue
-                    const ext = extensions.get(extName)
-                    if (!ext) continue
-                    console.log(`[extensions] 检测到 ${extName} 变化，正在重新加载…`)
-                    try {
-                        await unload(extName)
-                        const entry = (await scan(root)).find(e => e.name === extName)
-                        if (entry) {
-                            entry.config = await import(pathToFileURL(entry.manifest).href).then(m => m.default || m)
-                            await loadOne(entry)
-                        }
-                    } catch (error) { console.error(`[extensions] ${extName} 重新加载失败：${error.message}`) }
+                    if (!extName || !extensions.has(extName)) continue
+                    changedExtensions.add(extName)
+                    // 清除前端代码缓存，下次请求 extension.frontend 时重新打包
+                    frontendCache.delete(extName)
+                    console.log(`[extensions] ${extName} 已变化，等待用户重载`)
                 }
-            } catch { /* 目录不存在或被删除时正常退出 */ }
+            } catch { /* 目录不存在时退出 */ }
         })()
     }
 }
@@ -247,8 +242,18 @@ const buildFrontend = async name => {
     const result = await Bun.build({
         entrypoints: [frontendPath],
         format: 'esm',
-        external: ['vue', /^@agent\//, /^@app\//],
-        plugins: [vueSfcPlugin()],
+        external: ['vue'],
+        plugins: [
+            // @app/ 和 @agent/ 标记为 external，保留在输出里后用正则替换成全局变量
+            {
+                name: 'app-external',
+                setup(build) {
+                    build.onResolve({ filter: /^@app\// }, args => ({ path: args.path, external: true }))
+                    build.onResolve({ filter: /^@agent\// }, args => ({ path: args.path, external: true }))
+                },
+            },
+            vueSfcPlugin(),
+        ],
     })
     if (!result.success) throw new Error(`前端打包失败：${result.logs.map(l => l.message || l).join('\n')}`)
     const code = await result.outputs[0].text()
@@ -309,7 +314,20 @@ const vueSfcPlugin = () => {
 const state = () => ({
     loaded: [...extensions.keys()],
     failed: failedList,
+    changed: [...changedExtensions],   // 有代码变化但还没重载的扩展
 })
+
+// --- 重载扩展：卸载后重新加载 ---
+const reload = async name => {
+    await unload(name)
+    changedExtensions.delete(name)
+    const entry = [...await scan(projectDir()), ...await scan(userDir())].find(e => e.name === name)
+    if (entry) {
+        entry.config = await import(pathToFileURL(entry.manifest).href).then(m => m.default || m)
+        await loadOne(entry)
+    }
+    return { ok: true, name }
+}
 
 // --- 开关扩展 ---
 const toggle = async name => {
@@ -329,4 +347,4 @@ const toggle = async name => {
     return { ok: true, name, enabled: extensions.has(name) }
 }
 
-export default { load, state, toggle, buildFrontend }
+export default { load, state, toggle, reload, buildFrontend }

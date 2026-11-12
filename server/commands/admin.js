@@ -111,6 +111,12 @@ const OPS = {
     'mcp.toggle': ({ name, enabled } = {}) => mcpToggle({ name, enabled }),
     'mcp.test': ({ name } = {}) => Mcp.test({ name }),
 
+    // --- 扩展管理 ---
+    'extension.list':     () => Extension.state(),
+    'extension.toggle':   ({ name } = {}) => Extension.toggle(name),
+    'extension.reload':   ({ name } = {}) => Extension.reload(name),
+    'extension.frontend': ({ name } = {}) => Extension.buildFrontend(name),
+
     // --- 技能：由 extensions/skill/backend.js 在启动时往 OPS 里挂 skill.* 动作 ---
 
     // --- 会话存储位置 ---

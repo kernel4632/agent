@@ -14,7 +14,7 @@ import PathInput from '@app/ui/PathInput.vue'
 import SelectButton from '@app/ui/SelectButton.vue'
 import Switch from '@app/ui/Switch.vue'
 import SkillEditor from './SkillEditor.vue'
-import { Skills, externalRoots, sourceLabel } from "../../features/skills.js"
+import { Skills, externalRoots, sourceLabel } from './skills.js'
 
 const data = ref({ skills: [], roots: [], state: { sources: [], disabled: [] } })
 const loading = ref(true)
