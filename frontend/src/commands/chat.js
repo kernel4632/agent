@@ -207,7 +207,21 @@ async function send(sessionID, content, queuedFiles = null) {
     attachments: files.map(file => ({ id: file.id, name: file.name, kind: file.kind || 'text' })),
     images: files.filter(file => file.kind === 'image').map(file => file.dataUrl),
   })
-  createAssistant(session)
+  const assistant = createAssistant(session)
+  // 先放本地请求行：SSE 慢、重连或 llm-start 丢失时，用户也能立刻看到“正在请求模型”。
+  const request = {
+    id: `request_${crypto.randomUUID()}`,
+    status: 'running',
+    startedAt: Date.now(),
+    firstTokenAt: 0,
+    provider: session.provider, model: session.model,
+    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
+    rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0,
+    local: true,
+  }
+  assistant.requests.push(request)
+  assistant.steps.push({ type: 'request', requestId: request.id })
+  assistant.request = request
   session.status = 'running'
   session.lastEventAt = Date.now()
   History.syncSummary(session)
@@ -374,6 +388,20 @@ function finishCompact(session, event) {
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
+  // 本地发送已经放了一条等待中的请求行；llm-start 到了就补上真实模型和开始时间。
+  const localRequest = assistant.requests.findLast(item => item.status === 'running' && item.local)
+  if (localRequest) {
+    Object.assign(localRequest, {
+      startedAt: Number(event.startedAt) || localRequest.startedAt,
+      firstTokenAt: Number(event.firstTokenAt) || 0,
+      provider: event.provider || localRequest.provider,
+      model: event.model || localRequest.model,
+      local: false,
+    })
+    assistant.request = localRequest
+    assistant.isStreaming = true
+    return
+  }
   // 重试事件已经先建好等待中的行；真正开始请求时复用它，不重复插一行。
   const retryRequest = assistant.requests.findLast(item => item.status === 'running' && item.retryAttempt)
   if (retryRequest) {
