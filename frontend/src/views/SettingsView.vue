@@ -21,6 +21,7 @@ import ProviderList from '../components/providers/ProviderList.vue'
 import PromptSettings from '../components/preferences/PromptSettings.vue'
 import DataSettings from '../components/preferences/DataSettings.vue'
 import MCPList from '../components/capabilities/MCPList.vue'
+import ExtensionList from '../components/capabilities/ExtensionList.vue'
 
 import { extensionSettings } from '../features/extensions.js'
 
@@ -33,6 +34,7 @@ const settingsPages = [
   { id: 'prompts', label: '系统提示词', description: '设置全局助手行为和回复风格', icon: 'document', group: '模型与服务', tone: 'tertiary', component: PromptSettings },
   // 技能页由 skill 扩展注入，不在框架里硬编码
   { id: 'mcp', label: 'MCP 服务', description: '连接外部工具和数据服务', icon: 'link', group: '模型与服务', tone: 'tertiary', component: MCPList, nested: true },
+  { id: 'extensions', label: '扩展', description: '开关、重载扩展，查看依赖和加载状态', icon: 'grid-plus', group: '模型与服务', tone: 'tertiary', component: ExtensionList },
   { id: 'data', label: '数据管理', description: '配置备份、恢复与导入导出', icon: 'folder', group: '数据设置', tone: 'secondary', component: DataSettings },
 ]
 

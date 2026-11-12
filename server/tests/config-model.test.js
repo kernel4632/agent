@@ -329,7 +329,8 @@ describe('交给 agent-core 的 config', () => {
         })
     })
 
-    test('400 请求错误不进入无限重试', async () => {
+    // 重试默认完全继承 agent-core（4xx 也重试、不限次数）；只有 retry.maxTries 显式配置时才收口。
+    test('retry.maxTries 为 0 时 400 请求错误只发一次', async () => {
         await withHome(async () => {
             let attempts = 0
             const server = Bun.serve({
@@ -343,7 +344,10 @@ describe('交给 agent-core 的 config', () => {
                 },
             })
             try {
-                await Settings.set({ providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }] })
+                await Settings.set({
+                    providers: [{ name: 'fake', models: [{ id: 'm', capabilities: ['text'] }], baseURL: `http://127.0.0.1:${server.port}/v1`, stream: false }],
+                    retry: { maxTries: 0 },
+                })
                 const config = { ...await resolve({ provider: 'fake', model: 'm' }), stream: false, retryBaseDelay: 1, retryMaxDelay: 1 }
                 const agent = AgentCore.create({ history: [], config, callbacks: {} })
                 await expect(agent.send({ input: '不应重试' })).rejects.toBeTruthy()

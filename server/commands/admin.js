@@ -112,8 +112,8 @@ const OPS = {
     'mcp.test': ({ name } = {}) => Mcp.test({ name }),
 
     // --- 扩展管理 ---
-    'extension.list':     () => Extension.state(),
-    'extension.toggle':   ({ name } = {}) => Extension.toggle(name),
+    'extension.list':     () => Extension.list(),
+    'extension.toggle':   ({ name, enabled } = {}) => Extension.toggle({ name, enabled }),
     'extension.reload':   ({ name } = {}) => Extension.reload(name),
     // 前端代码包在 JSON 里返回：前端 request() 统一按 JSON 解析，纯文本会被当成错误吞掉
     'extension.frontend': async ({ name } = {}) => ({ code: await Extension.buildFrontend(name) }),

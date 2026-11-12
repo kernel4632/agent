@@ -1,137 +1,167 @@
 /*
- * 扩展前端加载器：从后端拉取已加载扩展的打包代码，用 new Function 执行。
+ * 扩展前端加载器：拉取正在生效的扩展的打包代码，用 new Function 执行，并记下每个扩展注册了什么。
  *
- * 用 new Function 而不是 Blob URL import：
- *   - 不受 Wails WebView CSP 限制
- *   - 不依赖浏览器支持动态 import()
+ * 用 new Function 而不是 Blob URL import：不受 WebView CSP 限制。
+ * 后端已把打包代码里的 `import ... from "vue"` / `"@app/..."` 换成 __agentVue__ / __agentApp__，
+ * 这两个变量由这里通过参数传入。
  *
- * 后端打包代码里的 `import { x as y } from "vue"` 和 `import X from "@app/..."` 已被
- * 后端替换成 `const { x: y } = __agentVue__` 和 `const X = __agentApp__[...].default`，
- * 这两个变量通过 new Function 参数传入，不走 window 全局。
+ * 扩展入口拿到的 app：
+ *   app.settings.add(page)                 — 往设置页加一个页面
+ *   app.toolViews.add(toolName, component) — 自定义某个工具结果的渲染
+ *   app.api(op, args)                      — 调 /admin 的 op
+ *   app.style(css)                         — 注入扩展样式
+ * 每个扩展的注册都记在 owned 里，关闭或重载时整体撤掉，不留残余。
  *
- * app 对象是扩展能用的全部能力：
- *   app.settings.add(page)                — 往设置页加一个页面
- *   app.toolViews.add(toolName, component) — 自定义工具结果渲染
- *   app.api(op, args)                     — 调 /admin 的 op
- *   app.style(css)                        — 注入扩展样式
+ * 调用示例：
+ *   await Extensions.init(sharedModules)       // main.js 启动时
+ *   await Extensions.toggle('skill', false)    // 设置页的开关
+ *   await Extensions.reload('skill')
  */
 
 import * as Vue from 'vue'
-import { ref, markRaw } from 'vue'
+import { ref, reactive, markRaw } from 'vue'
 import { AgentAPI } from '../utils/api.js'
 import { Notice } from '../utils/notice.js'
 
-// --- 传给扩展代码的两个参数（代替 window 全局）---
-// 整个 Vue 模块都交给扩展：模板编译出的渲染函数会用到 openBlock、renderList 等一整套辅助函数
-const agentVue = Vue
-// 扩展能 import 的框架模块表（'ui/Button.vue' → 模块）由入口 main.js 组装后传进 init()；
-// features 层不直接 import .vue，守住前端分层规则。
-let agentApp = {}
+const agentVue = Vue           // 模板编译出的渲染函数要用 openBlock 等整套辅助函数
+let agentApp = {}              // 框架模块表（'ui/Button.vue' → 组件），由 main.js 组装后传入
 
-// --- 扩展注册表 ---
-export const extensionSettings  = ref([])
-export const extensionToolViews = {}
-export const extensionState     = ref({ loaded: [], failed: [], changed: [] })
-export const extensionReloadHint = ref('')
+// --- 注册表：设置页和工具结果视图从这里取 ---
+export const extensionSettings = ref([])
+export const extensionToolViews = reactive({})
+export const extensionState = ref({ extensions: [], loaded: [], changed: [] })
 
-// --- app 对象：扩展通过它注册能力 ---
-const createApp = () => ({
-    api: (op, args = {}) => fetch('/api/admin', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ op, ...args }),
-    }).then(r => r.json()),
-    settings: {
-        // 组件对象不要变成响应式，否则 Vue 会警告并白白多一层代理
-        add:    page => extensionSettings.value.push({ ...page, component: markRaw(page.component) }),
-        remove: id   => { const i = extensionSettings.value.findIndex(p => p.id === id); if (i >= 0) extensionSettings.value.splice(i, 1) },
-    },
-    toolViews: {
-        add:    (name, component) => { extensionToolViews[name] = markRaw(component) },
-        remove: name              => { delete extensionToolViews[name] },
-    },
-    style(css) {
-        const el = document.createElement('style')
-        el.textContent = css
-        document.head.appendChild(el)
-    },
-})
+const owned = new Map()        // 扩展名 → { pages: [], toolViews: [], styles: [] }
 
-// --- 加载所有扩展的前端代码 ---
-const init = async (shared = {}) => {
-    agentApp = shared
-    try {
-        const result = await AgentAPI.getExtensions()
-        extensionState.value = result
-        for (const name of result.loaded || []) {
-            try { await loadOne(name) }
-            catch (err) { console.error(`[extensions] ${name} 前端加载失败：`, err) }
-        }
-        startPolling()
-    } catch (err) {
-        console.error('[extensions] 获取扩展列表失败：', err)
+// --- 给一个扩展的 app：注册的东西都记到它名下 ---
+const createApp = name => {
+    const mine = { pages: [], toolViews: [], styles: [] }
+    owned.set(name, mine)
+    return {
+        name,
+        api: (op, args = {}) => fetch('/api/admin', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ op, ...args }),
+        }).then(r => r.json()),
+        settings: {
+            add(page) {
+                extensionSettings.value = [...extensionSettings.value.filter(p => p.id !== page.id), { ...page, component: markRaw(page.component), extension: name }]
+                mine.pages.push(page.id)
+            },
+        },
+        toolViews: {
+            add(toolName, component) {
+                extensionToolViews[toolName] = markRaw(component)
+                mine.toolViews.push(toolName)
+            },
+        },
+        style(css) {
+            const el = document.createElement('style')
+            el.dataset.extension = name
+            el.textContent = css
+            document.head.appendChild(el)
+        },
     }
 }
 
-// --- 加载单个扩展的前端代码 ---
-const loadOne = async name => {
-    const { code } = await AgentAPI.getExtensionFrontend(name)
-    if (!code || typeof code !== 'string') {
-        console.warn(`[extensions] ${name} 没有前端代码`)
-        return
+// --- 撤掉一个扩展在前端注册的所有东西 ---
+const unloadOne = name => {
+    const mine = owned.get(name)
+    if (mine) {
+        extensionSettings.value = extensionSettings.value.filter(p => p.extension !== name)
+        for (const toolName of mine.toolViews) delete extensionToolViews[toolName]
+        owned.delete(name)
     }
+    document.querySelectorAll(`style[data-extension="${CSS.escape(name)}"]`).forEach(el => el.remove())
+}
 
-    // 去掉 export 语句，找到入口函数，末尾加 return 调用
-    let fn_code = code
+// --- 加载一个扩展的前端代码 ---
+const loadOne = async name => {
+    unloadOne(name)
+    const { code } = await AgentAPI.getExtensionFrontend(name)
+    if (!code || typeof code !== 'string') return   // 这个扩展没有前端部分
+
+    let body = code
         .replace(/export\s*\{[^}]+\}\s*;?/g, '')
         .replace(/export\s+default\s+/g, '')
-
-    const entryMatch = fn_code.match(/(?:async\s+)?function\s+(\w+_default)\s*\(\s*app\s*\)/)
-        || fn_code.match(/(?:async\s+)?function\s+(\w+)\s*\(\s*app\s*\)/)
-    if (!entryMatch) {
-        console.error(`[extensions] ${name}: 找不到入口函数`)
-        return
-    }
-    fn_code += `\n;return ${entryMatch[1]}(app);`
+    const entry = body.match(/(?:async\s+)?function\s+(\w+_default)\s*\(\s*app\s*\)/)
+        || body.match(/(?:async\s+)?function\s+(\w+)\s*\(\s*app\s*\)/)
+    if (!entry) throw new Error('找不到前端入口函数（export default function (app) {...}）')
+    body += `\n;return ${entry[1]}(app);`
 
     try {
-        // __agentVue__ 和 __agentApp__ 通过参数传入，不走 window 全局
-        const fn = new Function('app', '__agentVue__', '__agentApp__', fn_code)
-        await fn(createApp(), agentVue, agentApp)
+        const fn = new Function('app', '__agentVue__', '__agentApp__', '__agentExtension__', body)
+        await fn(createApp(name), agentVue, agentApp, name)
         console.log(`[extensions] ${name} 前端已加载`)
-    } catch (err) {
-        console.error(`[extensions] ${name} 前端加载失败：`, err)
+    } catch (error) {
+        unloadOne(name)
+        throw error
     }
 }
 
-// --- 轮询变化（每 5 秒查一次）---
-let pollTimer = null
-const startPolling = () => {
-    if (pollTimer) return
-    pollTimer = setInterval(async () => {
-        try {
-            const result = await AgentAPI.getExtensions()
-            extensionState.value = result
-            const changed = result.changed || []
-            extensionReloadHint.value = changed.length
-                ? `扩展 ${changed.join(', ')} 已更新，点击重载`
-                : ''
-        } catch { /* 后端没起来就跳过 */ }
-    }, 5000)
+// --- 按后端清单同步：在跑的加载，停掉的撤掉 ---
+const sync = async state => {
+    extensionState.value = state
+    const running = new Set(state.loaded || [])
+    for (const name of [...owned.keys()]) if (!running.has(name)) unloadOne(name)
+    for (const item of state.extensions || []) {
+        if (!item.running || !item.hasFrontend || owned.has(item.name)) continue
+        try { await loadOne(item.name) }
+        catch (error) { console.error(`[extensions] ${item.name} 前端加载失败：`, error) }
+    }
 }
 
-// --- 重载扩展 ---
+// --- 轮询代码变化：发现新改动就弹一次提示，点按钮重载 ---
+let pollTimer = null
+let notified = new Set()
+const poll = async () => {
+    try {
+        const state = await AgentAPI.getExtensions()
+        extensionState.value = state
+        const fresh = (state.changed || []).filter(name => !notified.has(name))
+        notified = new Set(state.changed || [])
+        if (fresh.length) {
+            Notice.show({
+                message: `扩展 ${fresh.join('、')} 的代码有更新`,
+                action: { label: '重载', run: () => Promise.all(fresh.map(name => reload(name))) },
+            })
+        }
+    } catch { /* 后端暂时连不上就下次再查 */ }
+}
+
+const init = async (shared = {}) => {
+    agentApp = shared
+    try { await sync(await AgentAPI.getExtensions()) }
+    catch (error) { console.error('[extensions] 获取扩展列表失败：', error) }
+    if (!pollTimer) pollTimer = setInterval(poll, 5000)
+}
+
+// --- 设置页的开关和重载按钮 ---
+const toggle = async (name, enabled) => {
+    try {
+        await sync(await AgentAPI.toggleExtension(name, enabled))
+        return true
+    } catch (error) {
+        Notice.show(`切换失败：${error.message}`)
+        return false
+    }
+}
+
 const reload = async name => {
     try {
-        await AgentAPI.reloadExtension(name)
-        await loadOne(name)
-        const result = await AgentAPI.getExtensions()
-        extensionState.value = result
-        if (!result.changed?.length) extensionReloadHint.value = ''
+        const state = await AgentAPI.reloadExtension(name)
+        for (const item of state.extensions || []) if (item.name === name || item.requires?.includes(name)) unloadOne(item.name)
+        await sync(state)
+        notified.delete(name)
         Notice.show(`扩展 ${name} 已重载`)
-    } catch (err) {
-        Notice.show(`重载失败：${err.message}`)
+        return true
+    } catch (error) {
+        Notice.show(`重载失败：${error.message}`)
+        return false
     }
 }
 
-export const Extensions = { init, reload }
+const refresh = async () => sync(await AgentAPI.getExtensions())
+
+export const Extensions = { init, toggle, reload, refresh }

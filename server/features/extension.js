@@ -1,41 +1,55 @@
 /*
- * 扩展加载器：扫描扩展、调用后端入口、记录改动以支持拔出、打包前端代码。
+ * 扩展加载器：扫描扩展、按依赖顺序启动、记录每一处改动以便拔出、打包扩展前端。
  *
- * 扩展通过 ctx.patch / ctx.op 修改框架，加载器记下每一处改动，关闭时逐条恢复。
  * 扩展放在两处，同名时用户目录的覆盖项目里的：
  *   <项目根>/extensions/<名字>/extension.js      跟项目一起发布
  *   ~/.agents/extensions/<名字>/extension.js     用户自己装的，所有项目共用
  *
- * 扩展声明文件 extension.js 导出 { id, requires?, backend?, frontend? }。
- * backend 默认 'backend.js'，导出一个函数，接收 ctx：
+ * 扩展的身份就是它的文件夹名；extension.js 导出
+ *   { name?, description?, version?, requires?: ['别的扩展文件夹名'], backend?, frontend? }
+ * backend 默认 backend.js，导出一个函数，接收 ctx：
  *   export default ctx => {
- *       ctx.patch(Tool, 'build', original => async args => { ... })
- *       ctx.op('skill.list', params => Skills.list(params))
+ *       ctx.patch(Tool, 'build', original => async args => { ... })   // 给框架方法包一层
+ *       ctx.op('skill.list', params => Skills.list(params))           // 挂一个 /admin 动作
+ *       ctx.onDispose(() => clearInterval(timer))                     // 拔出时自己收尾
  *   }
+ * 通过 ctx 做的改动都有记录，关闭扩展时逐条恢复；直接改写框架对象的扩展拔不干净。
+ * 同一个方法被几个扩展包装时按加载顺序叠成一条链，拔掉中间一层，剩下的重新接起来。
  *
- * 扩展里引用框架模块：
- *   import Tool from '@agent/features/tool.js'   // @agent/ 指向 server/
- *   import matter from 'gray-matter'              // 先找扩展自己的 node_modules
+ * 用户关掉的扩展记在数据目录的 extensions.json。文件改动不自动重载，
+ * 只记进 changed，由用户在界面上点「重载」，避免写代码时反复重启扩展。
  *
  * 调用示例：
- *   await Extension.load()                           // server.js 启动时调一次
- *   const code = await Extension.buildFrontend('skill')  // 打包扩展前端代码
+ *   await Extension.load(Admin.OPS)                          // server.js 启动时调一次
+ *   await Extension.toggle({ name: 'skill', enabled: false })
+ *   await Extension.reload('skill')
+ *   const code = await Extension.buildFrontend('skill')
  */
 
 import { readdir, watch } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join, sep } from 'node:path'
 import { homedir } from 'node:os'
+import Path from '../utils/path.js'
+import fail from '../utils/fail.js'
+
 const serverDir = fileURLToPath(new URL('../', import.meta.url))
 const projectDir = () => join(dirname(serverDir), 'extensions')
 const userDir = () => join(process.env.HOME || process.env.USERPROFILE || homedir(), '.agents', 'extensions')
+const stateFile = () => join(Path.root(), 'extensions.json')
 
-// --- 加载状态 ---
-const extensions = new Map()   // id → { dir, config, patches, ops, disposers, enabled }
+// --- 运行状态 ---
+const found = new Map()       // 名字 → { name, dir, manifest, source, config, hasFrontend, error }
+const loaded = new Map()      // 名字 → { patches, ops, disposers }，正在生效的扩展
+const changed = new Set()     // 代码改过、还没重载的扩展
+const cyclic = new Set()      // 卷进循环依赖的扩展
+const chains = new WeakMap()  // 被包装的对象 → Map(方法名 → { base, layers: [{ owner, wrap }] })
+const frontendCache = new Map()
+let disabled = new Set()      // 用户关掉的扩展
+let adminOps = null           // Admin.OPS，由 load() 传入；feature 层不 import commands 层
 const resolverRoots = []
-const failedList = []           // { name, error }
 
-// --- @agent/ 别名和包回退 ---
+// --- 让扩展能用 @agent/ 和框架的依赖包；只管扩展目录里发起的 import ---
 const inside = (file, root) => file.toLowerCase().startsWith((root + sep).toLowerCase())
 let resolverReady = false
 const installResolver = () => {
@@ -56,195 +70,296 @@ const installResolver = () => {
     })
 }
 
-// --- 扫描扩展目录：有 extension.js 的算一个扩展 ---
-const scan = async root => {
+// --- 重新 import 前清掉这个扩展目录下的模块缓存，重载才能拿到子文件的新代码 ---
+const forget = dir => {
+    for (const key of Object.keys(require.cache)) if (inside(key, dir)) delete require.cache[key]
+}
+const fresh = file => import(`${pathToFileURL(file).href}?v=${Date.now()}`)
+
+// --- 扫描一个目录：每个带 extension.js 的子文件夹算一个扩展 ---
+const scan = async (root, source) => {
     const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
-    const found = []
+    const list = []
     for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const dir = join(root, entry.name)
         const manifest = join(dir, 'extension.js')
-        if (await Bun.file(manifest).exists()) found.push({ name: entry.name, dir, manifest })
+        if (await Bun.file(manifest).exists()) list.push({ name: entry.name, dir, manifest, source })
     }
-    return found
+    return list
 }
 
-// --- 依赖排序：拓扑排序，被依赖的先加载 ---
-const sort = entries => {
-    const map = new Map(entries.map(e => [e.name, e]))
-    const sorted = []
-    const visiting = new Set()
-    const done = new Set()
-    const visit = name => {
-        if (done.has(name)) return
-        if (visiting.has(name)) throw new Error(`扩展依赖循环：${name}`)
-        visiting.add(name)
-        const entry = map.get(name)
-        if (entry?.config?.requires) {
-            for (const dep of entry.config.requires) {
-                if (map.has(dep)) visit(dep)
-                else throw new Error(`缺少依赖：${dep}`)
-            }
-        }
-        visiting.delete(name)
-        done.add(name)
-        if (entry) sorted.push(entry)
+// --- 读一个扩展的声明；读不出来就记下错误，不影响别的扩展 ---
+const describe = async entry => {
+    try {
+        forget(entry.dir)
+        const module = await fresh(entry.manifest)
+        entry.config = module.default || {}
+        entry.error = ''
+    } catch (error) {
+        entry.config = {}
+        entry.error = `extension.js 读取失败：${error.message}`
     }
-    for (const entry of entries) visit(entry.name)
+    entry.requires = Array.isArray(entry.config.requires) ? entry.config.requires.map(String) : []
+    entry.hasFrontend = await Bun.file(join(entry.dir, entry.config.frontend || 'frontend/index.js')).exists()
+    return entry
+}
+
+// --- 用户关掉的扩展名单 ---
+const readDisabled = async () => {
+    const file = Bun.file(stateFile())
+    const data = await file.exists() ? await file.json().catch(() => ({})) : {}
+    return new Set(Array.isArray(data.disabled) ? data.disabled.map(String) : [])
+}
+const saveDisabled = () => Bun.write(stateFile(), JSON.stringify({ disabled: [...disabled].sort() }, null, 2))
+
+// --- 方法包装链：原方法在最底层，每个扩展的包装按加载顺序叠上去 ---
+// 拔掉任意一层都从原方法重新叠一遍，所以中间那层拔掉后上下两层仍然接得上。
+const rebuild = (obj, key, chain) => {
+    let fn = chain.base
+    for (const layer of chain.layers) fn = layer.wrap(fn)
+    obj[key] = fn
+}
+
+const wrap = (owner, obj, key, wrapper) => {
+    if (typeof obj?.[key] !== 'function') throw new Error(`ctx.patch: ${key} 不是一个方法`)
+    if (!chains.has(obj)) chains.set(obj, new Map())
+    const table = chains.get(obj)
+    if (!table.has(key)) table.set(key, { base: obj[key], layers: [] })
+    const chain = table.get(key)
+    chain.layers.push({ owner, wrap: wrapper })
+    rebuild(obj, key, chain)
+}
+
+const unwrap = (owner, obj, key) => {
+    const chain = chains.get(obj)?.get(key)
+    if (!chain) return
+    chain.layers = chain.layers.filter(layer => layer.owner !== owner)
+    rebuild(obj, key, chain)
+    if (!chain.layers.length) chains.get(obj).delete(key)
+}
+
+// --- 给一个扩展的 ctx：每一处改动都记在 record 里 ---
+const createCtx = (name, record) => ({
+    name,
+    patch(obj, key, wrapper) {
+        wrap(name, obj, key, wrapper)
+        record.patches.push({ obj, key })
+    },
+    op(opName, handler) {
+        if (!adminOps) throw new Error('ctx.op() 在 load() 调用前不可用')
+        if (adminOps[opName] && !record.ops.some(item => item.opName === opName)) {
+            throw new Error(`op ${opName} 已经存在，扩展不能覆盖框架或别的扩展的动作`)
+        }
+        adminOps[opName] = handler
+        record.ops.push({ opName })
+    },
+    onDispose(fn) { record.disposers.push(fn) },
+})
+
+// --- 停掉一个扩展：先让它自己收尾，再逆序恢复 op 和方法包装 ---
+const stopOne = async name => {
+    const record = loaded.get(name)
+    if (!record) return
+    loaded.delete(name)
+    for (const fn of record.disposers.reverse()) {
+        try { await fn() } catch (error) { console.error(`[extensions] ${name} 收尾失败：${error.message}`) }
+    }
+    for (const { opName } of record.ops) delete adminOps?.[opName]
+    for (const { obj, key } of record.patches) unwrap(name, obj, key)
+    frontendCache.delete(name)
+    console.log(`[extensions] ${name} 已停用`)
+}
+
+// --- 启动一个扩展；中途出错就把已经做了的改动全部撤掉 ---
+const startOne = async entry => {
+    const record = { patches: [], ops: [], disposers: [] }
+    loaded.set(entry.name, record)
+    try {
+        const backendFile = join(entry.dir, entry.config.backend || 'backend.js')
+        if (await Bun.file(backendFile).exists()) {
+            const init = (await fresh(backendFile)).default
+            if (typeof init !== 'function') throw new Error('backend.js 必须导出一个函数')
+            await init(createCtx(entry.name, record))
+        }
+        entry.error = ''
+        console.log(`[extensions] ${entry.name} 已加载`)
+    } catch (error) {
+        await stopOne(entry.name)
+        entry.error = `启动失败：${error.message}`
+        console.error(`[extensions] ${entry.name} ${entry.error}`)
+    }
+}
+
+// --- 依赖顺序：被依赖的排前面；卷进循环的记进 cyclic，全部不启动 ---
+const order = () => {
+    cyclic.clear()
+    const sorted = []
+    const state = new Map()   // 名字 → 'visiting' | 'done'
+    const visit = (name, path) => {
+        if (state.get(name) === 'done') return
+        if (state.get(name) === 'visiting') {
+            for (const item of path.slice(path.indexOf(name))) cyclic.add(item)
+            return
+        }
+        state.set(name, 'visiting')
+        for (const dep of found.get(name)?.requires || []) if (found.has(dep)) visit(dep, [...path, name])
+        state.set(name, 'done')
+        sorted.push(name)
+    }
+    for (const name of [...found.keys()].sort()) visit(name, [])
     return sorted
 }
 
-// --- 创建 ctx：扩展通过它修改框架，加载器记下每一处改动 ---
-// Admin.OPS 由 load() 调用时传入，避免 feature 层 import commands 层
-let adminOps = null
-
-const createCtx = id => {
-    const patches = []          // { obj, key, original }
-    const ops = []              // { name, original }
-    const disposers = []        // () => void
-
-    const ctx = {
-        patch(obj, key, wrapper) {
-            const original = obj[key]
-            patches.push({ obj, key, original })
-            obj[key] = wrapper(original)
-        },
-        op(opName, handler) {
-            if (!adminOps) throw new Error('ctx.op() 在 load() 调用前不可用')
-            const original = adminOps[opName]
-            ops.push({ opName, original })
-            adminOps[opName] = handler
-        },
-        onDispose(fn) { disposers.push(fn) },
-        id,
-    }
-    return { ctx, patches, ops, disposers }
+// --- 这个扩展现在为什么不能启动；能启动时返回空字符串 ---
+const blocker = name => {
+    const entry = found.get(name)
+    if (cyclic.has(name)) return '和其他扩展循环依赖'
+    const missing = entry.requires.filter(dep => !found.has(dep))
+    if (missing.length) return `缺少依赖：${missing.join('、')}`
+    const off = entry.requires.filter(dep => !loaded.has(dep))
+    if (off.length) return `依赖的扩展未启用：${off.join('、')}`
+    return ''
 }
 
-// --- 卸载一个扩展：逐条恢复改动 ---
-const unload = async id => {
-    const ext = extensions.get(id)
-    if (!ext) return
-    const { patches, ops, disposers } = ext
-    for (const fn of disposers) try { fn() } catch (e) { console.error(`[extensions] ${id} onDispose: ${e.message}`) }
-    if (adminOps) {
-        for (const { opName, original } of ops) {
-            if (original === undefined) delete adminOps[opName]
-            else adminOps[opName] = original
+// --- 依赖它的扩展（含间接依赖），关闭或重载它时要一起停 ---
+const dependents = name => {
+    const result = new Set()
+    const walk = target => {
+        for (const entry of found.values()) {
+            if (entry.requires.includes(target) && !result.has(entry.name)) {
+                result.add(entry.name)
+                walk(entry.name)
+            }
         }
     }
-    for (const { obj, key, original } of patches.reverse()) obj[key] = original
-    extensions.delete(id)
-    console.log(`[extensions] ${id} 已卸载`)
+    walk(name)
+    return [...result]
 }
 
-// --- 加载一个扩展 ---
-const loadOne = async entry => {
-    const config = await import(pathToFileURL(entry.manifest).href).then(m => m.default || m)
-    if (!config?.id) throw new Error('extension.js 必须导出 { id, ... }')
-
-    const backendPath = config.backend || 'backend.js'
-    const backendFile = join(entry.dir, backendPath)
-    if (!await Bun.file(backendFile).exists()) throw new Error(`后端入口不存在：${backendPath}`)
-
-    const { ctx, patches, ops, disposers } = createCtx(config.id)
-    const backendModule = await import(pathToFileURL(backendFile).href)
-    const init = backendModule.default
-    if (typeof init !== 'function') throw new Error('backend.js 必须导出一个函数')
-
-    await init(ctx)
-
-    extensions.set(config.id, { dir: entry.dir, config, patches, ops, disposers, enabled: true })
-    console.log(`[extensions] ${config.id} 已加载`)
-    return config.id
+// --- 按依赖顺序启动所有该启动、还没启动的扩展 ---
+const startAll = async () => {
+    for (const name of order()) {
+        const entry = found.get(name)
+        if (loaded.has(name) || disabled.has(name) || entry.config === undefined) continue
+        if (entry.error?.startsWith('extension.js')) continue   // 声明都读不出来，不启动
+        if (blocker(name)) continue
+        await startOne(entry)
+    }
 }
 
-// --- 加载全部扩展 ---
-const load = async (ops) => {
-    adminOps = ops   // 保存 Admin.OPS 引用，ctx.op 和 unload 都用这个
-    const roots = [projectDir(), userDir()]
-    resolverRoots.push(...roots)
+// --- 停掉一个扩展和所有依赖它的扩展；依赖方先停 ---
+const stopWithDependents = async name => {
+    const list = [name, ...dependents(name)]
+    const ranked = order()
+    list.sort((a, b) => ranked.indexOf(b) - ranked.indexOf(a))
+    for (const item of list) await stopOne(item)
+}
+
+// --- 启动时加载全部扩展 ---
+const load = async ops => {
+    adminOps = ops
+    const roots = [[projectDir(), 'project'], [userDir(), 'user']]
+    for (const [root] of roots) if (!resolverRoots.includes(root)) resolverRoots.push(root)
     installResolver()
+    disabled = await readDisabled()
 
-    const byName = new Map()
-    for (const root of roots) for (const ext of await scan(root)) byName.set(ext.name, ext)
-
-    const entries = []
-    for (const ext of byName.values()) {
-        try {
-            const config = await import(pathToFileURL(ext.manifest).href).then(m => m.default || m)
-            ext.config = config
-            entries.push(ext)
-        } catch (error) {
-            failedList.push({ name: ext.name, error: error.message })
-            console.error(`[extensions] ${ext.name} 声明文件读取失败：${error.message}`)
-        }
+    found.clear()
+    for (const [root, source] of roots) {
+        for (const entry of await scan(root, source)) found.set(entry.name, await describe(entry))   // 用户目录后扫，覆盖同名项目扩展
     }
-
-    let sorted = []
-    try { sorted = sort(entries) }
-    catch (error) { console.error(`[extensions] 依赖排序失败：${error.message}`) }
-
-    const loaded = []
-    for (const entry of sorted) {
-        try { loaded.push(await loadOne(entry)) }
-        catch (error) {
-            failedList.push({ name: entry.name, error: error.message })
-            console.error(`[extensions] ${entry.name} 加载失败：${error.message}`)
-        }
-    }
-    if (loaded.length) console.log(`[extensions] 已加载：${loaded.join(', ')}`)
-
-    startWatch(roots)   // 监听文件变化，变化时清除缓存并记录到状态里，前端可以查询并手动重载
-    return { loaded, failed: failedList }
+    await startAll()
+    if (loaded.size) console.log(`[extensions] 已加载：${[...loaded.keys()].join(', ')}`)
+    setTimeout(() => startWatch(roots.map(([root]) => root)), 2000)  // 启动完成 2s 后再监听，避免启动期的读写操作进 changed
+    return list()
 }
 
-// --- 文件变化监听：只记录已变化的扩展名，不自动重载
-// 前端通过 state().changed 知道哪些扩展有指待重载，弹出提示后用户点击重载。
-const changedExtensions = new Set()
-
+// --- 文件变化只记下来，不自动重载；界面提示用户点「重载」 ---
+let watching = false
 const startWatch = roots => {
+    if (watching) return
+    watching = true
     for (const root of roots) {
         void (async () => {
             try {
-                const w = watch(root, { recursive: true })
-                for await (const event of w) {
-                    const filename = event.filename
-                    if (!filename) continue
-                    const extName = filename.split(sep)[0]
-                    if (!extName || !extensions.has(extName)) continue
-                    changedExtensions.add(extName)
-                    // 清除前端代码缓存，下次请求 extension.frontend 时重新打包
-                    frontendCache.delete(extName)
-                    console.log(`[extensions] ${extName} 已变化，等待用户重载`)
+                for await (const event of watch(root, { recursive: true })) {
+                    const name = String(event.filename || '').split(/[\\/]/)[0]
+                    if (!found.has(name)) continue
+                    changed.add(name)
+                    frontendCache.delete(name)
                 }
-            } catch { /* 目录不存在时退出 */ }
+            } catch { /* 目录不存在就不监听 */ }
         })()
     }
 }
 
-// --- 前端打包 ---
-const frontendCache = new Map()
+// --- 给设置页的扩展清单 ---
+const list = () => {
+    const extensions = [...found.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(entry => ({
+            name: entry.name,
+            title: String(entry.config.name || entry.name),
+            description: String(entry.config.description || ''),
+            version: String(entry.config.version || ''),
+            source: entry.source,
+            enabled: !disabled.has(entry.name),       // 用户的开关
+            running: loaded.has(entry.name),          // 实际是否在生效
+            requires: entry.requires,
+            dependents: dependents(entry.name),
+            hasFrontend: entry.hasFrontend,
+            changed: changed.has(entry.name),
+            error: entry.error || (!disabled.has(entry.name) && !loaded.has(entry.name) ? blocker(entry.name) : ''),
+        }))
+    return {
+        extensions,
+        loaded: [...loaded.keys()],
+        changed: [...changed],
+    }
+}
 
+const entryOf = name => {
+    const entry = found.get(String(name || ''))
+    if (!entry) throw fail(404, `extension not found: ${name}`)
+    return entry
+}
+
+// --- 开关一个扩展；关闭时依赖它的扩展一起停，重新打开后它们也一起恢复 ---
+const toggle = async ({ name, enabled } = {}) => {
+    const entry = entryOf(name)
+    if (typeof enabled !== 'boolean') throw fail(400, 'enabled must be a boolean')
+    if (enabled) disabled.delete(entry.name)
+    else disabled.add(entry.name)
+    await saveDisabled()
+    if (!enabled) await stopWithDependents(entry.name)
+    else await startAll()
+    return list()
+}
+
+// --- 重载一个扩展：停掉它和依赖它的扩展，重读代码后再按顺序启动 ---
+const reload = async name => {
+    const entry = entryOf(name)
+    await stopWithDependents(entry.name)
+    for (const item of [entry.name, ...dependents(entry.name)]) {
+        await describe(found.get(item))
+        changed.delete(item)
+        frontendCache.delete(item)
+    }
+    await startAll()
+    return list()
+}
+
+// --- 前端打包：只打包正在生效的扩展；vue 和 @app/ 留成外部引用，换成前端传入的变量 ---
 const buildFrontend = async name => {
-    const ext = extensions.get(name)
-    if (!ext) throw new Error(`扩展 ${name} 未加载`)
-    const frontendEntry = ext.config.frontend || 'frontend/index.js'
-    const frontendPath = join(ext.dir, frontendEntry)
-    if (!await Bun.file(frontendPath).exists()) return null
-
-    const cached = frontendCache.get(name)
-    const entryMtime = await Bun.file(frontendPath).lastModified
-    if (cached && cached.timestamp === entryMtime) return cached.code
-
-    if (!resolverRoots.includes(ext.dir)) resolverRoots.push(ext.dir)
+    const entry = entryOf(name)
+    if (!loaded.has(entry.name) || !entry.hasFrontend) return null
+    if (frontendCache.has(entry.name)) return frontendCache.get(entry.name)
 
     const result = await Bun.build({
-        entrypoints: [frontendPath],
+        entrypoints: [join(entry.dir, entry.config.frontend || 'frontend/index.js')],
         format: 'esm',
         external: ['vue'],
         plugins: [
-            // @app/ 和 @agent/ 标记为 external，保留在输出里后用正则替换成全局变量
             {
                 name: 'app-external',
                 setup(build) {
@@ -255,114 +370,57 @@ const buildFrontend = async name => {
             vueSfcPlugin(),
         ],
     })
-    if (!result.success) throw new Error(`前端打包失败：${result.logs.map(l => l.message || l).join('\n')}`)
-    const code = await result.outputs[0].text()
-    // 浏览器里没有 vue 和 @app/ 模块，把这两类 import 替换成从全局取
-    // 注意：import { a as b } → const { a: b } = ...（import 用 as，解构用冒号）
-    const convertDestructure = (names, globalRef) => {
-        const pairs = names.trim().split(',').map(part => {
-            const m = part.trim().match(/^(\w+)\s+as\s+(\w+)$/)
-            if (m) return `${m[1]}: ${m[2]}`
-            return part.trim()
-        })
-        return `const { ${pairs.join(', ')} } = ${globalRef};`
-    }
-    const browserCode = code
-        .replace(/import\s*\{([^}]+)\}\s*from\s*["']vue["'];?/g,
-            (_, names) => convertDestructure(names, '__agentVue__'))
+    if (!result.success) throw fail(500, `前端打包失败：${result.logs.map(log => log.message || String(log)).join('\n')}`)
+
+    // import { a as b } 换成解构时要写成 { a: b }
+    const destructure = (names, from) => `const { ${names.split(',').map(part => part.trim()).filter(Boolean)
+        .map(part => part.replace(/^(\w+)\s+as\s+(\w+)$/, '$1: $2')).join(', ')} } = ${from};`
+    const code = (await result.outputs[0].text())
+        .replace(/import\s*\{([^}]+)\}\s*from\s*["']vue["'];?/g, (_, names) => destructure(names, '__agentVue__'))
         .replace(/import\s*\{([^}]+)\}\s*from\s*["']@app\/([^"']+)["'];?/g,
-            (_, names, path) => convertDestructure(names, `__agentApp__[${JSON.stringify(path)}] ?? {}`))
+            (_, names, path) => destructure(names, `(__agentApp__[${JSON.stringify(path)}] ?? {})`))
         .replace(/import\s+(\w+)\s*from\s*["']@app\/([^"']+)["'];?/g,
-            (_, name, path) => `const ${name} = (__agentApp__[${JSON.stringify(path)}] ?? {}).default ?? __agentApp__[${JSON.stringify(path)}];`)
-    frontendCache.set(name, { code: browserCode, timestamp: entryMtime })
-    return browserCode
+            (_, local, path) => `const ${local} = __agentApp__[${JSON.stringify(path)}];`)
+    frontendCache.set(entry.name, code)
+    return code
 }
 
-// --- Vue SFC 编译插件 ---
-const vueSfcPlugin = () => {
-    let compiler
-    return {
-        name: 'vue-sfc',
-        async setup(build) {
-            build.onLoad({ filter: /\.vue$/ }, async args => {
-                if (!compiler) compiler = await import('@vue/compiler-sfc')
-                const { parse, compileScript, compileTemplate, compileStyle, rewriteDefault } = compiler
-                const { descriptor } = parse(await Bun.file(args.path).text(), { filename: args.path })
-                const id = Bun.hash(args.path).toString(36).slice(0, 8)   // 同一文件每次打包 id 不变
-                const scopeId = `data-v-${id}`
-                const scoped = descriptor.styles.some(style => style.scoped)
+// --- .vue 编译插件：脚本和模板一起编译，样式编译后在组件模块加载时插进 <head> ---
+const vueSfcPlugin = () => ({
+    name: 'vue-sfc',
+    setup(build) {
+        build.onLoad({ filter: /\.vue$/ }, async args => {
+            const { parse, compileScript, compileTemplate, compileStyle, rewriteDefault } = await import('@vue/compiler-sfc')
+            const { descriptor } = parse(await Bun.file(args.path).text(), { filename: args.path })
+            const id = Bun.hash(args.path).toString(36).slice(0, 8)   // 同一文件每次打包 id 不变
+            const scopeId = `data-v-${id}`
+            const scoped = descriptor.styles.some(style => style.scoped)
 
-                // --- 脚本和模板：inlineTemplate 让模板直接拿到 <script setup> 里的组件和变量 ---
-                let code
-                if (descriptor.script || descriptor.scriptSetup) {
-                    const script = compileScript(descriptor, {
-                        id,
-                        inlineTemplate: true,
-                        templateOptions: { scoped, compilerOptions: { scopeId: scoped ? scopeId : undefined } },
-                    })
-                    code = rewriteDefault(script.content, '__sfc_main__')
-                } else {
-                    // 只有 <template> 的组件
-                    const tpl = compileTemplate({ source: descriptor.template?.content || '', filename: args.path, id, scoped })
-                    code = tpl.code.replace(/^export\s+function\s+render/m, 'function render')
-                        + '\nconst __sfc_main__ = { render }\n'
-                }
-                if (scoped) code += `\n__sfc_main__.__scopeId = ${JSON.stringify(scopeId)}\n`
+            let code
+            if (descriptor.script || descriptor.scriptSetup) {
+                const script = compileScript(descriptor, {
+                    id,
+                    inlineTemplate: true,
+                    templateOptions: { scoped, compilerOptions: { scopeId: scoped ? scopeId : undefined } },
+                })
+                code = rewriteDefault(script.content, '__sfc_main__')
+            } else {
+                const tpl = compileTemplate({ source: descriptor.template?.content || '', filename: args.path, id, scoped })
+                code = tpl.code.replace(/^export\s+function\s+render/m, 'function render') + '\nconst __sfc_main__ = { render }\n'
+            }
+            if (scoped) code += `\n__sfc_main__.__scopeId = ${JSON.stringify(scopeId)}\n`
 
-                // --- 样式：只支持普通 CSS（exe 里没有 sass），组件模块加载时插进 <head> ---
-                let css = ''
-                for (const style of descriptor.styles) {
-                    const source = style.src
-                        ? await Bun.file(join(dirname(args.path), style.src)).text()
-                        : style.content
-                    css += compileStyle({ source, filename: args.path, id: scopeId, scoped: style.scoped }).code + '\n'
-                }
-                if (css) {
-                    code += `\n;(() => { if (typeof document === 'undefined') return; const el = document.createElement('style'); el.dataset.extensionStyle = ${JSON.stringify(id)}; el.textContent = ${JSON.stringify(css)}; document.head.appendChild(el) })()\n`
-                }
-
-                code += '\nexport default __sfc_main__\n'
-                return { contents: code, loader: 'js' }
-            })
-        },
-    }
-}
-
-// --- 状态查询 ---
-const state = () => ({
-    loaded: [...extensions.keys()],
-    failed: failedList,
-    changed: [...changedExtensions],   // 有代码变化但还没重载的扩展
+            let css = ''
+            for (const style of descriptor.styles) {
+                const source = style.src ? await Bun.file(join(dirname(args.path), style.src)).text() : style.content
+                css += compileStyle({ source, filename: args.path, id: scopeId, scoped: style.scoped }).code + '\n'
+            }
+            if (css) {
+                code += `\n;(() => { if (typeof document === 'undefined') return; document.querySelector('style[data-extension-style="${id}"]')?.remove(); const el = document.createElement('style'); el.dataset.extensionStyle = ${JSON.stringify(id)}; el.textContent = ${JSON.stringify(css)}; document.head.appendChild(el) })()\n`
+            }
+            return { contents: code + '\nexport default __sfc_main__\n', loader: 'js' }
+        })
+    },
 })
 
-// --- 重载扩展：卸载后重新加载 ---
-const reload = async name => {
-    await unload(name)
-    changedExtensions.delete(name)
-    const entry = [...await scan(projectDir()), ...await scan(userDir())].find(e => e.name === name)
-    if (entry) {
-        entry.config = await import(pathToFileURL(entry.manifest).href).then(m => m.default || m)
-        await loadOne(entry)
-    }
-    return { ok: true, name }
-}
-
-// --- 开关扩展 ---
-const toggle = async name => {
-    const ext = extensions.get(name)
-    if (ext?.enabled) {
-        for (const [otherName, other] of extensions) {
-            if (other.config?.requires?.includes(name)) await toggle(otherName)
-        }
-        await unload(name)
-    } else {
-        const entry = [...await scan(projectDir()), ...await scan(userDir())].find(e => e.name === name)
-        if (entry) {
-            entry.config = await import(pathToFileURL(entry.manifest).href).then(m => m.default || m)
-            await loadOne(entry)
-        }
-    }
-    return { ok: true, name, enabled: extensions.has(name) }
-}
-
-export default { load, state, toggle, reload, buildFrontend }
+export default { load, list, toggle, reload, buildFrontend }

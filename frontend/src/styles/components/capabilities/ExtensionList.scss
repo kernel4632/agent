@@ -1,0 +1,59 @@
+.extension-page { display: flex; flex-direction: column; gap: 16px; }
+.extension-head p { margin: 0; color: var(--la-muted); font-size: 14px; line-height: 22px; }
+
+.extension-card {
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--la-layer-01);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+}
+
+.extension-row { display: flex; align-items: center; gap: 16px; padding: 14px 20px; }
+.extension-row + .extension-row { border-top: .5px solid var(--la-line); }
+.extension-row__icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--la-accent) 14%, transparent);
+  color: var(--la-accent);
+}
+.extension-row.is-error .extension-row__icon { background: color-mix(in srgb, var(--la-danger) 14%, transparent); color: var(--la-danger); }
+.extension-row__copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.extension-row__copy strong { color: var(--la-text); font-size: 16px; font-weight: 600; line-height: 24px; }
+.extension-row__copy strong small { color: var(--la-muted); font-size: 12px; font-weight: 400; }
+.extension-row__copy > small { color: var(--la-muted); font-size: 13px; line-height: 20px; }
+.extension-row__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.extension-row__actions { display: flex; flex: none; align-items: center; gap: 4px; }
+
+.extension-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--la-hover);
+  color: var(--la-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.extension-tag--on { background: color-mix(in srgb, var(--la-accent) 14%, transparent); color: var(--la-accent); }
+.extension-tag--warn { background: color-mix(in srgb, var(--la-warning) 14%, transparent); color: var(--la-warning); }
+.extension-tag--error { background: color-mix(in srgb, var(--la-danger) 12%, transparent); color: var(--la-danger); }
+
+.extension-empty {
+  margin: 0;
+  padding: 32px 20px;
+  border-radius: 24px;
+  background: var(--la-layer-01);
+  color: var(--la-muted);
+  text-align: center;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+@media (max-width: 767px) {
+  .extension-row { align-items: flex-start; flex-wrap: wrap; padding: 14px 16px; }
+  .extension-row__actions { width: 100%; justify-content: flex-end; }
+}

@@ -127,15 +127,11 @@ export const AgentAPI = {
   rollback:         (sessionID, messageId, files = true, partIndex, compact = false) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files, ...(partIndex === undefined ? {} : { partIndex }), ...(compact ? { compact: true } : {}) }),
   rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
   redo:             (sessionID, files = true, compact = false) => request(`/session/rollback/redo/${encodeURIComponent(sessionID)}`, 'POST', { files, ...(compact ? { compact: true } : {}) }),
-  // 扩展：列出已加载的扩展和加载失败的扩展
-  getExtensions:    ()                          => admin('extension.list'),
-  getExtensionFrontend: (name)                  => admin('extension.frontend', { name }),
-  toggleExtension:  (name)                      => admin('extension.toggle', { name }),
-  // 扩展管理
-  getExtensions:         ()       => admin('extension.list'),
-  getExtensionFrontend:  (name)   => admin('extension.frontend', { name }),
-  toggleExtension:       (name)   => admin('extension.toggle', { name }),
-  reloadExtension:       (name)   => admin('extension.reload', { name }),
+  // 扩展管理：清单、开关、重载、取打包好的前端代码
+  getExtensions:         ()                => admin('extension.list'),
+  getExtensionFrontend:  (name)            => admin('extension.frontend', { name }),
+  toggleExtension:       (name, enabled)   => admin('extension.toggle', { name, enabled }),
+  reloadExtension:       (name)            => admin('extension.reload', { name }),
   getConfig:        ()                          => admin('config.read'),
   getConfigMeta:    ()                          => admin('config.meta'),
   getConfigBackups: ()                          => admin('config.backup.list'),
