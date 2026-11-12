@@ -329,6 +329,8 @@ bun start
 `GET /sse/connect/{sessionId}` 推的事件类型：`agent-start`、`agent-resume`、`agent-finish`、`text-delta`、`reasoning-delta`、`retry`、`llm-start`、`llm-first-token`、`llm-finish`、`tool-call`、`tool-output`、`tool-result`、`tool-input-start`、`tool-input-delta`、`tool-input-end`、`permission`、`permission-blocked`、`mcp-error`、`compact-start`、`compact-finish`、`title`。同一会话允许同时有多个订阅者（多个标签页/窗口）：每个连接都会先收到缓存事件，之后的新事件广播给所有连接，断开其中一个不影响其他连接。
 
 - `llm-start` 带 `startedAt`（这次请求的真实开始时间）和 `provider` / `model`。
+- `llm-start` / `llm-finish` / `retry` 带 `requestId`。重连会重放同一条 `llm-start`；前端按 `requestId` 复用请求行，不能叠出第二条。
+- `agent-start`、`agent-resume`、`llm-start`、`retry`、`compact-start` 是“进行中”事件，不写进 history。`History.save()` 清普通事件缓存时会保留这些生命周期事件，新连接建立后补发；`agent-finish` 才清空。这样请求中刷新页面仍能看到真实的请求行。
 - `llm-first-token` 带 `firstTokenAt` / `firstTokenMs`；`llm-finish.usage` 带首字时间、总耗时、输入 / 输出 / 缓存和这次请求的 `provider` / `model`。
 - 压缩请求的原生流事件带 `request=compact`，不能追加到助手正文、思考或停止时的 partial；`compact-start` 带 `messages` 和 `startedAt`，`compact-finish` 带 `content`、`durationMs` 和统一后的 `usage`。
 - `agent-finish.usage` 包含自动压缩用量；工具拒绝、取消和无效调用也会发一条 `tool-result`。
