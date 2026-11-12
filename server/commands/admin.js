@@ -134,6 +134,17 @@ const OPS = {
     'fs.entries': query => Filesystem.entries({ path: query?.path, mode: query?.mode }),
     'tool.list': () => Tool.list(),
     'tool.kinds': () => Tool.KINDS,
+
+    // --- 进程收尾 ---
+    // 强制结束 Bun 进程不会走 SIGTERM，MCP 子进程会握着监听套接字，
+    // Windows 上留下僵尸端口。先关 MCP 连接，再让进程正常退出。
+    'server.shutdown': () => {
+        setTimeout(async () => {
+            await Promise.race([Mcp.close().catch(() => {}), Bun.sleep(2000)])
+            process.exit(0)
+        }, 100)
+        return { ok: true, shuttingDown: true }
+    },
 }
 
 // 只有这个只读 op 允许走 GET，因为它要直接当 <img src>。
