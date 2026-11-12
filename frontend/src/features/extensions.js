@@ -86,22 +86,33 @@ const init = async () => {
 }
 
 // --- 加载单个扩展的前端代码 ---
+// 用 new Function 而不是 Blob URL import：不受 CSP 限制，不需要浏览器支持动态 import
 const loadOne = async name => {
     const code = await AgentAPI.getExtensionFrontend(name)
     if (!code || typeof code !== 'string') return
 
-    const blob = new Blob([code], { type: 'application/javascript' })
-    const url = URL.createObjectURL(blob)
+    // 打包后的代码结构：一堆 const 声明 + function frontend_default(app) {...} + export {...}
+    // 去掉所有 export 语句，把入口函数找出来在末尾调用
+    let browserCode = code
+        .replace(/export\s*\{[^}]+}\s*;?/g, '')           // 去掉 export { ... }
+        .replace(/export\s+default\s+/g, '')                // 去掉 export default
+    // 找到入口函数名（Bun.build 生成的默认叫 xxx_default）
+    const entryMatch = browserCode.match(/(?:async\s+)?function\s+(\w+_default)\s*\(\s*app\s*\)/)
+    if (entryMatch) {
+        browserCode += `\n;return ${entryMatch[1]}(app);`
+    } else {
+        // 备选：找任何接收 app 参数的函数
+        const fallback = browserCode.match(/(?:async\s+)?function\s+(\w+)\s*\(\s*app\s*\)/)
+        if (fallback) browserCode += `\n;return ${fallback[1]}(app);`
+    }
+
     try {
-        const mod = await import(url)
-        const init = mod.default
-        if (typeof init === 'function') {
-            const app = createApp()
-            await init(app)
-            console.log(`[extensions] ${name} 前端已加载`)
-        }
-    } finally {
-        URL.revokeObjectURL(url)
+        const fn = new Function('app', browserCode)
+        const app = createApp()
+        await fn(app)
+        console.log(`[extensions] ${name} 前端已加载`)
+    } catch (error) {
+        console.error(`[extensions] ${name} 前端加载失败：`, error)
     }
 }
 
