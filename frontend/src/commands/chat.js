@@ -309,21 +309,15 @@ function resumeRun(session) {
 }
 
 // --- 上下文压缩：同样是一次模型请求，在时间线里单独占一行，用户不会觉得界面卡住了 ---
-function startCompact(session, event) {
-  const assistant = streaming(session) || createAssistant(session)
-  if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
-    Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
-  } else if (event.reason === 'overflow-retry') {
-    Notice.show('模型报告上下文超长，正在压缩后继续')
-  }
-  const request = {
+function compactRequest(event = {}, local = false) {
+  return {
     id: `compact_${crypto.randomUUID()}`,
     status: 'running',
     startedAt: Number(event.startedAt) || Date.now(),
     firstTokenAt: 0,
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
     content: '', reasoning: '',
-    compactReason: event.reason || '',
+    compactReason: event.reason || (local ? 'manual' : ''),
     compactToken: Number(event.token) || 0,
     compactBudget: Number(event.budget) || 0,
     compactThreshold: Number(event.compactThreshold) || 0,
@@ -331,14 +325,41 @@ function startCompact(session, event) {
     compactChars: Number(event.chars) || 0,
     compactMedia: Number(event.media) || 0,
     compactCalibrated: event.calibrated === true,
+    ...(local ? { local: true } : {}),
   }
-  assistant.steps.push({ type: 'compact', request })
+}
+
+function startCompact(session, event) {
+  const assistant = streaming(session) || createAssistant(session)
+  // 手动压缩会先放本地占位；SSE 的 compact-start 到了就复用它，不能叠两行。
+  let step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  if (!step) {
+    step = { type: 'compact', request: compactRequest(event) }
+    assistant.steps.push(step)
+  } else {
+    Object.assign(step.request, {
+      compactReason: event.reason || step.request.compactReason,
+      compactToken: Number(event.token) || step.request.compactToken,
+      compactBudget: Number(event.budget) || step.request.compactBudget,
+      compactThreshold: Number(event.compactThreshold) || step.request.compactThreshold,
+      compactRatio: Number(event.ratio) || step.request.compactRatio,
+      compactChars: Number(event.chars) || step.request.compactChars,
+      compactMedia: Number(event.media) || step.request.compactMedia,
+      compactCalibrated: event.calibrated === true,
+    })
+  }
+  if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
+    Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
+  } else if (event.reason === 'overflow-retry') {
+    Notice.show('模型报告上下文超长，正在压缩后继续')
+  }
   assistant.isStreaming = true
 }
 
 function finishCompact(session, event) {
   const assistant = streaming(session) || createAssistant(session)
   const step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
+  assistant.isStreaming = false
   if (!step) return
   step.request = {
     ...step.request,
@@ -739,6 +760,11 @@ async function receive(sessionID, event) {
 async function compact(sessionID) {
   const session = store.sessions[sessionID]
   if (!session || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
+  // 先放本地请求行，SSE 慢/断线时也能立刻看到“正在压缩”，和模型请求的行一致。
+  const assistant = streaming(session) || createAssistant(session)
+  const step = { type: 'compact', request: compactRequest({ reason: 'manual' }, true) }
+  assistant.steps.push(step)
+  assistant.isStreaming = true
   session.compacting = true
   Notice.show('正在压缩上下文…')
   try {
@@ -748,9 +774,17 @@ async function compact(sessionID) {
     if (result?.contextEstimate) session.contextEstimate = result.contextEstimate
     if (result?.historyStats) session.historyStats = result.historyStats
     if (result?.contextTokens !== undefined) session.contextTokens = result.contextTokens
+    // SSE 的 compact-finish 可能先到；本地占位始终保留，这里只补齐最终结果。
+    step.request.status = step.request.status === 'running' ? 'completed' : step.request.status
+    if (typeof result?.content === 'string' && !step.request.content) step.request.content = result.content
+    assistant.isStreaming = false
     Notice.show('上下文已压缩')
     return true
   } catch (error) {
+    step.request.status = 'failed'
+    step.request.error = error.message
+    step.request.finishedAt = Date.now()
+    assistant.isStreaming = false
     Notice.show(error.message)
     return false
   } finally {
