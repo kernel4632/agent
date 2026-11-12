@@ -31,6 +31,7 @@ import Menu from './ui/Menu.vue'
 import { AgentAPI } from './utils/api.js'
 import { Notice } from './utils/notice.js'
 import { store } from './store.js'
+import { readPath, savePath } from './utils/session-view.js'
 
 // 扩展前端代码通过 Blob URL 加载，import { ref } from 'vue' 在浏览器里无法解析；
 // 把 Vue API 挂到全局，后端打包时会把 import 替换成从 window.__agent_vue__ 取。
