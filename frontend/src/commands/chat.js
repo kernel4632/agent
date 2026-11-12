@@ -207,21 +207,7 @@ async function send(sessionID, content, queuedFiles = null) {
     attachments: files.map(file => ({ id: file.id, name: file.name, kind: file.kind || 'text' })),
     images: files.filter(file => file.kind === 'image').map(file => file.dataUrl),
   })
-  const assistant = createAssistant(session)
-  // 先放本地请求行：SSE 慢、重连或 llm-start 丢失时，用户也能立刻看到“正在请求模型”。
-  const request = {
-    id: `request_${crypto.randomUUID()}`,
-    status: 'running',
-    startedAt: Date.now(),
-    firstTokenAt: 0,
-    provider: session.provider, model: session.model,
-    finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
-    rawText: '', rawToolInput: '', contentStartedAt: 0, lastContentAt: 0, contentEvents: 0,
-    local: true,
-  }
-  assistant.requests.push(request)
-  assistant.steps.push({ type: 'request', requestId: request.id })
-  assistant.request = request
+  createAssistant(session)
   session.status = 'running'
   session.lastEventAt = Date.now()
   History.syncSummary(session)
@@ -323,7 +309,7 @@ function resumeRun(session) {
 }
 
 // --- 上下文压缩：同样是一次模型请求，在时间线里单独占一行，用户不会觉得界面卡住了 ---
-function compactRequest(event = {}, local = false) {
+function compactRequest(event = {}) {
   return {
     id: `compact_${crypto.randomUUID()}`,
     status: 'running',
@@ -331,7 +317,7 @@ function compactRequest(event = {}, local = false) {
     firstTokenAt: 0,
     finishedAt: 0, durationMs: 0, input: 0, output: 0, cache: 0, cacheWrite: 0, total: 0,
     content: '', reasoning: '',
-    compactReason: event.reason || (local ? 'manual' : ''),
+    compactReason: event.reason || '',
     compactToken: Number(event.token) || 0,
     compactBudget: Number(event.budget) || 0,
     compactThreshold: Number(event.compactThreshold) || 0,
@@ -339,29 +325,12 @@ function compactRequest(event = {}, local = false) {
     compactChars: Number(event.chars) || 0,
     compactMedia: Number(event.media) || 0,
     compactCalibrated: event.calibrated === true,
-    ...(local ? { local: true } : {}),
   }
 }
 
 function startCompact(session, event) {
   const assistant = streaming(session) || createAssistant(session)
-  // 手动压缩会先放本地占位；SSE 的 compact-start 到了就复用它，不能叠两行。
-  let step = [...assistant.steps].reverse().find(item => item.type === 'compact' && item.request.status === 'running')
-  if (!step) {
-    step = { type: 'compact', request: compactRequest(event) }
-    assistant.steps.push(step)
-  } else {
-    Object.assign(step.request, {
-      compactReason: event.reason || step.request.compactReason,
-      compactToken: Number(event.token) || step.request.compactToken,
-      compactBudget: Number(event.budget) || step.request.compactBudget,
-      compactThreshold: Number(event.compactThreshold) || step.request.compactThreshold,
-      compactRatio: Number(event.ratio) || step.request.compactRatio,
-      compactChars: Number(event.chars) || step.request.compactChars,
-      compactMedia: Number(event.media) || step.request.compactMedia,
-      compactCalibrated: event.calibrated === true,
-    })
-  }
+  assistant.steps.push({ type: 'compact', request: compactRequest(event) })
   if (event.reason === 'automatic' && Number(event.token) && Number(event.budget)) {
     Notice.show(`上下文估算 ${Math.round(event.token / event.budget * 100)}%，正在压缩后继续`)
   } else if (event.reason === 'overflow-retry') {
@@ -388,20 +357,6 @@ function finishCompact(session, event) {
 // 重连/刷新时服务端会重放 llm-start，里面的 startedAt 是原始开始时间，计时不能从 0 重新算。
 function startRequest(session, event = {}) {
   const assistant = streaming(session) || createAssistant(session)
-  // 本地发送已经放了一条等待中的请求行；llm-start 到了就补上真实模型和开始时间。
-  const localRequest = assistant.requests.findLast(item => item.status === 'running' && item.local)
-  if (localRequest) {
-    Object.assign(localRequest, {
-      startedAt: Number(event.startedAt) || localRequest.startedAt,
-      firstTokenAt: Number(event.firstTokenAt) || 0,
-      provider: event.provider || localRequest.provider,
-      model: event.model || localRequest.model,
-      local: false,
-    })
-    assistant.request = localRequest
-    assistant.isStreaming = true
-    return
-  }
   // 重试事件已经先建好等待中的行；真正开始请求时复用它，不重复插一行。
   const retryRequest = assistant.requests.findLast(item => item.status === 'running' && item.retryAttempt)
   if (retryRequest) {
@@ -788,31 +743,17 @@ async function receive(sessionID, event) {
 async function compact(sessionID) {
   const session = store.sessions[sessionID]
   if (!session || session.status === 'running' || session.compacting || stopping.has(sessionID)) return false
-  // 先放本地请求行，SSE 慢/断线时也能立刻看到“正在压缩”，和模型请求的行一致。
-  const assistant = streaming(session) || createAssistant(session)
-  const step = { type: 'compact', request: compactRequest({ reason: 'manual' }, true) }
-  assistant.steps.push(step)
-  assistant.isStreaming = true
   session.compacting = true
-  Notice.show('正在压缩上下文…')
   try {
     const result = await AgentAPI.compactSession(sessionID)
-    // 压缩结果由 SSE 的 compact-start / compact-finish 实时更新；服务端还会
-    // 返回压缩后的上下文估算，立刻替换本地旧值，底部才能从 95% 降下来。
+    // 压缩过程完全由 SSE 的 compact-start / compact-finish 驱动；这里只接收
+    // 服务端最终返回的上下文估算，避免前端先造一条假的“正在压缩”状态。
     if (result?.contextEstimate) session.contextEstimate = result.contextEstimate
     if (result?.historyStats) session.historyStats = result.historyStats
     if (result?.contextTokens !== undefined) session.contextTokens = result.contextTokens
-    // SSE 的 compact-finish 可能先到；本地占位始终保留，这里只补齐最终结果。
-    step.request.status = step.request.status === 'running' ? 'completed' : step.request.status
-    if (typeof result?.content === 'string' && !step.request.content) step.request.content = result.content
-    assistant.isStreaming = false
     Notice.show('上下文已压缩')
     return true
   } catch (error) {
-    step.request.status = 'failed'
-    step.request.error = error.message
-    step.request.finishedAt = Date.now()
-    assistant.isStreaming = false
     Notice.show(error.message)
     return false
   } finally {
