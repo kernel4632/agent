@@ -127,6 +127,10 @@ export const AgentAPI = {
   rollback:         (sessionID, messageId, files = true, partIndex, compact = false) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { messageId, files, ...(partIndex === undefined ? {} : { partIndex }), ...(compact ? { compact: true } : {}) }),
   rollbackTool:     (sessionID, toolCallId, files = true) => request(`/session/rollback/${encodeURIComponent(sessionID)}`, 'POST', { toolCallId, files }),
   redo:             (sessionID, files = true, compact = false) => request(`/session/rollback/redo/${encodeURIComponent(sessionID)}`, 'POST', { files, ...(compact ? { compact: true } : {}) }),
+  // 扩展：列出已加载的扩展和加载失败的扩展
+  getExtensions:    ()                          => admin('extension.list'),
+  getExtensionFrontend: (name)                  => admin('extension.frontend', { name }),
+  toggleExtension:  (name)                      => admin('extension.toggle', { name }),
   // --- 以下全部走管理总线 ---
   getConfig:        ()                          => admin('config.read'),
   getConfigMeta:    ()                          => admin('config.meta'),

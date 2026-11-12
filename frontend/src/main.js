@@ -4,15 +4,59 @@
 */
 import { Settings } from "./features/settings.js"
 import { Session } from "./features/session.js"
+import { Extensions } from './features/extensions.js'
 
 import { Chat } from './commands/chat.js'
 import { Navigation } from './commands/navigation.js'
-import { createApp, watch } from 'vue'
+import { createApp, watch, ref, computed, reactive, onMounted, onBeforeUnmount, defineComponent, h, nextTick, provide, inject, toRef, toRefs, unref, watchEffect } from 'vue'
 import './styles/tokens.scss'        // 项目自己的颜色、尺寸和动效变量
 import './styles/base.scss'          // 全局重置与可访问性规则
 import App from './App.vue'
+import Button from './ui/Button.vue'
+import Switch from './ui/Switch.vue'
+import Dialog from './ui/Dialog.vue'
+import Field from './ui/Field.vue'
+import Select from './ui/Select.vue'
+import Icon from './ui/Icon.vue'
+import Fold from './ui/Fold.vue'
+import Checkbox from './ui/Checkbox.vue'
+import Tabs from './ui/Tabs.vue'
+import SettingsList from './ui/SettingsList.vue'
+import SettingsRow from './ui/SettingsRow.vue'
+import PathInput from './ui/PathInput.vue'
+import Markdown from './ui/Markdown.vue'
+import SelectButton from './ui/SelectButton.vue'
+import Menu from './ui/Menu.vue'
+
+import { AgentAPI } from './utils/api.js'
+import { Notice } from './utils/notice.js'
 import { store } from './store.js'
-import { readPath, savePath } from './utils/session-view.js'
+
+// 扩展前端代码通过 Blob URL 加载，import { ref } from 'vue' 在浏览器里无法解析；
+// 把 Vue API 挂到全局，后端打包时会把 import 替换成从 window.__agent_vue__ 取。
+window.__agent_vue__ = { ref, computed, reactive, watch, onMounted, onBeforeUnmount, defineComponent, h, nextTick, provide, inject, toRef, toRefs, unref, watchEffect }
+
+// 把 UI 组件和工具函数挂到全局，扩展前端代码里的 @app/ import 会替换成从这里取
+window.__agent_app__ = {
+  'ui/Button.vue': Button,
+  'ui/Switch.vue': Switch,
+  'ui/Dialog.vue': Dialog,
+  'ui/Field.vue': Field,
+  'ui/Select.vue': Select,
+  'ui/Icon.vue': Icon,
+  'ui/Fold.vue': Fold,
+  'ui/Checkbox.vue': Checkbox,
+  'ui/Tabs.vue': Tabs,
+  'ui/SettingsList.vue': SettingsList,
+  'ui/SettingsRow.vue': SettingsRow,
+  'ui/PathInput.vue': PathInput,
+  'ui/Markdown.vue': Markdown,
+  'ui/SelectButton.vue': SelectButton,
+  'ui/Menu.vue': Menu,
+  'utils/api.js': AgentAPI,
+  'utils/notice.js': Notice,
+  'store.js': store,
+}
 
 function startWatchers() {
   // 会话列表由 Server 保存，浏览器不再留副本，所以这里没有"同步到本地"的监听。
@@ -61,6 +105,6 @@ async function restorePath() {
 
 startWatchers()
 createApp(App).mount('#app')
-Promise.all([Session.list(), Settings.load()])
+Promise.all([Session.list(), Settings.load(), Extensions.init()])
   .then(restorePath)
   .finally(() => { store.ui.isLoading = false })

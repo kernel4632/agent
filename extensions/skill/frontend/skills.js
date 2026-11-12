@@ -1,0 +1,62 @@
+/*
+ * 技能页的数据操作：加载生效技能和候选目录，保存、删除、启停。
+ *
+ * 组件只负责展示和本地交互；cwd 取当前会话的目录，没有会话时让后端用自己的当前目录。
+ * 请求失败统一交给 Notice，返回 null 表示这次动作没有结果。
+ * 调用示例：
+ *   const data = await Skills.load()
+ *   await Skills.save({ name, description, body, scope: 'global' })
+ *   await Skills.source('/home/me/.claude/skills', true)
+ */
+
+import { AgentAPI } from '@app/utils/api.js'
+import { store } from '@app/store.js'
+import { Notice } from '@app/utils/notice.js'
+
+const cwd = () => store.sessions[store.ui.activeSessionID]?.cwd || ''
+
+async function run(action) {
+  try {
+    return await action()
+  } catch (error) {
+    Notice.show(error.message)
+    return null
+  }
+}
+
+const load = () => run(() => AgentAPI.getSkills(cwd()))
+const read = name => run(() => AgentAPI.readSkill(name, cwd()))
+const save = skill => run(() => AgentAPI.saveSkill({ ...skill, cwd: cwd() }))
+const remove = (name, scope = 'global') => run(() => AgentAPI.removeSkill({ name, scope, cwd: cwd() }))
+const toggle = (name, enabled) => run(() => AgentAPI.toggleSkill({ name, enabled, cwd: cwd() }))
+const source = (path, enabled) => run(() => AgentAPI.toggleSkillSource({ path, enabled }))
+
+// 批量启停技能：按后端单次上限（100）切片逐批提交，返回每批结果汇总。
+const SLICE_SKILL = 100                                     // /skill/toggle 单次一个名，但避免一次发太多请求体
+const toggleMany = async (names, enabled) => {
+  const results = []                                        // 汇总每个技能的最终状态
+  for (const name of names) {                               // 单项接口逐个发；循环内失败不拖垮整批
+    const result = await toggle(name, enabled)
+    results.push(result ? { name, enabled } : null)
+  }
+  return results                                            // null 表示这项失败，调用方可回写草稿时跳过
+}
+
+// 批量启用外部技能目录：目录接口也是单项，同样逐个发。
+const sourceMany = async (paths, enabled) => {
+  const results = []
+  for (const path of paths) {
+    const result = await source(path, enabled)
+    results.push(result || null)
+  }
+  return results
+}
+
+// --- 识别到但还不生效的外部目录；本应用自己的目录已经在技能清单里，不重复展示 ---
+const externalRoots = roots => (roots || []).filter(root => root.kind !== 'own' && root.exists)
+
+// --- 外部目录里的技能在正文弹窗里标记来源；本应用的技能可以直接改 ---
+const sourceLabel = skill => skill.editable ? '本应用' : (skill.app || '外部目录')
+
+export const Skills = { load, read, save, remove, toggle, source, toggleMany, sourceMany, cwd }
+export { externalRoots, sourceLabel }

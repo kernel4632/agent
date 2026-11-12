@@ -16,7 +16,7 @@
  *   await Admin.get({ op: 'model.icon', model: 'gpt-5', theme: 'dark' })
  */
 
-import Agent from '../features/agent.js'
+import Extension from '../features/extension.js'
 import Approval from '../features/approval.js'
 import Config from '../features/config.js'
 import Context from '../features/context.js'
