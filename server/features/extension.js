@@ -2,10 +2,10 @@
  * 扩展加载器：扫描扩展、按依赖顺序启动、记录每一处改动以便拔出、打包扩展前端。
  *
  * 扩展放在两处，同名时用户目录的覆盖项目里的：
- *   <项目根>/extensions/<名字>/extension.js      跟项目一起发布
- *   ~/.agents/extensions/<名字>/extension.js     用户自己装的，所有项目共用
+ *   <项目根>/extensions/<名字>/manifest.json     跟项目一起发布
+ *   ~/.agents/extensions/<名字>/manifest.json    用户自己装的，所有项目共用
  *
- * 扩展的身份就是它的文件夹名；extension.js 导出
+ * manifest.json 声明这个扩展的身份和入口：
  *   { name?, description?, version?, requires?: ['别的扩展文件夹名'], backend?, frontend? }
  * backend 默认 backend.js，导出一个函数，接收 ctx：
  *   export default ctx => {
@@ -76,29 +76,27 @@ const forget = dir => {
 }
 const fresh = file => import(`${pathToFileURL(file).href}?v=${Date.now()}`)
 
-// --- 扫描一个目录：每个带 extension.js 的子文件夹算一个扩展 ---
+// --- 扫描一个目录：每个带 manifest.json 的子文件夹算一个扩展 ---
 const scan = async (root, source) => {
     const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
     const list = []
     for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const dir = join(root, entry.name)
-        const manifest = join(dir, 'extension.js')
+        const manifest = join(dir, 'manifest.json')
         if (await Bun.file(manifest).exists()) list.push({ name: entry.name, dir, manifest, source })
     }
     return list
 }
 
-// --- 读一个扩展的声明；读不出来就记下错误，不影响别的扩展 ---
+// --- 读一个扩展的声明（manifest.json）；读不出来就记下错误，不影响别的扩展 ---
 const describe = async entry => {
     try {
-        forget(entry.dir)
-        const module = await fresh(entry.manifest)
-        entry.config = module.default || {}
+        entry.config = await Bun.file(entry.manifest).json()
         entry.error = ''
     } catch (error) {
         entry.config = {}
-        entry.error = `extension.js 读取失败：${error.message}`
+        entry.error = `manifest.json 读取失败：${error.message}`
     }
     entry.requires = Array.isArray(entry.config.requires) ? entry.config.requires.map(String) : []
     entry.hasFrontend = await Bun.file(join(entry.dir, entry.config.frontend || 'frontend/index.js')).exists()
@@ -242,7 +240,7 @@ const startAll = async () => {
     for (const name of order()) {
         const entry = found.get(name)
         if (loaded.has(name) || disabled.has(name) || entry.config === undefined) continue
-        if (entry.error?.startsWith('extension.js')) continue   // 声明都读不出来，不启动
+        if (entry.error?.startsWith('manifest.json')) continue   // 声明都读不出来，不启动
         if (blocker(name)) continue
         await startOne(entry)
     }
