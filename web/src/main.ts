@@ -12,6 +12,7 @@ import { Components, Extension } from './Extension'
 import History, { History as Grouping } from './components/History.vue'
 import UserMessage from './components/UserMessage.vue'
 import AssistantMessage from './components/AssistantMessage.vue'
+import CodeBlock from './components/CodeBlock.vue'
 import Thinking from './components/Thinking.vue'
 import ToolCall from './components/ToolCall.vue'
 import Process from './components/Process.vue'
@@ -21,7 +22,7 @@ import CompactMessage from './components/CompactMessage.vue'
 import Composer from './components/Composer.vue'
 import Stats from './components/Stats.vue'
 
-Extension.register({ History, UserMessage, AssistantMessage, Thinking, ToolCall, Process, RequestStatus, ErrorMessage, CompactMessage, Composer, Stats })
+Extension.register({ History, UserMessage, AssistantMessage, CodeBlock, Thinking, ToolCall, Process, RequestStatus, ErrorMessage, CompactMessage, Composer, Stats })
 if (new URLSearchParams(location.search).has('demo')) await import('./demo')
 await Agent.load().catch(error => { Agent.state.fault = `读取历史失败：${error.message}` })
 await Extension.load({ Agent, API, History: Grouping, Components })

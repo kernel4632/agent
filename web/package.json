@@ -1,7 +1,7 @@
 {
   "name": "agent-web",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/vue": "1.0.7",
-    "marked": "^15.0.0",
+    "highlight.js": "^11.11.1",
+    "markstream-vue": "^2.0.24",
     "vue": "^3.5.0"
   },
   "devDependencies": {

@@ -3,7 +3,7 @@
 它像扩展一样用 patch 换掉 API 的几个方法，页面和 Agent 完全不知道；接真后端时删掉 main.ts 里那一行即可。
 
 第一次发送：一整轮真实的 agent 过程——首次请求半路失败（片段撤掉）、4 秒后重试；之后说几句、跑测试、思考、
-读文件和搜索、再思考、改文件、再跑测试，最后给出结论。
+读文件和搜索、再思考、改文件、再跑测试，最后给出结论（结论把标题、加粗、行内代码、链接、列表、表格、引用、ts/bash 代码块都用上，用来看 Markdown 渲染）。
 之后的发送：一段普通回答；消息里带“失败”两个字会重试两次后最终失败。手动压缩走 compact-start … compact-end。
 */
 
@@ -87,7 +87,7 @@ async function explore(play: Player) {
   await play.fail(1, '上游服务暂时过载（529 Overloaded），稍后自动重试', 4000)
 
   await play.request(2)
-  await play.stream('text', '好的，我先把测试跑一遍，看看具体是哪个用例挂了。', 22)
+  await play.stream('text', '好的，我先把 `bun test` 跑一遍，看看**具体是哪个用例**挂了。', 22)
   await play.call('call_test', 'shell', { command: 'cd web && bun test', timeout: 60000 })
   const first = await play.end(5120, 64, 3072)
   await play.run('call_test', 'shell', ['bun test v1.4.4', '', 'tests/group.test.ts:', '✓ 正文打断 Process [0.42ms]', '✓ 工具结果按 toolCallId 挂上 [0.18ms]', '✗ 连续重试报错合成一条 ErrorMessage [1.03ms]', '  expect(items.filter(isError)).toHaveLength(1)', '  Expected length: 1', '  Received length: 2', '', ' 11 pass', ' 1 fail', 'Ran 12 tests across 3 files. [214ms]'], '11 pass, 1 fail（tests/group.test.ts：连续重试报错合成一条 ErrorMessage）')
@@ -95,7 +95,7 @@ async function explore(play: Player) {
 
   await play.request(1)
   await play.stream('reasoning', '**读 group 的实现**\n\n失败的是“连续重试报错合成一条”。期望 1 条 ErrorMessage，实际 2 条，说明最终失败那条没有把前面的重试合进去。\n\n需要看 History.group 里处理 role:error 的分支：重试的报错会先作为请求条留在 Process 里，最终失败时应该把它们一起拿出来。\n\n同时搜一下 final 标记在哪些地方用到，确认 core 写进历史的字段名，免得改错地方。', 45)
-  await play.stream('text', '挂的是 `History.group` 合并重试报错的用例：期望 1 条，实际 2 条。我看一下实现，顺便查查 `final` 标记在哪里用到。', 20)
+  await play.stream('text', '挂的是 `History.group` 合并重试报错的用例：**期望 1 条，实际 2 条**。我看一下实现，顺便查查 `final` 标记在哪里用到。', 20)
   await play.call('call_read', 'read_file', { path: 'web/src/components/History.vue', offset: 48, limit: 20 })
   await play.call('call_grep', 'grep', { pattern: 'final', path: 'web/src' })
   const second = await play.end(6480, 120, 5120)
@@ -105,7 +105,7 @@ async function explore(play: Player) {
 
   await play.request(1)
   await play.stream('reasoning', '**原因**\n\n第 50 行直接 push 了 [message]，没有带上 retried，而且前面的重试已经作为请求条留在 Process 里，所以出现两条。应该先把尾部的重试请求条拿出来，再和最终失败合成一条。', 45)
-  await play.stream('text', '找到原因了：最终失败那条没有带上前面的重试，前面的重试也没从过程里拿出来。我改一下。', 20)
+  await play.stream('text', '找到原因了，有两处：\n\n- 最终失败那条**没有带上**前面的重试；\n- 前面的重试也没从过程里拿出来。\n\n我改一下第 50 行。', 20)
   await play.call('call_edit', 'edit_file', { path: 'web/src/components/History.vue', old: "flush()\n      items.push({ kind: 'error', errors: [message] })", new: "if (retried.length) steps.pop()\n      flush()\n      items.push({ kind: 'error', errors: [...retried, message] })" })
   const third = await play.end(7012, 210, 6400)
   await play.run('call_edit', 'edit_file', [], '已修改 web/src/components/History.vue（+2 −1）')
@@ -118,7 +118,7 @@ async function explore(play: Player) {
   await play.step(fourth)
 
   await play.request(1)
-  await play.stream('text', '修好了，测试全部通过（12 pass, 0 fail）。\n\n**原因**：`History.group` 遇到最终失败（`final`）时，只把这一条做成 ErrorMessage，前面自动重试的报错还作为请求条留在过程里，所以界面上出现了两条。\n\n**改动**（`web/src/components/History.vue`）：\n\n```ts\nif (retried.length) steps.pop()   // 尾部的重试请求条拿出来\nflush()\nitems.push({ kind: \'error\', errors: [...retried, message] })\n```\n\n现在连续的重试和最后的失败合成一条，写明“已自动重试 N 次”，末条带继续。', 14)
+  await play.stream('text', "## 修好了\n\n测试全部通过：**12 pass, 0 fail**。问题出在 `History.group` 合并重试报错的分支，前端其他地方没动。\n\n### 原因\n\nagent-core 1.2 的 [request-error 事件](https://github.com/kernel4632/agent#events) 在**还会重试**时带 `retry`，最终失败时写进历史的那条带 `final: true`。`group` 遇到 `final` 时：\n\n1. 只把这一条做成 ErrorMessage，**没带上**前面的重试；\n2. 前面的重试还作为请求条留在 Process 里；\n3. 于是界面上出现了两条报错。\n\n> 预期是一次失败只占一条：写明「已自动重试 N 次」，末尾带继续。\n\n### 改动\n\n| 文件 | 改动 | 行数 |\n| --- | --- | --- |\n| `web/src/components/History.vue` | 最终失败时收回尾部的重试请求条 | +2 −1 |\n| `tests/group.test.ts` | 无需修改，原用例即覆盖 | 0 |\n\n```ts\nif (message.role === 'error') {\n  const retried = tail?.kind === 'request' && tail.errors ? tail.errors : []\n  if (message.request?.final) {\n    if (retried.length) steps.pop()   // 尾部的重试请求条拿出来\n    flush()\n    items.push({ kind: 'error', errors: [...retried, message] })\n  }\n}\n```\n\n### 验证\n\n```bash\ncd web && bun test        # 12 pass, 0 fail\nbun run build             # 类型检查 + 打包\n```\n\n要不要我顺手给**连续失败 3 次以上**的情况补一个用例？", 6)
   await play.step(await play.end(7712, 236, 7040))
 }
 

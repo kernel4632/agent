@@ -66,6 +66,11 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
   --accent: #1084fe; --on-accent: #fff;   /* --grok-bg-accent-primary：发送按钮 */
   --danger: #ff263c; --warn: #d77f02; --success: #05a95f;
   --mono: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
+  /* Markdown 与代码高亮：沿用旧前端 --md-* 的分工，色相收成暖橙/蓝/绿三支，压暗到在 Grok 暖白底上读得清 */
+  --md-heading: #b35c00; --md-strong: #b35c00; --md-em: #8a6a1f; --md-list: #c97a2a;
+  --md-link: #0b6fdc; --md-code: #1d8048; --md-quote: #d9b26a;
+  --md-keyword: #a626a4; --md-function: #2f62c8; --md-string: #3a8433; --md-number: #b35c00;
+  --md-type: #9a6700; --md-variable: #c43b48; --md-operator: #0f7f8c; --md-comment: #8c8a85;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -76,6 +81,10 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
     --text: #e6e5e3; --muted: rgba(230, 229, 227, .65); --faint: rgba(229, 229, 227, .47); --ghost: rgba(232, 232, 225, .13);
     --primary: #e6e5e3; --on-primary: #1e1d1d; --on-accent: #1e1d1d;
     --warn: #ff9800; --success: #00c972;
+    --md-heading: #f2a65a; --md-strong: #f2a65a; --md-em: #e3c47f; --md-list: #c98a4a;
+    --md-link: #5aa9ff; --md-code: #7fd39b; --md-quote: #8a6d3b;
+    --md-keyword: #c792ea; --md-function: #82aaff; --md-string: #a8d68a; --md-number: #f2a65a;
+    --md-type: #e5c07b; --md-variable: #f07c87; --md-operator: #67c6d0; --md-comment: #7d7b77;
     color-scheme: dark;
   }
 }
