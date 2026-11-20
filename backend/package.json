@@ -1,7 +1,7 @@
 {
   "name": "agent-backend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -9,7 +9,9 @@
     "test": "bun test --max-concurrency 1"
   },
   "dependencies": {
-    "@kernel4632/agent-core": "file:../../agent-core"
+    "@kernel4632/agent-core": "file:../../agent-core",
+    "@vue/compiler-sfc": "^3.5.0",
+    "vue": "^3.5.0"
   },
   "devDependencies": {
     "ai": "^7.0.169"

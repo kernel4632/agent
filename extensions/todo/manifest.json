@@ -1,8 +1,7 @@
 {
-  "name": "任务清单",
-  "description": "模型更新任务进度，右侧面板显示当前任务和完成情况",
-  "version": "1.0.0",
-  "requires": [],
-  "backend": "backend.js",
-  "frontend": "frontend/index.js"
+  "name": "todo",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["settings"],
+  "description": "当前会话的任务清单，模型用工具更新，界面同步显示"
 }

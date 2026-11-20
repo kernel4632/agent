@@ -20,12 +20,16 @@ import { markRaw, reactive, type Component } from 'vue'
 import { API } from './api'
 
 export interface PlusItem { id: string; label: string; run: () => void }
+export interface SettingForm { id: string; title: string; fields?: unknown }
+export interface Panel { id: string; title: string; component: Component }
 type Wrap = (original: any) => any
 interface Layer { owner: string; wrap: Wrap }
 
 export const Components = reactive({}) as Record<string, Component>
 export const ToolViews = reactive({}) as Record<string, Component>
 export const PlusMenu = reactive([]) as PlusItem[]
+export const Settings = reactive([]) as SettingForm[]
+export const Panels = reactive([]) as Panel[]
 // 扩展页用：每个扩展的状态，以及它包了哪些点。
 export const Loaded = reactive([]) as { name: string; patched: string[]; error?: string }[]
 
@@ -82,6 +86,8 @@ function scope(name: string, shared: Record<string, unknown>) {
     },
     toolViews: { add(toolName: string, view: Component) { ToolViews[toolName] = markRaw(view); own(() => delete ToolViews[toolName]) } },
     plus: { add(item: PlusItem) { PlusMenu.push(item); own(() => PlusMenu.splice(PlusMenu.indexOf(item), 1)) } },
+    settings: { add(form: SettingForm) { Settings.push(form); own(() => { const index = Settings.indexOf(form); if (index >= 0) Settings.splice(index, 1) }) } },
+    panels: { add(panel: Panel) { const item = { ...panel, component: markRaw(panel.component) }; Panels.push(item); own(() => { const index = Panels.indexOf(item); if (index >= 0) Panels.splice(index, 1) }) } },
     style(css: string) { const element = Object.assign(document.createElement('style'), { textContent: css }); document.head.append(element); own(() => element.remove()) },
   }
 }
@@ -102,6 +108,8 @@ export const Extension = {
   register(table: Record<string, Component>) { for (const [key, value] of Object.entries(table)) Components[key] = markRaw(value) },
   // 按后端给的顺序加载；某个扩展启动失败就撤掉它已做的改动，继续加载下一个。
   async load(shared: Record<string, unknown>) {
+    shared.Panels = Panels
+    shared.Settings = Settings
     const entries = await API.extensions().catch(() => [])
     for (const entry of entries) {
       try { const module = await import(/* @vite-ignore */ entry.url); await module.default(scope(entry.name, shared)) } catch (error) {

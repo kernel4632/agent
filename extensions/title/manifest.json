@@ -1,0 +1,7 @@
+{
+  "name": "title",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["session"],
+  "description": "用第一条用户消息自动给会话起标题，不再另调一次模型"
+}

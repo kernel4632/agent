@@ -1,40 +1,39 @@
 /*
- * todo 扩展后端：注册 update_todo_list 工具，patch Tool.kind/list 补充元数据。
- *
- * 这个文件在 server.js 启动时被 Extension.load() 调用。
- * 通过 ctx 修改框架，加载器记录每一处改动，拔出扩展时逐条恢复。
- */
+任务清单：工具在会话目录写下 todos.json，前端通过 op 读取，并在工具跑完后推送 todo.update。
+onInject 会带上当前会话 id，这样模型调用工具时能写对地方。
+*/
 
-import tool from './tool.js'
-import Tool from '@agent/features/tool.js'
-import AgentCore from '@kernel4632/agent-core'
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+async function load(Store, id) {
+    try { return JSON.parse(await readFile(join(Store.home(), 'agents', id, 'todos.json'), 'utf8')) } catch { return [] }
+}
 
 export default ctx => {
-    // --- patch Tool.build：注入 update_todo_list 工具 ---
-    ctx.patch(Tool, 'build', original => async args => {
-        const result = await original(args)
-        result.tools = AgentCore.tool.merge(result.tools, AgentCore.tool.adopt([tool]))
-        return result
-    })
-
-    // --- patch Tool.kind：update_todo_list 属于 never 类别，不需要审批 ---
-    ctx.patch(Tool, 'kind', original => args => {
-        if (args.toolName === 'update_todo_list') return 'never'
-        return original(args)
-    })
-
-    // --- patch Tool.list：工具不在内置目录里，原列表没有它，要自己补上；ui 直接用 tool.js 里的声明 ---
-    ctx.patch(Tool, 'list', original => async () => {
-        const tools = (await original()).filter(item => item.name !== tool.name)
-        tools.push({
-            name: tool.name,
-            kind: 'never',
-            kindLabel: 'never',
-            kindHint: '',
-            permission: 'ask',
-            configurable: false,
-            ui: tool.ui,
-        })
-        return tools
+    ctx.tool(join(dirname(fileURLToPath(import.meta.url)), 'tools/todo.js'))
+    ctx.op('todo.list', async ({ id }) => ({ items: await load(ctx.Store, id) }))
+    ctx.patch(ctx.Agents, 'callbacks', original => id => {
+        const base = original(id)
+        const onEvent = base.onEvent
+        const onInject = base.onInject
+        return {
+            ...base,
+            onEvent(event) {
+                const result = onEvent?.(event)
+                if (event.type === 'tool-result' && event.result?.toolName === 'todo') {
+                    void load(ctx.Store, id).then(items => ctx.push(id, 'update', { items }))
+                }
+                return result
+            },
+            async onInject(info) {
+                const prior = await onInject?.(info)
+                const items = await load(ctx.Store, id)
+                const lines = items.length ? items.map(item => `- [${item.status === 'done' ? 'x' : ' '}] ${item.id} ${item.content}`).join('\n') : '（空）'
+                const block = `当前会话 id 是 ${id}。维护任务清单时调用 todo 工具并带上 agentId="${id}"。\n当前清单：\n${lines}`
+                return prior ? `${prior}\n\n${block}` : block
+            },
+        }
     })
 }

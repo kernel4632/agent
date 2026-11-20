@@ -9,7 +9,7 @@
 同一会话的写入排成队，避免追加和整份重写互相打断。
 */
 
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -102,5 +102,16 @@ export const Store = {
             const text = history.map(message => JSON.stringify(message)).join('\n')
             await writeFile(join(dir(id), 'history.jsonl'), text ? text + '\n' : '')
         })
+    },
+
+    // 列出已有会话 id（agents 目录下的子目录名）。
+    async list() {
+        try { return (await readdir(join(home(), 'agents'), { withFileTypes: true })).filter(item => item.isDirectory()).map(item => item.name).sort() }
+        catch (error) { if (error.code === 'ENOENT') return []; throw error }
+    },
+
+    // 删掉一个会话的全部文件。
+    async remove(id) {
+        return enqueue(id, () => rm(dir(id), { recursive: true, force: true }))
     },
 }

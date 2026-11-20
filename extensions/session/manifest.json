@@ -1,0 +1,7 @@
+{
+  "name": "session",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["settings"],
+  "description": "多会话、列表、搜索、分组，侧栏挂多个 Agent"
+}

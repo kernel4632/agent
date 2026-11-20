@@ -1,0 +1,6 @@
+{
+  "name": "settings",
+  "version": "0.1.0",
+  "base": 1,
+  "description": "汇总各扩展的配置描述，按类型渲染设置页"
+}

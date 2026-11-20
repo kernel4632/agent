@@ -1,0 +1,7 @@
+{
+  "name": "permission",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["settings"],
+  "description": "按规则审批工具调用：允许、拒绝，或问一次并记住总是允许"
+}

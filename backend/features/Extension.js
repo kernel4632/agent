@@ -13,6 +13,7 @@ const undos = new Map()
 const exposed = new Map()
 const ops = new Map()
 const errors = new Map()
+const paths = []                                                         // 所有扩展登记的工具文件路径
 
 function mark(owner, error) {
     errors.set(owner, String(error))
@@ -70,14 +71,19 @@ export const Extension = {
         const tools = []
         return {
             name,
+            ...hooks.targets,
             patch: (target, key, wrap) => Extension.patch(target, key, wrap, name),
             tool(path) {
                 tools.push(path)
+                paths.push(path)
+                hooks.tool?.(path, name)
                 track(name, () => {
                     const index = tools.indexOf(path)
                     if (index >= 0) tools.splice(index, 1)
+                    const at = paths.indexOf(path)
+                    if (at >= 0) paths.splice(at, 1)
+                    hooks.untool?.(path, name)
                 })
-                hooks.tool?.(path, name)
                 return path
             },
             op(opName, handler) {
@@ -98,6 +104,20 @@ export const Extension = {
         const op = ops.get(name)
         if (!op) { const error = new Error(`没有这个动作：${name}`); error.status = 404; throw error }
         return op.handler(body)
+    },
+
+    // 当前已登记的工具路径（所有扩展合计，拔出时会拿掉）。
+    paths() { return [...paths] },
+
+    // 冲突可见：每个被包的方法现在由谁包着。
+    inspect() {
+        const patches = []
+        for (const [target, table] of chains) {
+            for (const [key, chain] of table) {
+                if (chain.layers.length) patches.push({ method: key, owners: chain.layers.map(layer => layer.owner) })
+            }
+        }
+        return { patches, errors: Object.fromEntries(errors), ops: [...ops.keys()] }
     },
 
     // 撤掉一个扩展的全部改动（逆序），并从登记里拿掉。

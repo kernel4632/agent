@@ -13,6 +13,7 @@ import { Stream } from './Stream.js'
 const agents = new Map()
 const jobs = new Map()
 const reserved = new Set()
+let extras = { tools: () => [] }                                        // 由 server 注入：避免同层 import Extension
 
 function busy() {
     const error = new Error('正在运行')
@@ -55,12 +56,15 @@ async function launch(id, work) {
 }
 
 export const Agents = {
+    bind(next) { extras = { ...extras, ...next } },
+    all() { return [...agents.values()] },
+
     async open(id) {
         const hit = agents.get(id)
         if (hit) return hit
         await Store.ensure(id)
         const [config, meta, history] = await Promise.all([Store.config(), Store.meta(id), Store.history(id)])
-        const agent = Agent.create({ id, history, ...await options(meta, config) })
+        const agent = Agent.create({ id, history, tools: extras.tools(), MCP: config.mcp ?? meta.mcp ?? [], ...await options(meta, config) })
         const current = { agent, model: meta.model || config.models?.chat, effort: meta.effort, models: Models.list(config) }
         agents.set(id, current)
         return current
@@ -81,6 +85,10 @@ export const Agents = {
         return {
             onEvent(event) {
                 const written = event.type === 'message' ? Store.append(id, event.message) : undefined
+                if (event.type === 'step') {
+                    const current = agents.get(id)
+                    if (current) void Store.touch(id, { ratios: current.agent.ratios, contextRatio: current.agent.contextRatio })
+                }
                 Stream.feed(id, event)
                 return written
             },
@@ -148,5 +156,14 @@ export const Agents = {
         jobs.delete(id)
         reserved.delete(id)
         Stream.clear(id)
+    },
+
+    // 删掉会话：先停再从内存和磁盘拿走。
+    async remove(id) {
+        if (jobs.has(id) || reserved.has(id)) busy()
+        const current = agents.get(id)
+        if (current) await current.agent.stop().catch(() => {})
+        Agents.drop(id)
+        await Store.remove(id)
     },
 }

@@ -1,0 +1,7 @@
+{
+  "name": "tools",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["settings"],
+  "description": "基础工具：读改写文件、列目录、命令、抓网页，以及结束本轮的 finish"
+}

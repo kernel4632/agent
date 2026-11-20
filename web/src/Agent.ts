@@ -25,16 +25,18 @@ interface State {
   stopped: boolean
   fault: string
   model: string; effort?: string; models: Snapshot['models']
+  extras: Record<string, unknown>
 }
 
-const state: State = reactive({ history: [], live: null, retry: null, runs: {}, compacting: null, running: false, stopped: false, fault: '', model: '', effort: undefined, models: [] })
+const state: State = reactive({ history: [], live: null, retry: null, runs: {}, compacting: null, running: false, stopped: false, fault: '', model: '', effort: undefined, models: [], extras: {} })
 
 let disconnect: (() => void) | undefined
 const clearLive = () => Object.assign(state, { live: null, retry: null, compacting: null, runs: {} })
 
 function apply(snapshot: Snapshot) {
-  Object.assign(state, { history: snapshot.history, model: snapshot.model, effort: snapshot.effort, models: snapshot.models, running: snapshot.running, stopped: false, fault: '', live: null, runs: {}, compacting: null, retry: snapshot.retryUntil ? { attempt: 0, until: snapshot.retryUntil } : null })
-  for (const event of snapshot.tail ?? []) receive(event)
+  const { history, tail, running, retryUntil, model, effort, models, ...extras } = snapshot as Snapshot & Record<string, unknown>
+  Object.assign(state, { history, model, effort, models, running, stopped: false, fault: '', live: null, runs: {}, compacting: null, retry: retryUntil ? { attempt: 0, until: retryUntil as number } : null, extras })
+  for (const event of tail ?? []) receive(event)
 }
 
 function push(name: string, data: any) {
