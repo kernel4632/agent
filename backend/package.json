@@ -1,0 +1,17 @@
+{
+  "name": "agent-backend",
+  "private": true,
+  "version": "0.1.0",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "start": "bun server.js",
+    "test": "bun test --max-concurrency 1"
+  },
+  "dependencies": {
+    "@kernel4632/agent-core": "file:../../agent-core"
+  },
+  "devDependencies": {
+    "ai": "^7.0.169"
+  }
+}
