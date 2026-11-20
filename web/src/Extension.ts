@@ -31,6 +31,7 @@ export const Loaded = reactive([]) as { name: string; patched: string[]; error?:
 
 const chains = new Map<object, Map<string, { original: any; layers: Layer[] }>>()
 const undo = new Map<string, (() => void)[]>()
+const listeners = new Map<string, Set<(data: unknown) => void>>()
 
 // 按层重新叠出 target[key]：函数每层外面加兜底，组件直接替换。
 function stack(target: any, key: string) {
@@ -70,6 +71,12 @@ function scope(name: string, shared: Record<string, unknown>) {
   return {
     name, shared, api: API,
     patch: (target: object, key: string, wrap: Wrap) => { record.patched.push(key); return patch(target, key, wrap, name) },
+    on(event: string, handler: (data: unknown) => void) {
+      const set = listeners.get(event) ?? new Set()
+      set.add(handler)
+      listeners.set(event, set)
+      own(() => set.delete(handler))
+    },
     components: {
       wrap: (key: string, wrap: (Original: Component) => Component) => { record.patched.push(`组件 ${key}`); return patch(Components, key, wrap, name) },
     },
@@ -89,6 +96,8 @@ function unload(name: string) {
 export const Extension = {
   patch,
   unload,
+  // 把后端扩展推送分发给还在生效的 app.on 监听。
+  dispatch(name: string, data: unknown) { for (const handler of listeners.get(name) ?? []) handler(data) },
   // 本体启动时登记组件：只登记一次，扩展改的是登记后的表项。
   register(table: Record<string, Component>) { for (const [key, value] of Object.entries(table)) Components[key] = markRaw(value) },
   // 按后端给的顺序加载；某个扩展启动失败就撤掉它已做的改动，继续加载下一个。

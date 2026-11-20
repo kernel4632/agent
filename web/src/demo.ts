@@ -1,5 +1,5 @@
 /*
-演示数据源：不连后端，按 agent-core 1.2 的真实事件顺序回放一段对话，用来看界面和截图。
+演示数据源：不连后端，按 agent-core 1.2 的真实事件顺序回放一段对话（含 message），用来看界面和截图。
 它像扩展一样用 patch 换掉 API 的几个方法，页面和 Agent 完全不知道；接真后端时删掉 main.ts 里那一行即可。
 
 第一次发送：一整轮真实的 agent 过程——首次请求半路失败（片段撤掉）、4 秒后重试；之后说几句、跑测试、思考、
@@ -28,10 +28,16 @@ function player(listener: Listener, signal: AbortSignal) {
     signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('stopped')) }, { once: true })
   })
   const emit = (event: Event) => { if (!signal.aborted) listener(event) }
+  const id = () => Math.random().toString(36).slice(2, 12)
   let current = { start: 0, first: 0, compact: undefined as true | undefined, content: [] as any[], calls: [] as ToolCall[], step: 0 }
   return {
     wait,
     emit,
+    message(role: string, content: unknown, extra: Record<string, unknown> = {}) {
+      const message = { id: id(), role, content, ...extra }
+      emit({ type: 'message', message } as Event)
+      return message
+    },
     async request(attempt = 1, compact?: true) {
       await wait(compact ? 300 : 500)
       current = { ...current, start: Date.now(), first: 0, compact, content: [], calls: [] }
@@ -56,9 +62,11 @@ function player(listener: Listener, signal: AbortSignal) {
       await wait(200)
       const request = { model: config.model, start: current.start, first: current.first || undefined, duration: Date.now() - current.start, usage: cacheRead === undefined ? { input, output } : { input, output, cacheRead } }
       emit({ type: 'request-end', request, usage: { inputTokens: input, outputTokens: output, totalTokens: input + output, cacheReadTokens: cacheRead ?? 0, cacheWriteTokens: 0 }, compact: current.compact })
+      if (!current.compact) emit({ type: 'message', message: { id: id(), role: 'assistant', request, content: current.content } } as Event)
       return request
     },
     async fail(attempt: number, message: string, delay?: number) {
+      emit({ type: 'message', message: { id: id(), role: 'error', content: message, request: { kind: 'server', statusCode: 529, model: config.model, compact: current.compact, ...(delay ? { attempt } : { final: true }) } } } as Event)
       emit({ type: 'request-error', attempt, error: { kind: 'server', statusCode: 529, message }, ...(delay ? { retry: { delay, maxTries: 5 } } : {}) })
       if (delay) await wait(delay)
     },
@@ -66,7 +74,9 @@ function player(listener: Listener, signal: AbortSignal) {
       emit({ type: 'tool-run', toolCallId, toolName })
       for (const line of lines) { await wait(320); emit({ type: 'tool-output', toolCallId, stream: 'stdout', data: line + '\n' }) }
       await wait(300)
-      emit({ type: 'tool-result', result: { toolCallId, toolName, input: current.calls.find(call => call.toolCallId === toolCallId)?.input, output: { type: 'text', value } } })
+      const output = { type: 'text' as const, value }
+      emit({ type: 'message', message: { id: id(), role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output }] } } as Event)
+      emit({ type: 'tool-result', result: { toolCallId, toolName, input: current.calls.find(call => call.toolCallId === toolCallId)?.input, output } })
     },
     async step(request: any, results: any[] = []) {
       current.step += 1
@@ -139,21 +149,43 @@ async function compact(play: Player) {
   play.emit({ type: 'compact-start', reason: 'manual' })
   await play.request(1, true)
   await play.stream('text', '用户让修复 bun test 里挂掉的用例；已定位到 History.group 合并重试报错的分支并修好，12 个测试全部通过。', 20)
-  await play.end(7600, 64)
-  play.emit({ type: 'compact-end', reason: 'manual', summary: '用户让修复 bun test 里挂掉的用例；已定位到 History.group 合并重试报错的分支并修好，12 个测试全部通过。', before: 7600, after: 1200, budget: 256000, compactThreshold: 0.8, ratio: 0.6, ratioSource: 'usage', chars: 12000, media: 0, usage: { inputTokens: 7600, outputTokens: 64, totalTokens: 7664, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+  const request = await play.end(7600, 64)
+  const summary = '用户让修复 bun test 里挂掉的用例；已定位到 History.group 合并重试报错的分支并修好，12 个测试全部通过。'
+  play.message('compact', summary, { request })
+  play.emit({ type: 'compact-end', reason: 'manual', summary, before: 7600, after: 1200, budget: 256000, compactThreshold: 0.8, ratio: 0.6, ratioSource: 'usage', chars: 12000, media: 0, usage: { inputTokens: 7600, outputTokens: 64, totalTokens: 7664, cacheReadTokens: 0, cacheWriteTokens: 0 } })
 }
 
-// 回放期间可被 API.stop 打断；打断后像真后端一样直接关闭推送。
-async function replay(listener: Listener, script: (play: Player) => Promise<unknown>) {
+// 回放期间可被 API.stop 打断；事件走 connect 留下的通道，和真后端一样。
+type Hooks = { onSnapshot: (snapshot: any) => void; onEvent: Listener; onPush: (name: string, data: any) => void }
+let hooks: Hooks | null = null
+
+async function replay(script: (play: Player) => Promise<unknown>) {
+  if (!hooks) return
   controller = new AbortController()
-  try { await script(player(listener, controller.signal)) } catch (error) { if (!controller.signal.aborted) throw error }
+  hooks.onPush('run', { state: 'start' })
+  try {
+    await script(player(hooks.onEvent, controller.signal))
+    hooks.onPush('run', { state: 'end' })
+  } catch (error) {
+    hooks.onPush('run', controller.signal.aborted ? { state: 'stopped' } : { state: 'error', message: String(error) })
+    if (!controller.signal.aborted) throw error
+  }
   controller = null
 }
 
-Extension.patch(API, 'load', () => async () => ({ history: [], models, ...config }), 'demo')
+Extension.patch(API, 'connect', () => (_id: string, onSnapshot: Hooks['onSnapshot'], onEvent: Listener, onPush: Hooks['onPush']) => {
+  hooks = { onSnapshot, onEvent, onPush }
+  onSnapshot({ history: [], tail: [], running: false, models, ...config })
+  return () => { hooks = null }
+}, 'demo')
 Extension.patch(API, 'extensions', () => async () => [], 'demo')
 Extension.patch(API, 'configure', () => async (patch: typeof config) => { Object.assign(config, patch) }, 'demo')
 Extension.patch(API, 'stop', () => async () => { controller?.abort() }, 'demo')
-Extension.patch(API, 'compact', () => (listener: Listener) => replay(listener, compact), 'demo')
-Extension.patch(API, 'send', () => ({ input }: { input?: unknown }, listener: Listener) =>
-  replay(listener, play => sent++ === 0 ? explore(play) : reply(play, typeof input === 'string' ? input : '')), 'demo')
+Extension.patch(API, 'compact', () => () => replay(compact), 'demo')
+Extension.patch(API, 'send', () => async ({ input, cut }: { input?: unknown; cut?: string }) => {
+  if (cut) hooks?.onPush('cut', { messageId: cut })
+  await replay(async play => {
+    if (input !== undefined) play.message('user', input)
+    return sent++ === 0 ? explore(play) : reply(play, typeof input === 'string' ? input : '')
+  })
+}, 'demo')

@@ -1,7 +1,7 @@
 {
   "name": "agent-web",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@kernel4632/agent-core": "1.2.0",
+    "@kernel4632/agent-core": "file:../../agent-core",
     "@vitejs/plugin-vue": "^5.2.0",
     "ai": "^7.0.169",
     "typescript": "^5.6.0",
