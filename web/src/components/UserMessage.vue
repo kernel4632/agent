@@ -1,0 +1,68 @@
+<!--
+一条用户消息：靠右的浅色气泡，附件在文字上方。悬停出现“编辑”，改完从这条重发（之后的历史被截掉）。
+调用示例：<component :is="Components.UserMessage" :message="message" />
+-->
+<script setup lang="ts">
+import { computed, nextTick, ref } from 'vue'
+import type { Message } from '@kernel4632/agent-core'
+import { Agent } from '../Agent'
+
+const props = defineProps<{ message: Message }>()
+const editing = ref(false)
+const draft = ref('')
+const field = ref<HTMLTextAreaElement>()
+const parts = computed(() => typeof props.message.content === 'string' ? [{ type: 'text', text: props.message.content }] : props.message.content as any[])
+const text = computed(() => parts.value.filter(part => part.type === 'text').map(part => part.text).join('\n'))
+const files = computed(() => parts.value.filter(part => part.type === 'image' || part.type === 'file'))
+
+async function edit() {
+  draft.value = text.value
+  editing.value = true
+  await nextTick()
+  field.value?.focus()
+}
+function resend() {
+  if (!draft.value.trim()) return
+  editing.value = false
+  Agent.resend(props.message.id, draft.value.trim())
+}
+</script>
+
+<template>
+  <div class="user" :class="{ 'is-editing': editing }">
+    <div v-if="files.length" class="user__files">
+      <template v-for="(file, index) in files" :key="index">
+        <img v-if="file.type === 'image'" class="user__image" :src="String(file.image)" alt="" />
+        <span v-else class="user__file">{{ file.filename ?? '文件' }}</span>
+      </template>
+    </div>
+    <form v-if="editing" class="user__edit" @submit.prevent="resend">
+      <textarea ref="field" v-model="draft" rows="3" @keydown.enter.exact.prevent="resend" @keydown.esc="editing = false" />
+      <div class="user__actions">
+        <button type="button" @click="editing = false">取消</button>
+        <button type="submit" class="is-primary" :disabled="Agent.state.running">重新发送</button>
+      </div>
+    </form>
+    <template v-else>
+      <div v-if="text" class="user__bubble">{{ text }}</div>
+      <button class="user__tool" type="button" :disabled="Agent.state.running" @click="edit">编辑</button>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 8px; }
+.user__bubble { max-width: min(85%, 600px); padding: 10px 16px; border-radius: 24px; background: var(--bubble); color: var(--text); font-size: 16px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.user__files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.user__image { width: 120px; height: 120px; object-fit: cover; border-radius: 16px; border: 1px solid var(--line); }
+.user__file { padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); }
+.user__tool { height: 24px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--faint); font: inherit; font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.user:hover .user__tool:enabled, .user__tool:focus-visible { opacity: 1; }
+.user__tool:hover { color: var(--text); background: var(--soft); }
+.user__edit { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.user__edit textarea { width: 100%; border: 0; outline: 0; resize: none; background: none; color: var(--text); font: inherit; font-size: 16px; line-height: 1.6; }
+.user__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.user__actions button { height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.user__actions .is-primary { border-color: transparent; background: var(--text); color: var(--bg); }
+.user__actions button:disabled { opacity: .4; cursor: default; }
+</style>
