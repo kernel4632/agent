@@ -54,6 +54,7 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
   --bubble: #f0efed;                      /* --surface-user-bubble */
   --soft: rgba(51, 34, 0, .06);           /* --grok-bg-tertiary：代码、输出块 */
   --soft-strong: rgba(38, 26, 0, .08);    /* --grok-bg-secondary：加号按钮 */
+  --soft-hover: rgba(41, 25, 0, .12);     /* 加号按钮悬停 */
   --hover: rgba(39, 20, 0, .05);          /* --grok-bg-hover */
   --line: #e6e5e3;                        /* --grok-border-secondary：输入框边框 */
   --line-soft: #f0efed;                   /* --grok-border-tertiary */
@@ -64,6 +65,7 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
   --ghost: rgba(43, 43, 43, .18);         /* --grok-text-quaternary */
   --primary: #2c2c2b; --on-primary: #fff; /* --grok-bg-primary / --grok-text-on-primary：停止按钮 */
   --accent: #1084fe; --on-accent: #fff;   /* --grok-bg-accent-primary：发送按钮 */
+  --accent-hover: #439bff;                /* 发送按钮悬停 */
   --danger: #ff263c; --warn: #d77f02; --success: #05a95f;
   --mono: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
   /* Markdown 与代码高亮：沿用旧前端 --md-* 的分工，色相收成暖橙/蓝/绿三支，压暗到在 Grok 暖白底上读得清 */
@@ -76,10 +78,10 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1e1d1d; --surface: #191919; --pane: #282726; --bubble: #282726;
-    --soft: rgba(255, 255, 255, .06); --soft-strong: rgba(255, 255, 255, .08); --hover: rgba(255, 255, 255, .06);
+    --soft: rgba(255, 255, 255, .06); --soft-strong: rgba(255, 255, 255, .08); --soft-hover: rgba(255, 255, 255, .12); --hover: rgba(255, 255, 255, .06);
     --line: #383836; --line-soft: rgba(255, 255, 255, .06); --line-strong: #5f5e59;
     --text: #e6e5e3; --muted: rgba(230, 229, 227, .65); --faint: rgba(229, 229, 227, .47); --ghost: rgba(232, 232, 225, .13);
-    --primary: #e6e5e3; --on-primary: #1e1d1d; --on-accent: #1e1d1d;
+    --primary: #e6e5e3; --on-primary: #1e1d1d; --on-accent: #1e1d1d; --accent-hover: #399bff;
     --warn: #ff9800; --success: #00c972;
     --md-heading: #f2a65a; --md-strong: #f2a65a; --md-em: #e3c47f; --md-list: #c98a4a;
     --md-link: #5aa9ff; --md-code: #7fd39b; --md-quote: #8a6d3b;

@@ -2,6 +2,8 @@
 输入框，照 Grok 网页：始终与对话流同宽。单行是 58px 高、两端全圆的胶囊，只有加号、输入、发送；
 一行放不下（或有附件）时加号和发送落到第二行，变成同一圆角的圆角矩形，输入区最高 176px 后在框内滚动；
 一旦变成多行，要清空才收回胶囊，避免来回闪。发送在运行中变停止；输入为空而上次失败或被停下时，它就是“继续”。
+两个圆钮照 grok.com 实测：都是 32px 圆、20px 图标、线宽折合 1.5px，状态切换没有过渡（颜色瞬间变）；
+空着时发送钮是聊天底色的圆（不是透明），有字时实心蓝 #1084fe，悬停变亮。
 加号菜单先是上传文件，扩展可往里追加；拖拽和粘贴的文件也进到文字上方的附件区。
 调用示例：<component :is="Components.Composer" />
 -->
@@ -88,7 +90,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
       @keydown.enter="enter" @paste="paste" />
     <div class="composer__plus">
       <button class="composer__round composer__round--plus" type="button" aria-label="更多" :aria-expanded="menu" @click="menu = !menu">
-        <Icon :icon="Add01Icon" :size="20" />
+        <Icon :icon="Add01Icon" :size="20" :stroke-width="1.8" />
       </button>
       <div v-if="menu" class="composer__menu" role="menu">
         <button type="button" role="menuitem" @click="picker?.click()">
@@ -102,8 +104,8 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
     <button class="composer__round composer__send" :class="`is-${action}`" type="button" :disabled="action === 'idle'"
       :aria-label="{ stop: '停止', send: '发送', continue: '继续', idle: '发送' }[action]" :title="action === 'continue' ? '继续' : undefined" @click="submit">
       <Icon v-if="action === 'stop'" :icon="StopIcon" :size="16" />
-      <Icon v-else-if="action === 'continue'" :icon="PlayIcon" :size="17" />
-      <Icon v-else :icon="ArrowUp02Icon" :size="20" />
+      <Icon v-else-if="action === 'continue'" :icon="PlayIcon" :size="17" :stroke-width="1.8" />
+      <Icon v-else :icon="ArrowUp02Icon" :size="20" :stroke-width="1.8" />
     </button>
   </div>
 </template>
@@ -123,12 +125,13 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
 .composer__field::placeholder { color: var(--faint); }
 .is-stacked .composer__field { height: auto; margin: 2px 0 10px; padding: 0 4px; overflow-y: auto; align-self: start; }
 .composer__plus { grid-area: plus; position: relative; }
-.composer__round { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; transition: background-color .15s, color .15s; }
+.composer__round { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; }
 .composer__round--plus { background: var(--soft-strong); color: var(--text); }
-.composer__round--plus:hover { background: var(--ghost); }
+.composer__round--plus:hover { background: var(--soft-hover); }
 .composer__send { grid-area: send; background: var(--accent); color: var(--on-accent); }
-.composer__send.is-idle { background: transparent; color: var(--faint); cursor: default; }
-.composer__send.is-stop { background: var(--primary); color: var(--on-primary); }
+.composer__send:hover { background: var(--accent-hover); }
+.composer__send.is-idle { background: var(--bg); color: var(--faint); cursor: default; }
+.composer__send.is-stop, .composer__send.is-stop:hover { background: var(--primary); color: var(--on-primary); }
 .composer__send.is-stop :deep(svg *) { fill: currentColor; }
 .composer__menu { position: absolute; bottom: calc(100% + 10px); left: -4px; z-index: 5; min-width: 200px; padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--pane); box-shadow: 0 12px 32px -12px rgba(30, 25, 15, .25); }
 .composer__menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
