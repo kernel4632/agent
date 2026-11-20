@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { ArchiveIcon } from '@hugeicons/core-free-icons'
 import type { CompactMessage } from '@kernel4632/agent-core'
 
@@ -29,7 +29,7 @@ const title = computed(() => live.value ? `正在压缩上下文 · ${reasons[pr
 </template>
 
 <style scoped>
-.compact__line { display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--faint); cursor: pointer; }
+.compact__line { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--faint); cursor: pointer; }
 .compact__line:disabled { cursor: default; }
 .compact__line:hover:enabled { color: var(--muted); }
 .compact__rule { flex: 1; height: 1px; background: var(--line); }

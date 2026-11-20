@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { Alert02Icon, PlayIcon, StopCircleIcon } from '@hugeicons/core-free-icons'
 import type { ErrorMessage } from '@kernel4632/agent-core'
 import { Agent } from '../Agent'
@@ -31,11 +31,11 @@ const reason = computed(() => props.errors.at(-1)?.content ?? '')
 </template>
 
 <style scoped>
-.error__line { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 6px 4px 14px; border-radius: 20px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger); font-size: 14px; }
+.error__line { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 14px; border-radius: 22px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger); font-size: 14px; }
 .is-stopped .error__line { background: var(--soft); color: var(--muted); }
 .error__line > svg { flex: none; }
 .error__title { flex: none; font-weight: 500; }
-.error__reason { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: none; color: inherit; opacity: .75; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.error__continue { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; height: 30px; padding: 0 14px 0 10px; border: 0; border-radius: 15px; background: var(--primary); color: var(--on-primary); font: inherit; font-size: 13px; cursor: pointer; }
+.error__reason { flex: 1; align-self: stretch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: none; color: inherit; opacity: .75; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.error__continue { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; height: 32px; padding: 0 14px 0 10px; border: 0; border-radius: 16px; background: var(--primary); color: var(--on-primary); font: inherit; font-size: 13px; cursor: pointer; }
 .error__detail { margin: 8px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--soft); color: var(--muted); font: 12px/1.6 var(--mono); white-space: pre-wrap; }
 </style>

@@ -52,9 +52,9 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
 </template>
 
 <style scoped>
-.assistant { color: var(--text); font-size: 15px; line-height: 1.75; overflow-wrap: anywhere; }
+.assistant { color: var(--text); font-size: 16px; line-height: 1.75; overflow-wrap: anywhere; }
 /* markstream 在自己的根上重设字号变量，这里改回跟随本组件。 */
-.assistant :deep(.markstream-vue) { --ms-text-body: 15px; --ms-leading-body: 1.75; font-size: inherit; line-height: inherit; content-visibility: visible; contain-intrinsic-size: none; }
+.assistant :deep(.markstream-vue) { --ms-text-body: 16px; --ms-leading-body: 1.75; font-size: inherit; line-height: inherit; content-visibility: visible; contain-intrinsic-size: none; }
 .assistant :deep(:is(.paragraph-node, .list-node, .blockquote, .table-node-wrapper)) { margin: 0 0 14px; }
 .assistant :deep(.paragraph-node) { font-size: inherit; line-height: inherit; }
 /* markstream 每块包两层 .node-slot > .node-content，首尾块的外边距要落到真正的元素上。 */
@@ -62,9 +62,9 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
 .assistant :deep(.node-slot:last-child > .node-content > *) { margin-bottom: 0; }
 /* 标题属于下一段：上方留白大于下方；字号克制，靠颜色和粗细分层。 */
 .assistant :deep(.heading-node) { margin: 22px 0 8px; color: var(--md-heading); font-weight: 600; line-height: 1.45; }
-.assistant :deep(.heading-1) { font-size: 20px; }
-.assistant :deep(.heading-2) { font-size: 18px; }
-.assistant :deep(:is(.heading-3, .heading-4, .heading-5, .heading-6)) { font-size: 15.5px; }
+.assistant :deep(.heading-1) { font-size: 21px; }
+.assistant :deep(.heading-2) { font-size: 19px; }
+.assistant :deep(:is(.heading-3, .heading-4, .heading-5, .heading-6)) { font-size: 16.5px; }
 .assistant :deep(.strong-node) { color: var(--md-strong); font-weight: 600; }
 .assistant :deep(.emphasis-node) { color: var(--md-em); }
 .assistant :deep(.link-node) { color: var(--md-link); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--md-link) 35%, transparent); text-underline-offset: 3px; }
@@ -79,7 +79,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame))
 .assistant :deep(.hr-node) { margin: 20px 0; border: 0; border-top: 1px solid var(--line); }
 /* 表格：外框圆角，格线很浅，表头沿用标题色；窄屏横向滚动。 */
 .assistant :deep(.table-node-wrapper) { max-width: 100%; overflow-x: auto; scrollbar-gutter: auto; border: 1px solid var(--line); border-radius: 12px; }
-.assistant :deep(.table-node) { width: 100%; margin: 0; border: 0; border-collapse: collapse; table-layout: auto; font-size: 14px; line-height: 1.6; background: none; box-shadow: none; }
+.assistant :deep(.table-node) { width: 100%; margin: 0; border: 0; border-collapse: collapse; table-layout: auto; font-size: 14.5px; line-height: 1.6; background: none; box-shadow: none; }
 .assistant :deep(.table-node :is(th, td)) { padding: 8px 14px; border: 0; border-bottom: 1px solid var(--line-soft); color: var(--text); text-align: left; vertical-align: top; }
 .assistant :deep(.table-node th) { background: var(--soft) !important; color: var(--md-heading); font-weight: 600; white-space: nowrap; }
 /* 代码不折行、文字列至少留几个字宽：窄屏宁可整表横向滚动，也不把一列挤成一字一行。 */

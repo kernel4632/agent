@@ -6,7 +6,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { ArrowRight01Icon, CancelCircleIcon, Clock01Icon, Idea01Icon, Wrench01Icon } from '@hugeicons/core-free-icons'
 import { Components } from '../Extension'
 import type { Step } from './History.vue'
@@ -40,12 +40,12 @@ const time = computed(() => {
     <button class="process__head" type="button" :aria-expanded="open" @click="manual = !open">
       <span v-if="live" class="shimmer">{{ doing }}</span>
       <template v-else>
-        <span class="process__fact" title="请求耗时"><Icon :icon="Clock01Icon" :size="15" />{{ time }}</span>
-        <span v-if="count('thinking')" class="process__fact" title="思考段数"><Icon :icon="Idea01Icon" :size="15" />{{ count('thinking') }}</span>
-        <span v-if="count('tool')" class="process__fact" title="工具调用"><Icon :icon="Wrench01Icon" :size="15" />{{ count('tool') }}</span>
-        <span v-if="failed" class="process__fact is-failed" title="失败的工具"><Icon :icon="CancelCircleIcon" :size="15" />{{ failed }}</span>
+        <span class="process__fact" title="请求耗时"><Icon :icon="Clock01Icon" :size="16" />{{ time }}</span>
+        <span v-if="count('thinking')" class="process__fact" title="思考段数"><Icon :icon="Idea01Icon" :size="16" />{{ count('thinking') }}</span>
+        <span v-if="count('tool')" class="process__fact" title="工具调用"><Icon :icon="Wrench01Icon" :size="16" />{{ count('tool') }}</span>
+        <span v-if="failed" class="process__fact is-failed" title="失败的工具"><Icon :icon="CancelCircleIcon" :size="16" />{{ failed }}</span>
       </template>
-      <Icon class="process__chevron" :icon="ArrowRight01Icon" :size="15" />
+      <Icon class="process__chevron" :icon="ArrowRight01Icon" :size="14" />
     </button>
     <div class="process__fold">
       <div class="process__body">
@@ -60,7 +60,7 @@ const time = computed(() => {
 </template>
 
 <style scoped>
-.process__head { display: inline-flex; align-items: center; gap: 12px; height: 28px; margin-left: -8px; padding: 0 8px; border: 0; border-radius: 14px; background: none; color: var(--faint); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.process__head { display: inline-flex; align-items: center; gap: 12px; height: 32px; margin-left: -10px; padding: 0 10px; border: 0; border-radius: 16px; background: none; color: var(--faint); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
 .process__head:hover { background: var(--hover); color: var(--muted); }
 .process__fact { display: inline-flex; align-items: center; gap: 4px; }
 .process__fact.is-failed { color: var(--danger); }

@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import hljs from 'highlight.js/lib/common'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 
 const props = defineProps<{ code: string; language?: string }>()
@@ -26,8 +26,8 @@ async function copy() {
   <figure class="code">
     <figcaption class="code__head">
       <span>{{ language }}</span>
-      <button type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制代码'" @click="copy">
-        <Icon :icon="copied ? Tick02Icon : Copy01Icon" :size="15" />
+      <button class="hit" type="button" :title="copied ? '已复制' : '复制'" :aria-label="copied ? '已复制' : '复制代码'" @click="copy">
+        <Icon :icon="copied ? Tick02Icon : Copy01Icon" :size="16" />
       </button>
     </figcaption>
     <pre><code class="hljs" v-html="html" /></pre>
@@ -36,8 +36,8 @@ async function copy() {
 
 <style scoped>
 .code { margin: 0 0 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.code__head { display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 8px 0 16px; color: var(--faint); font: 12px var(--mono); }
-.code__head button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: inherit; cursor: pointer; }
+.code__head { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 6px 0 16px; color: var(--faint); font: 12px var(--mono); }
+.code__head button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: inherit; cursor: pointer; }
 .code__head button:hover { background: var(--hover); color: var(--text); }
 .code pre { margin: 0; padding: 0 16px 14px; overflow-x: auto; font: 13px/1.65 var(--mono); tab-size: 2; }
 .code :deep(.hljs-comment), .code :deep(.hljs-quote) { color: var(--md-comment); font-style: italic; }

@@ -94,6 +94,9 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
 html, body, #app { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 触摸和鼠标同一套设计：视觉要小的按钮加 .hit，透明外扩 6px，把可点区域补到 ≥40px，外观不变。 */
+.hit { position: relative; }
+.hit::after { content: ''; position: absolute; inset: -6px; border-radius: inherit; }
 .spinner { display: inline-block; flex: none; width: 12px; height: 12px; margin: 2px; border-radius: 50%; border: 1.5px solid var(--ghost); border-top-color: var(--text); animation: spin .8s linear infinite; }
 .shimmer { background: linear-gradient(90deg, var(--faint) 0%, var(--faint) 40%, var(--text) 50%, var(--faint) 60%, var(--faint) 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2s linear infinite; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }

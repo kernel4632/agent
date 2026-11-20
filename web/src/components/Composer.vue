@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Agent } from '../Agent'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { Add01Icon, ArrowUp02Icon, Attachment01Icon, Cancel01Icon, PlayIcon, StopIcon } from '@hugeicons/core-free-icons'
 import { PlusMenu } from '../Extension'
 
@@ -83,14 +83,14 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
       <div v-for="(item, index) in files" :key="index" class="composer__file" :class="{ 'is-image': item.url }">
         <img v-if="item.url" :src="item.url" alt="" />
         <span v-else>{{ item.file.name }}</span>
-        <button type="button" aria-label="移除" @click="remove(index)"><Icon :icon="Cancel01Icon" :size="12" /></button>
+        <button class="hit" type="button" aria-label="移除" @click="remove(index)"><Icon :icon="Cancel01Icon" :size="14" /></button>
       </div>
     </div>
     <textarea ref="field" v-model="draft" class="composer__field" rows="1" placeholder="有什么想做的？" aria-label="输入消息"
       @keydown.enter="enter" @paste="paste" />
     <div class="composer__plus">
-      <button class="composer__round composer__round--plus" type="button" aria-label="更多" :aria-expanded="menu" @click="menu = !menu">
-        <Icon :icon="Add01Icon" :size="20" :stroke-width="1.8" />
+      <button class="composer__round composer__round--plus hit" type="button" aria-label="更多" :aria-expanded="menu" @click="menu = !menu">
+        <Icon :icon="Add01Icon" :size="20" />
       </button>
       <div v-if="menu" class="composer__menu" role="menu">
         <button type="button" role="menuitem" @click="picker?.click()">
@@ -101,11 +101,11 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
       </div>
       <input ref="picker" type="file" multiple hidden @change="add(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
     </div>
-    <button class="composer__round composer__send" :class="`is-${action}`" type="button" :disabled="action === 'idle'"
+    <button class="composer__round composer__send hit" :class="`is-${action}`" type="button" :disabled="action === 'idle'"
       :aria-label="{ stop: '停止', send: '发送', continue: '继续', idle: '发送' }[action]" :title="action === 'continue' ? '继续' : undefined" @click="submit">
       <Icon v-if="action === 'stop'" :icon="StopIcon" :size="16" />
-      <Icon v-else-if="action === 'continue'" :icon="PlayIcon" :size="17" :stroke-width="1.8" />
-      <Icon v-else :icon="ArrowUp02Icon" :size="20" :stroke-width="1.8" />
+      <Icon v-else-if="action === 'continue'" :icon="PlayIcon" :size="17" />
+      <Icon v-else :icon="ArrowUp02Icon" :size="20" />
     </button>
   </div>
 </template>
@@ -120,7 +120,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
 .composer__file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer__file.is-image { width: 56px; padding: 0; overflow: hidden; }
 .composer__file img { width: 100%; height: 100%; object-fit: cover; }
-.composer__file button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer; }
+.composer__file button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer; }
 .composer__field { grid-area: field; align-self: center; height: 24px; max-height: 176px; padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; background: none; color: var(--text); font: inherit; font-size: 15px; line-height: 24px; }
 .composer__field::placeholder { color: var(--faint); }
 .is-stacked .composer__field { height: auto; margin: 2px 0 10px; padding: 0 4px; overflow-y: auto; align-self: start; }
@@ -134,7 +134,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
 .composer__send.is-stop, .composer__send.is-stop:hover { background: var(--primary); color: var(--on-primary); }
 .composer__send.is-stop :deep(svg *) { fill: currentColor; }
 .composer__menu { position: absolute; bottom: calc(100% + 10px); left: -4px; z-index: 5; min-width: 200px; padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--pane); box-shadow: 0 12px 32px -12px rgba(30, 25, 15, .25); }
-.composer__menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.composer__menu button { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .composer__menu button:hover { background: var(--hover); }
 .composer__menu svg { color: var(--muted); }
 </style>

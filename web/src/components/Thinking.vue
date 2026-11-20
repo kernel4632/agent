@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import MarkdownRender from 'markstream-vue'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { ArrowRight01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 
 const props = defineProps<{ text: string; live: boolean }>()
@@ -41,15 +41,15 @@ watch(() => props.text, async () => {
 </template>
 
 <style scoped>
-.thinking__head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--faint); text-align: left; cursor: pointer; }
+.thinking__head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; font: inherit; font-size: 13.5px; color: var(--faint); text-align: left; cursor: pointer; }
 .thinking__head > svg { flex: none; }
 .thinking__head:hover { color: var(--muted); }
 .thinking__summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.thinking__chevron { opacity: 0; transition: transform .2s ease, opacity .15s; }
+.thinking__chevron { opacity: .6; transition: transform .2s ease, opacity .15s; }
 .thinking__head:hover .thinking__chevron, .is-full .thinking__chevron { opacity: 1; }
 .is-full .thinking__chevron { transform: rotate(90deg); }
-.thinking__body { margin: 0 0 8px 26px; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.thinking__body :deep(.markstream-vue) { --ms-text-body: 13px; --ms-leading-body: 1.7; font-size: inherit; line-height: inherit; }
+.thinking__body { margin: 0 0 8px 26px; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+.thinking__body :deep(.markstream-vue) { --ms-text-body: 13.5px; --ms-leading-body: 1.7; font-size: inherit; line-height: inherit; }
 .thinking__body :deep(.paragraph-node) { margin: 0 0 6px; font-size: inherit; line-height: inherit; }
 .thinking__body :deep(.strong-node) { font-weight: 550; color: var(--text); }
 .thinking__body :deep(.inline-code) { padding: 0 4px; border-radius: 5px; background: var(--soft); color: inherit; font: .9em var(--mono); }

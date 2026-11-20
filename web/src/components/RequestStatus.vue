@@ -6,7 +6,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { AiBrain01Icon, Alert02Icon, ArchiveIcon, ArrowDown02Icon, ArrowUp02Icon, Clock01Icon, Database01Icon, FlashIcon } from '@hugeicons/core-free-icons'
 import type { Step } from './History.vue'
 
@@ -47,10 +47,10 @@ const problem = computed(() => props.step.retry
 
 <template>
   <div class="request" :class="`is-${tone}`">
-    <button class="request__line" type="button" :disabled="!errors.length" @click="open = !open">
+    <button class="request__line" type="button" :disabled="!errors.length" :title="compact ? '压缩请求' : '模型请求'" @click="open = !open">
       <span v-if="tone === 'live'" class="spinner" />
       <Icon v-else-if="errors.length" :icon="Alert02Icon" :size="16" />
-      <Icon v-else :icon="compact ? ArchiveIcon : AiBrain01Icon" :size="16" :title="compact ? '压缩请求' : '模型请求'" />
+      <Icon v-else :icon="compact ? ArchiveIcon : AiBrain01Icon" :size="16" />
       <template v-if="errors.length && !step.live">
         <span class="request__problem">{{ problem }}</span>
         <span class="request__reason">{{ errors.at(-1)!.content }}</span>
@@ -65,13 +65,13 @@ const problem = computed(() => props.step.retry
 </template>
 
 <style scoped>
-.request__line { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--faint); text-align: left; cursor: default; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.request__line { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--faint); text-align: left; cursor: default; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .request__line:enabled { cursor: pointer; }
 .request__line > svg { flex: none; }
 .is-done .request__line, .is-live .request__line { flex-wrap: wrap; }
 .request__model { flex: none; color: var(--muted); }
 .is-live .request__model { color: var(--text); }
-.request__fact { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.request__fact { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .request__problem { flex: none; color: var(--warn); }
 .is-retry > .request__line > svg, .is-failed > .request__line > svg { color: var(--warn); }
 .request__reason { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { RequestRecord } from '@kernel4632/agent-core'
-import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import Icon from './Icon.vue'
 import { AiBrain01Icon, ArrowDown01Icon, ArrowDown02Icon, ArrowUp02Icon, Database01Icon, Idea01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Agent } from '../Agent'
 
@@ -81,31 +81,32 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', close))
 </template>
 
 <style scoped>
-.stats { position: relative; display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 8px 0 10px; font-size: 12.5px; color: var(--faint); }
+.stats { position: relative; display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 8px 0 10px; font-size: 13px; color: var(--faint); }
 .stats button { font: inherit; color: inherit; cursor: pointer; }
-.stats__model, .stats__context { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 0; border-radius: 14px; background: none; }
+.stats__model, .stats__context { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 16px; background: none; }
 .stats__model:hover, .stats__context:hover, [aria-expanded='true'] { background: var(--hover); color: var(--text); }
-.stats__model { margin-left: -8px; color: var(--muted); }
+.stats__model { flex: none; white-space: nowrap; margin-left: -10px; color: var(--muted); }
 .stats__effort { display: inline-flex; align-items: center; gap: 2px; color: var(--faint); }
-.stats__usage { display: flex; gap: 10px; margin-left: auto; overflow: hidden; white-space: nowrap; color: var(--faint); font-variant-numeric: tabular-nums; }
-.stats__usage > span { display: inline-flex; align-items: center; gap: 2px; }
-.stats__context { margin-right: -8px; font-variant-numeric: tabular-nums; }
+/* 用量放不下时整项换到被裁掉的第二行，宁可少显示一项，也不把数字截一半。 */
+.stats__usage { display: flex; flex: 1; flex-wrap: wrap; justify-content: flex-end; gap: 0 10px; height: 20px; min-width: 0; margin-left: auto; overflow: hidden; white-space: nowrap; color: var(--faint); font-variant-numeric: tabular-nums; }
+.stats__usage > span { display: inline-flex; align-items: center; gap: 3px; }
+.stats__context { flex: none; margin-right: -10px; font-variant-numeric: tabular-nums; }
 .stats__panel { position: absolute; bottom: calc(100% + 6px); z-index: 5; width: 280px; padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--pane); box-shadow: 0 12px 32px -12px rgba(30, 25, 15, .25); }
 .stats__panel--left { left: 0; }
 .stats__panel--right { right: 0; padding: 14px 16px 16px; }
-.stats__option { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text) !important; font-size: 14px !important; }
+.stats__option { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text) !important; font-size: 14.5px !important; }
 .stats__option:hover { background: var(--hover); }
 .stats__efforts { margin-top: 6px; padding: 10px 12px 8px; border-top: 1px solid var(--line); }
 .stats__efforts > span { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
 .stats__segment { display: flex; padding: 3px; border-radius: 12px; background: var(--soft); }
-.stats__segment button { flex: 1; height: 28px; border: 0; border-radius: 9px; background: none; font-size: 13px; color: var(--muted); }
+.stats__segment button { flex: 1; height: 32px; border: 0; border-radius: 9px; background: none; font-size: 13px; color: var(--muted); }
 .stats__segment .is-on { background: var(--pane); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
 .stats__row { display: flex; justify-content: space-between; margin: 0 0 10px; font-size: 13px; }
 .stats__row b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
 .stats__bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
 .stats__bar i { display: block; height: 100%; border-radius: 3px; background: var(--text); }
 .stats__hint { margin: 10px 0 14px; font-size: 12px; color: var(--faint); }
-.stats__compact { width: 100%; height: 36px; border: 0; border-radius: 18px; background: var(--primary); color: var(--on-primary) !important; font-size: 13.5px !important; }
+.stats__compact { width: 100%; height: 40px; border: 0; border-radius: 20px; background: var(--primary); color: var(--on-primary) !important; font-size: 13.5px !important; }
 .stats__compact:hover:enabled { opacity: .88; }
 .stats__compact:disabled { opacity: .45; cursor: default !important; }
 </style>
