@@ -27,10 +27,9 @@
 
 | 改了哪一半 | 改哪个文件 |
 | --- | --- |
-| 后端（`server/`） | `server/package.json` 的 `version` |
-| 前端（`frontend/`） | `frontend/package.json` 的 `version` |
+| 后端（`backend/`） | `backend/package.json` 的 `version` |
+| 前端（`web/`） | `web/package.json` 的 `version` |
 | 两边都改了 | 两个都改 |
-| CLI（`cli/`） | `cli/VERSION` |
 
 改哪一位：
 
@@ -43,7 +42,7 @@
 
 ## 服务进程由当前 harness 管理：默认不重启，用户明确要求时可以
 
-这个项目的 server 和 frontend 由当前 DSH harness 管理。没有用户明确要求时，不要主动杀进程或重启；需要新代码生效，先提示用户重启，或用独立 `AGENT_HOME`/端口做隔离验证。
+这个项目的 backend 和 web 若由当前环境托管，没有用户明确要求时不要主动杀进程或重启；需要新代码生效，先提示用户重启，或用独立 `AGENT_HOME`/端口做隔离验证。
 
 用户明确说“重启服务”时，可以按下面步骤执行，但不要制造第二个实例：
 
@@ -79,19 +78,14 @@
 改完代码必须跑对应的一半，通过才算完成：
 
 ```bash
-cd server && bun test        # 后端：真实启动服务端 + 真实 HTTP 请求，用临时数据目录
-cd frontend && bun run build # 前端：能构建通过
-cd cli && go test ./...      # CLI：HTTP/SSE 协议和终端交互
+cd backend && bun test       # 后端 mock 测试（默认不打真实模型）
+cd web && bun run check      # 前端类型检查
+cd web && bun run build      # 前端能构建通过
 ```
 
 `bun test` 全量要跑二三十秒以上，用后台跑再读日志，别同步等。
 
-CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test/agent.exe`（Linux/macOS 无 `.exe`），再在 `cli/` 执行 `bun test tests/integration.test.js --timeout 30000`，用真实后端验证。
-
-后端测试覆盖每一个接口，包括填错参数的情况（空标题、不存在的会话、不认识的决定）。
-新加接口或改动行为时，在同一次提交里把对应的测试补上。
-
-前端还有一套 Playwright 界面检查（`cd frontend && bun run test:ui`），它不是每次必跑，改到界面时手动跑一次。
+新加接口或改动行为时，在同一次提交里把对应的测试补上。日常测试只用 mock；一次真实模型请求需显式 `RUN_REAL=1 bun test tests/real.send.test.js`。
 
 ## 临时文件不要放在根目录
 
@@ -113,9 +107,9 @@ CLI 改了请求或运行流程时，先构建 `cli/cmd/agent` 到 `tmp/cli-test
 | 位置 | 作用 |
 | --- | --- |
 | `server/README.md` | 前端怎么对接（含 SSE 事件表、权限规则、错误码） |
-| `frontend/src/utils/api.js` | 前端实际发出的请求 |
+| `web/src/api.ts` | 前端实际发出的请求 |
 
-路由本身只在 `server/server.js` 里写一次：`bun test` 会把它和前端调用的路径对账（`frontend/tests/server-routes.js` 直接解析这个文件），另有一份手写接口清单只会漂移。
+新后端的路由只在 `backend/server.js` 里写一次。旧的 `server/` 契约文档仅作历史参考。
 
 改了接口路径、请求字段、响应字段或状态码时，如果需要前端配合改代码，就在提交说明里写清楚改了什么、前端要动哪里。
 

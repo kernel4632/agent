@@ -1,16 +1,16 @@
 # Agent
 
-以会话为中心的个人 Agent 软件。用户在一个会话里持续对话，当前目录只是会话的一个属性；本仓库提供服务端、网页界面和 CLI 客户端。
+以会话为中心的个人 Agent 软件。用户在一个会话里持续对话；本仓库提供新后端（`backend/`）和新网页（`web/`），以及一组内置扩展。旧的 `server/` 仍留在仓库里，尚未删除。
 
 ## 现在有什么
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
-| `server/` | 可用 | Bun + Elysia 服务端，`bun test` 覆盖每条路由 |
-| `frontend/` | 可用 | Vue 3 界面，`bun run build` 能构建 |
-| `design/` | 素材 | Figma 导出的设计 token 和组件数据 |
+| `backend/` | 可用（0.2.0） | Bun.serve + agent-core 1.2.1，扩展加载器和内置扩展 |
+| `web/` | 可用（0.6.0） | Vue 3 对话页，经 `/api` 连到新后端 |
+| `extensions/` | 可用 | 会话、设置、基础工具、权限、技能、任务清单、MCP、自动标题 |
+| `server/` | 旧实现，仍保留 | 以前的 Elysia 服务端 |
 | 桌面端 | 还没写 | 计划用 Go + Wails，仓库里还没有代码 |
-| `cli/` | 可用 | Go + Bubble Tea。交互界面有 Markdown、工具摘要、任务和用量；支持回退、文件改动、模型试连、MCP 和技能开关。见 [CLI 使用说明](cli/README.md) |
 
 ## 功能
 
@@ -100,40 +100,40 @@ Agent 循环（模型请求、工具执行、上下文压缩）由独立发布�
 
 ## macOS
 
-支持本机后端、浏览器界面和 CLI，安装、启动及验证见 [macOS 使用说明](docs/MACOS.md)。
+本机安装与启动见 [macOS 使用说明](docs/MACOS.md)。
 
 ## 跑起来
 
-```powershell
-cd server
+先准备 `~/.agent/config.json`（供应商、模型和 API 密钥），然后开两个终端：
+
+```sh
+cd backend
 bun install
 bun start
 ```
 
-服务默认在 `http://localhost:3000`，然后：
+服务默认在 `http://127.0.0.1:3000`。再开界面：
 
-```powershell
-cd frontend
+```sh
+cd web
 bun install
-bun run dev
+bun dev
 ```
 
-界面在 `http://127.0.0.1:5173`，会把 `/api` 转发到后端。
-数据目录和模型配置怎么填见 [`server/README.md`](server/README.md)。
+界面在 `http://127.0.0.1:5180`，会把 `/api` 转发到后端。内置扩展随后端启动加载。演示模式可打开 `http://127.0.0.1:5180/?demo`，不连后端。
 
 ## 验证
 
 ```text
-cd server && bun test          # 后端：真实启动服务端 + 真实 HTTP 请求，用临时数据目录
-cd frontend && bun run test    # 前端逻辑测试
-cd frontend && bun run build   # 前端能构建通过
-cd cli && go test ./...        # CLI：HTTP/SSE 协议和终端交互
+cd backend && bun test         # mock 测试（默认不会打真实模型）
+cd web && bun run check        # 前端类型检查
+cd web && bun run build        # 前端能构建通过
 ```
 
-界面检查（Playwright）改到界面时手动跑：
+一次真实模型请求（需本机密钥，且会消耗额度）：
 
 ```text
-cd frontend && bun run test:ui
+cd backend && RUN_REAL=1 bun test tests/real.send.test.js
 ```
 
 ## 仓库约定

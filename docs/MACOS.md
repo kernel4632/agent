@@ -1,6 +1,8 @@
 # macOS 使用与验证
 
-项目提供本机 Bun 后端、浏览器界面和 Go CLI。桌面应用尚未实现，没有 `.app` 或 DMG 安装包。
+> 2026-11-20：旧的 `frontend/` 和 `cli/` 已删除。当前用 `backend/` + `web/`。
+
+项目提供本机 Bun 后端和浏览器界面。桌面应用尚未实现，没有 `.app` 或 DMG 安装包。
 
 ## 安装和启动
 
@@ -14,20 +16,20 @@ bun --version
 在仓库根目录安装锁定的依赖：
 
 ```sh
-(cd server && bun install --frozen-lockfile)
-(cd frontend && bun install --frozen-lockfile)
+(cd backend && bun install)
+(cd web && bun install)
 ```
 
 分别在两个终端启动：
 
 ```sh
-cd server
+cd backend
 bun start
 ```
 
 ```sh
-cd frontend
-bun run dev
+cd web
+bun dev
 ```
 
 打开 http://127.0.0.1:5173，在设置中配置自己的模型服务。后端默认端口为 3000，可通过 `PORT` 改变；前端代理通过 `AGENT_SERVER_URL` 指向对应后端，例如：
@@ -36,14 +38,15 @@ bun run dev
 # 第一个终端，从仓库根目录执行
 AGENT_HOME="$PWD/tmp/mac-data" PORT=3101 bun run --cwd server start
 # 第二个终端，从仓库根目录执行
-AGENT_SERVER_URL=http://127.0.0.1:3101 bun run --cwd frontend dev --port 5174 --strictPort
+PORT=3101 bun --cwd backend start
+# 另开终端：cd web && bun dev
 ```
 
 上述隔离启动使用 `tmp/mac-data`；日常启动的默认数据目录为 `~/.agent`。全局技能为 `~/.agents/skills`，会话项目技能为 `.agent/skills`。指定 `AGENT_HOME` 后，全局技能会改用该目录下的 `skills/`。
 
 ## CLI
 
-安装 `cli/go.mod` 所需版本或更新的 Go。从仓库根目录构建并连接已启动的服务：
+（CLI 已从本仓库移除。）原先需要安装 Go 并从仓库根目录构建客户端，现已不再适用：
 
 ```sh
 mkdir -p tmp/cli-test
@@ -68,13 +71,11 @@ macOS 二进制没有 `.exe` 后缀。`go install ./cmd/agent` 也可以安装�
 
 ```sh
 (cd server && bun test)
-(cd frontend && bun run test && bun run build)
+(cd web && bun run check && bun run build)
 (cd cli && go test ./...)
 (cd cli && go build -o ../tmp/cli-test/agent ./cmd/agent)
 (cd cli && bun test tests/integration.test.js --timeout 30000)
-(cd frontend && bunx playwright install chromium webkit)
-(cd frontend && bun run test:ui)
-(cd frontend && bun run test:live)
+(cd backend && bun test)
 ```
 
 浏览器测试包含 Chromium 桌面/移动视口和 WebKit；WebKit 用于覆盖 Safari 引擎行为，不等同于对所有 Safari 版本的验证。默认真实联调使用 3001/4175 端口，界面测试使用 4174；运行前确保这些端口未被其他服务占用。

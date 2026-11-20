@@ -1,7 +1,0 @@
-.prompts-settings { min-width: 0; }
-.prompts-control { display: grid; width: 100%; min-width: 0; gap: 6px; }
-.prompts-count { color: var(--la-muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
-
-@media (max-width: 767px) {
-  .prompts-control { width: 100%; }
-}
