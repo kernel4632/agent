@@ -26,8 +26,11 @@ import Stats from './components/Stats.vue'
 
 ;(globalThis as any).__agentVue__ = Vue
 Extension.register({ App, History, UserMessage, AssistantMessage, CodeBlock, Thinking, ToolCall, Process, RequestStatus, ErrorMessage, CompactMessage, Composer, Stats })
-if (new URLSearchParams(location.search).has('demo')) await import('./demo')
+const demo = new URLSearchParams(location.search).has('demo')
+const shared: Record<string, unknown> = { Agent, API, History: Grouping, Components }
+if (demo) await import('./demo')
 Agent.push = Extension.dispatch
-Agent.connect('main')
-await Extension.load({ Agent, API, History: Grouping, Components })
+if (demo) Agent.connect('main')
+await Extension.load(shared)
+if (!demo && !shared.shell) Agent.connect('main')
 createApp({ render: () => h(Components.App) }).mount('#app')

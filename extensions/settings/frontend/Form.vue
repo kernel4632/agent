@@ -2,9 +2,9 @@
 按字段 type 用原生控件拼出一份设置表。json 用多行文本，失焦时再解析。
 -->
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
-const props = defineProps({ api: { type: Object, required: true } })
+const props = defineProps({ api: { type: Object, required: true }, ids: { type: Array, default: undefined } })
 const forms = ref([])
 const values = reactive({})
 const error = ref('')
@@ -37,6 +37,8 @@ function parse(key, text) {
     try { change(key, JSON.parse(text)) } catch (item) { error.value = item instanceof Error ? item.message : String(item) }
 }
 
+const shown = computed(() => props.ids?.length ? forms.value.filter(item => props.ids.includes(item.id)) : forms.value)
+
 onMounted(load)
 watch(() => props.api, load)
 </script>
@@ -44,7 +46,7 @@ watch(() => props.api, load)
 <template>
   <section class="form">
     <p v-if="error" class="form__error">{{ error }}</p>
-    <article v-for="form in forms" :key="form.id" class="form__block">
+    <article v-for="form in shown" :key="form.id" class="form__block">
       <h3 class="form__title">{{ form.title }}</h3>
       <label v-for="field in form.fields" :key="field.key" class="form__row">
         <span class="form__label">{{ field.label }}</span>

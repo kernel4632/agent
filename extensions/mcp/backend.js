@@ -34,9 +34,4 @@ export default ctx => {
         await write(current.agent.MCP.list)
         return result
     })
-    ctx.use('settings')?.add({
-        id: 'mcp',
-        title: 'MCP',
-        fields: () => [{ key: 'mcp', type: 'json', label: 'MCP 连接列表（name / url / transport / headers / enabled）' }],
-    })
 }

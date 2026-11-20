@@ -27,7 +27,7 @@ export interface ExtensionEntry { name: string; url: string }
 export type Listener = (event: Event) => void
 export type Push = (name: string, data: any) => void
 
-let current = 'main'
+let current = ''
 const base = (id: string, path: string) => `/api/agent/${id}${path}`
 
 async function post<T>(path: string, body: unknown = {}): Promise<T> {

@@ -41,7 +41,7 @@ describe('内置扩展', () => {
         const { model } = script([{ text: 'ok' }])
         await boot(model)
         const names = Loader.list().map(item => item.name)
-        for (const name of ['settings', 'session', 'tools', 'permission', 'skill', 'todo', 'mcp', 'title']) {
+        for (const name of ['shell', 'settings', 'session', 'tools', 'permission', 'skill', 'todo', 'mcp', 'title']) {
             const item = Loader.list().find(one => one.name === name)
             expect(item, name).toBeDefined()
             expect(item.error, `${name}: ${item?.error}`).toBeUndefined()

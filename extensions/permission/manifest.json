@@ -1,7 +1,8 @@
 {
   "name": "permission",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "base": 1,
+  "requires": ["shell"],
   "after": ["settings"],
-  "description": "按规则审批工具调用：允许、拒绝，或问一次并记住总是允许"
+  "description": "按规则审批工具调用；询问条画在对话里，规则在设置页"
 }

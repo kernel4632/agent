@@ -29,7 +29,8 @@ async function toggle(item, enabled) {
     const id = props.app.api.id()
     error.value = ''
     try {
-        await props.app.api.op(enabled ? 'mcp.open' : 'mcp.close', { id, name: item.name })
+        if (id) await props.app.api.op(enabled ? 'mcp.open' : 'mcp.close', { id, name: item.name })
+        else await save(list.value.map(one => one.name === item.name ? { ...one, enabled } : one))
         await load()
     } catch (err) { error.value = err instanceof Error ? err.message : String(err) }
 }

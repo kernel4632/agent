@@ -1,7 +1,7 @@
 {
   "name": "session",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "base": 1,
-  "after": ["settings"],
-  "description": "多会话、列表、搜索、分组，侧栏挂多个 Agent"
+  "requires": ["shell"],
+  "description": "把已打开的会话挂到顶栏标签；会话列表在主页，支持搜索、分组、新建和删除"
 }

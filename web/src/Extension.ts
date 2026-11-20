@@ -3,7 +3,8 @@
 
 - 组件表 Components：本体启动时登记；扩展换掉某一项或在外面包一层，多个扩展按加载顺序叠，后加载的在外层。
 - ToolViews：按工具名替换 ToolCall 的内容区（diff、shell 实时输出等）。
-- PlusMenu：加号菜单里追加的项。
+- PlusMenu：加号菜单的追加项。原版加号只负责上传文件；设置、会话、任务等不要再往这里塞，改走 app.shell。
+- app.shell：由 shell 扩展挂上，提供 tabs / header / pages / bar / overlay。没有壳时为 undefined。
 - patch：包任意导出对象上的方法（Agent.send、History.group……），每层外面有兜底，扩展抛错就跳过这一层。
 每个扩展做过的改动都记在它名下，拔出时整体撤掉，再从原方法重新叠。
 
@@ -12,7 +13,7 @@
       app.patch(app.shared.History, 'group', original => state => original(state).filter(...))
       app.components.wrap('ToolCall', Original => defineComponent(...))
       app.toolViews.add('shell', ShellView)
-      app.plus.add({ id: 'workspace', label: '选择工作区', run: () => ... })
+      app.shell.pages.add({ id: 'home', component: Home })
     }
 */
 
@@ -85,6 +86,7 @@ function scope(name: string, shared: Record<string, unknown>) {
       wrap: (key: string, wrap: (Original: Component) => Component) => { record.patched.push(`组件 ${key}`); return patch(Components, key, wrap, name) },
     },
     toolViews: { add(toolName: string, view: Component) { ToolViews[toolName] = markRaw(view); own(() => delete ToolViews[toolName]) } },
+    get shell() { return shared.shell as any },
     plus: { add(item: PlusItem) { PlusMenu.push(item); own(() => PlusMenu.splice(PlusMenu.indexOf(item), 1)) } },
     settings: { add(form: SettingForm) { Settings.push(form); own(() => { const index = Settings.indexOf(form); if (index >= 0) Settings.splice(index, 1) }) } },
     panels: { add(panel: Panel) { const item = { ...panel, component: markRaw(panel.component) }; Panels.push(item); own(() => { const index = Panels.indexOf(item); if (index >= 0) Panels.splice(index, 1) }) } },

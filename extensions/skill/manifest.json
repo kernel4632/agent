@@ -1,7 +1,8 @@
 {
   "name": "skill",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "base": 1,
+  "requires": ["shell"],
   "after": ["settings"],
-  "description": "扫描技能目录，把说明注入对话，并用工具按需读取全文"
+  "description": "扫描技能目录，在设置页里管理，并用工具按需读取全文"
 }

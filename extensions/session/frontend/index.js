@@ -1,16 +1,39 @@
 /*
-会话前端：用 Shell 包住 App，侧栏挂多个 Agent。标题变更（自动或手动）时刷新列表。
+会话：向壳登记「会话」入口、标签栏的 +，以及会话列表整页。
+打开一条会话只是多一个标签并跳到 #/s/<id>；关掉标签不会删除会话。
 */
 
-import { defineComponent, h } from 'vue'
-import Shell from './Shell.vue'
+import Home from './Home.vue'
 
-export default app => {
-    app.components.wrap('App', Original => defineComponent({
-        setup: () => () => h(Shell, { app, original: Original }),
-    }))
-    app.plus.add({ id: 'session-new', label: '新会话', run: async () => {
-        const item = await app.api.op('session.create')
-        location.hash = `#/s/${item.id}`
-    } })
+export default async app => {
+    const shell = app.shell
+    if (!shell) return
+
+    const rename = shell.tabs.rename
+    shell.tabs.rename = (id, title) => {
+        rename(id, title)
+        void app.api.op('session.rename', { id, title })
+    }
+
+    shell.bar.add({ id: 'home', place: 'start', label: '会话', run: () => shell.go('#/') })
+    shell.bar.add({
+        id: 'new',
+        place: 'tabs',
+        label: '+',
+        title: '新会话',
+        run: async () => {
+            const item = await app.api.op('session.create')
+            shell.tabs.open(item.id, item.title)
+        },
+    })
+    shell.pages.add({ id: 'home', title: '会话', component: Home })
+
+    app.on('session.rename', data => {
+        if (data?.id && data.title) rename(data.id, data.title)
+    })
+
+    await shell.tabs.restore(async id => {
+        const list = await app.api.op('session.list')
+        return list.find(item => item.id === id)
+    })
 }

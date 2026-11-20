@@ -1,8 +1,8 @@
-import { defineComponent, h } from 'vue'
+/*
+权限询问画在壳的内容浮层里，不另外包一层 App。规则仍在设置页的「权限」分类。
+*/
 import Ask from './Ask.vue'
 
 export default app => {
-    app.components.wrap('App', Original => defineComponent({
-        setup: () => () => h('div', { style: 'height:100%;position:relative;' }, [h(Original), h(Ask, { app })]),
-    }))
+    app.shell?.overlay.add({ id: 'permission', component: Ask })
 }

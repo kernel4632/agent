@@ -1,7 +1,8 @@
 {
   "name": "mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "base": 1,
+  "requires": ["shell"],
   "after": ["settings"],
-  "description": "管理 MCP 连接（名称、地址、传输、开关），交给 agent-core 去连"
+  "description": "在设置页管理 MCP 连接，交给 agent-core 去连"
 }

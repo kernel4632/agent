@@ -68,4 +68,4 @@ cd web && bun run check && bun run build
 
 ## 扩展
 
-扩展扫描 `extensions/` 和 `~/.agents/extensions`，按 `requires` 拓扑、`after` 软边加载 `backend.js`。前端入口打包后由网页 `import`。业务代码用 `ctx.patch` / `ctx.tool` / `ctx.op` 和 `app.panels` / `app.settings` / `app.toolViews`。内置扩展示例的分工见 `NOTES.md` 第五节。
+扩展扫描 `extensions/` 和 `~/.agents/extensions`，按 `requires` 拓扑、`after` 软边加载 `backend.js`。前端入口打包后由网页 `import`。业务代码用 `ctx.patch` / `ctx.tool` / `ctx.op` 和 `app.shell` / `app.settings` / `app.toolViews`。加号菜单只留给上传文件。内置扩展示例的分工见 `NOTES.md` 第五节。
