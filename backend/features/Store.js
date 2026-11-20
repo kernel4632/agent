@@ -6,10 +6,10 @@
     ~/.agent/agents/<id>/meta.json            模型、思考强度、学到的比例、更新时间
     ~/.agent/agents/<id>/history.jsonl        一行一条 core 消息；只有截断时整份重写
 
-同一会话的写入排成队，避免追加和整份重写互相打断。
+同一会话的写入排成队，避免追加和整份重写互相打断；JSON 文件先写临时文件再改名，读的人不会读到半份。
 */
 
-import { appendFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -37,9 +37,12 @@ async function read(path, fallback) {
     }
 }
 
+// 先写临时文件再改名：同时有人读时，读到的要么是旧的整份、要么是新的整份，不会读到写了一半的空文件。
 async function write(path, data) {
     await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify(data, null, 2) + '\n')
+    const temp = `${path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
+    await writeFile(temp, JSON.stringify(data, null, 2) + '\n')
+    await rename(temp, path)
 }
 
 export const Store = {
@@ -70,11 +73,14 @@ export const Store = {
     },
 
     // 合并写入 meta.json，并更新 updatedAt。
-    async touch(id, patch) {
-        await Store.ensure(id)
-        const meta = { ...await Store.meta(id), ...patch, updatedAt: Date.now() }
-        await write(join(dir(id), 'meta.json'), meta)
-        return meta
+    // 和历史写入同一条队列，两次 touch 不会互相覆盖对方的字段。
+    touch(id, patch) {
+        return enqueue(`meta:${id}`, async () => {
+            await Store.ensure(id)
+            const meta = { ...await Store.meta(id), ...patch, updatedAt: Date.now() }
+            await write(join(dir(id), 'meta.json'), meta)
+            return meta
+        })
     },
 
     async history(id) {
