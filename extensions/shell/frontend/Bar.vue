@@ -1,94 +1,101 @@
 <!--
-最顶上一栏：左侧入口（会话）、已打开的会话标签、标签旁的 +、右侧入口（设置）。
-标签可以点选、双击改名、点 × 从条上拿掉（会话本身还在列表里）。样式走 Grok 的暖中性色，按键都带 .hit。
+最顶上一栏：左边是入口图标（会话主页），中间是已打开的会话标签（像浏览器），标签后面是 +，右边是设置。
+入口和 + 都由别的扩展用 shell.bar.add 登记，带 icon 就画成 32px 圆钮（.hit 补到 ≥40px），否则显示文字。
+标签是软胶囊：点选、双击改名、× 从条上拿掉（会话本身还在列表里）。标签多了就横向滚动，+ 和两侧入口始终露在外面。
 -->
 <script setup>
-import { computed, ref } from 'vue'
+import { nextTick, ref } from 'vue'
+import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import { state } from './state.js'
 
-const props = defineProps({ shell: { type: Object, required: true } })
+const props = defineProps({ shell: { type: Object, required: true }, app: { type: Object, required: true } })
+const Icon = props.app.shared.Components.Icon
 const editing = ref('')
 const draft = ref('')
+const input = ref(null)
 
-const current = computed(() => state.session)
-
-function open(id) { props.shell.tabs.open(id) }
-function close(id, event) { event.stopPropagation(); props.shell.tabs.close(id) }
-function start(item) { editing.value = item.id; draft.value = item.title }
+function close(id) { props.shell.tabs.close(id) }
+async function start(item) {
+    editing.value = item.id
+    draft.value = item.title
+    await nextTick()
+    input.value?.[0]?.select()
+}
 function commit(item) {
     const title = draft.value.trim()
     editing.value = ''
     if (title && title !== item.title) props.shell.tabs.rename(item.id, title)
 }
-
-function run(item) { item.run?.() }
+const on = item => (item.id === 'home' && state.page === 'home') || (item.id === state.page)
 </script>
 
 <template>
-  <div class="bar">
-    <div class="bar__start">
-      <button
-        v-for="item in state.start"
-        :key="item.id"
-        type="button"
-        class="bar__chip hit"
-        :class="{ 'is-on': state.page === 'home' && item.id === 'home' }"
-        :title="item.title || item.label"
-        @click="run(item)"
-      >{{ item.label }}</button>
-    </div>
-    <div class="bar__tabs">
-      <button
-        v-for="item in state.tabs"
-        :key="item.id"
-        type="button"
-        class="bar__tab hit"
-        :class="{ 'is-on': current === item.id && state.page === 'session' }"
-        @click="open(item.id)"
-        @dblclick.stop="start(item)"
+  <nav class="bar" aria-label="已打开的会话">
+    <button
+      v-for="item in state.start" :key="item.id" type="button" class="bar__round hit"
+      :class="{ 'is-on': on(item) }" :title="item.title || item.label" :aria-label="item.title || item.label" @click="item.run?.()"
+    ><Icon v-if="item.icon" :icon="item.icon" :size="18" /><span v-else>{{ item.label }}</span></button>
+
+    <div class="bar__tabs" role="tablist">
+      <div
+        v-for="item in state.tabs" :key="item.id" class="bar__tab" role="tab"
+        :class="{ 'is-on': state.page === 'session' && state.session === item.id }"
+        :aria-selected="state.page === 'session' && state.session === item.id"
+        :title="item.title" @click="shell.tabs.open(item.id)" @dblclick="start(item)"
       >
-        <input v-if="editing === item.id" v-model="draft" class="bar__rename" @blur="commit(item)" @keydown.enter="commit(item)" @click.stop>
+        <input v-if="editing === item.id" ref="input" v-model="draft" class="bar__rename" aria-label="标签标题"
+          @blur="commit(item)" @keydown.enter="commit(item)" @keydown.esc="editing = ''" @click.stop>
         <span v-else class="bar__title">{{ item.title }}</span>
-        <span class="bar__close hit" title="关闭标签" @click="close(item.id, $event)">×</span>
-      </button>
-      <button
-        v-for="item in state.extras"
-        :key="item.id"
-        type="button"
-        class="bar__plus hit"
-        :title="item.title || item.label"
-        @click="run(item)"
-      >{{ item.label }}</button>
+        <button type="button" class="bar__close hit" aria-label="关闭标签" title="关闭标签" @click.stop="close(item.id)">
+          <Icon :icon="Cancel01Icon" :size="14" />
+        </button>
+      </div>
     </div>
-    <div class="bar__end">
-      <button
-        v-for="item in state.end"
-        :key="item.id"
-        type="button"
-        class="bar__chip hit"
-        :class="{ 'is-on': state.page === 'settings' && item.id === 'settings' }"
-        :title="item.title || item.label"
-        @click="run(item)"
-      >{{ item.label }}</button>
-    </div>
-  </div>
+    <button
+      v-for="item in state.extras" :key="item.id" type="button" class="bar__round bar__round--soft hit"
+      :title="item.title || item.label" :aria-label="item.title || item.label" @click="item.run?.()"
+    ><Icon v-if="item.icon" :icon="item.icon" :size="18" /><span v-else>{{ item.label }}</span></button>
+    <span class="bar__gap"></span>
+
+    <button
+      v-for="item in state.end" :key="item.id" type="button" class="bar__round hit"
+      :class="{ 'is-on': on(item) }" :title="item.title || item.label" :aria-label="item.title || item.label" @click="item.run?.()"
+    ><Icon v-if="item.icon" :icon="item.icon" :size="18" /><span v-else>{{ item.label }}</span></button>
+  </nav>
 </template>
 
 <style scoped>
-.bar { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 6px 10px; background: var(--bg); border-bottom: 1px solid var(--line-soft); }
-.bar__start, .bar__end { display: flex; gap: 6px; flex: none; }
-.bar__tabs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; }
-.bar__tabs::-webkit-scrollbar { display: none; }
-.bar__chip, .bar__plus, .bar__tab {
-  flex: none; min-height: 40px; border: 0; background: transparent; color: var(--muted);
-  font: inherit; font-size: 14px; cursor: pointer; border-radius: 999px; padding: 0 14px;
+.bar { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 12px; background: var(--bg); border-bottom: 1px solid var(--line-soft); }
+.bar__round {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
 }
-.bar__chip.is-on, .bar__tab.is-on { background: var(--soft-strong); color: var(--text); font-weight: 550; }
-.bar__chip:hover, .bar__plus:hover, .bar__tab:hover { background: var(--hover); color: var(--text); }
-.bar__plus { width: 40px; padding: 0; font-size: 20px; color: var(--text); }
-.bar__tab { display: flex; align-items: center; gap: 2px; max-width: 200px; border-radius: 12px; padding: 0 6px 0 14px; }
+.bar__round:hover { background: var(--hover); color: var(--text); }
+.bar__round.is-on { background: var(--soft-strong); color: var(--text); }
+.bar__round--soft { background: var(--soft-strong); color: var(--text); }
+.bar__round--soft:hover { background: var(--soft-hover); }
+.bar__tabs {
+  display: flex; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; height: 100%; padding: 0 4px;
+  overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  mask-image: linear-gradient(to right, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+}
+.bar__tabs::-webkit-scrollbar { display: none; }
+.bar__gap { flex: 1; min-width: 0; }
+.bar__tab {
+  display: flex; align-items: center; gap: 4px; flex: none; height: 36px; max-width: 200px; padding: 0 6px 0 14px;
+  border-radius: 999px; color: var(--muted); font-size: 13.5px; cursor: pointer; user-select: none;
+}
+.bar__tab:hover { background: var(--hover); color: var(--text); }
+.bar__tab.is-on { background: var(--soft-strong); color: var(--text); font-weight: 550; }
 .bar__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar__rename { width: 120px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; padding: 4px 8px; }
-.bar__close { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--faint); font-size: 18px; line-height: 1; }
+.bar__rename { width: 128px; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.bar__close {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--faint); cursor: pointer;
+}
 .bar__close:hover { background: var(--soft-hover); color: var(--text); }
+@media (max-width: 640px) {
+  .bar { gap: 4px; padding: 0 8px; height: 52px; }
+  .bar__tab { max-width: 148px; padding-left: 12px; }
+}
 </style>

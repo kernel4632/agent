@@ -1,6 +1,6 @@
 {
   "name": "session",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "base": 1,
   "requires": ["shell"],
   "description": "把已打开的会话挂到顶栏标签；会话列表在主页，支持搜索、分组、新建和删除"

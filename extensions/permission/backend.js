@@ -98,10 +98,5 @@ export default ctx => {
         const config = await ctx.Store.config()
         return ctx.Store.configure({ ...config, permission })
     })
-    ctx.use('settings')?.add({
-        id: 'permission',
-        title: '权限',
-        fields: () => [{ key: 'permission', type: 'json', label: '审批规则（allow / ask / deny）' }],
-    })
     ctx.onDispose(() => { for (const item of pending.values()) item.resolve(false); pending.clear() })
 }

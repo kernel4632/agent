@@ -19,7 +19,7 @@ const page = computed(() => state.pages.find(item => item.id === state.page && !
 
 <template>
   <div class="chrome" :class="{ 'is-chat': state.page === 'session' }">
-    <Bar :shell="shell" />
+    <Bar :shell="shell" :app="app" />
     <div class="chrome__body">
       <Chat v-if="state.page === 'session'" :shell="shell" :original="original" :app="app" />
       <component v-else-if="page" :is="page.component" :app="app" :api="app.api" :shell="shell" />

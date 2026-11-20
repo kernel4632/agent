@@ -19,14 +19,29 @@ function stash() {
     remember(state.tabs.map(item => item.id))
 }
 
+// 新标签先用占位标题，再向会话扩展登记的 lookup 要它自己的标题；不能沿用上一个会话的标题。
+let lookup = null
+
+function title(id) {
+    if (!lookup) return
+    Promise.resolve(lookup(id)).then(meta => {
+        const tab = state.tabs.find(item => item.id === id)
+        if (!meta?.title || !tab) return
+        tab.title = meta.title
+        if (state.session === id) state.title = meta.title
+    }).catch(() => {})
+}
+
 function apply(hash, app) {
     const next = parse(hash)
     if (state.page !== 'settings' && next.page === 'settings') state.back = state.hash || '#/'
     Object.assign(state, { hash: next.hash, page: next.page, session: next.session, side: next.page === 'session' ? state.side : '' })
     if (next.page === 'session' && next.session) {
-        if (!state.tabs.some(item => item.id === next.session)) state.tabs.push({ id: next.session, title: state.title || '会话' })
-        const tab = state.tabs.find(item => item.id === next.session)
-        state.title = tab?.title || '会话'
+        if (!state.tabs.some(item => item.id === next.session)) {
+            state.tabs.push({ id: next.session, title: '会话' })
+            title(next.session)
+        }
+        state.title = state.tabs.find(item => item.id === next.session)?.title || '会话'
         stash()
         app.shared.Agent?.connect(next.session)
     }
@@ -77,12 +92,13 @@ export function create(app) {
                 if (tab) tab.title = title
                 if (state.session === id) state.title = title
             },
-            async restore(lookup) {
+            // 刷新后按 sessionStorage 还原标签；lookup 由会话扩展给，返回 { title } 或 undefined（已删）。
+            async restore(find) {
+                lookup = find ?? (async id => ({ id, title: '会话' }))
                 const wanted = recalled()
                 const hash = parse(location.hash)
-                const find = async id => lookup ? await lookup(id) : { id, title: '会话' }
                 if (hash.session) {
-                    const meta = await find(hash.session)
+                    const meta = await lookup(hash.session)
                     if (!meta) {
                         if (location.hash && location.hash !== '#/') location.hash = '#/'
                         apply('#/', app)
@@ -92,7 +108,7 @@ export function create(app) {
                 }
                 for (const id of wanted) {
                     if (state.tabs.some(item => item.id === id)) continue
-                    const meta = await find(id)
+                    const meta = await lookup(id)
                     if (meta) state.tabs.push({ id, title: meta.title || '会话' })
                 }
                 stash()

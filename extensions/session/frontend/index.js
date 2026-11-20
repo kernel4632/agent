@@ -3,6 +3,7 @@
 打开一条会话只是多一个标签并跳到 #/s/<id>；关掉标签不会删除会话。
 */
 
+import { BubbleChatIcon, PlusSignIcon } from '@hugeicons/core-free-icons'
 import Home from './Home.vue'
 
 export default async app => {
@@ -15,11 +16,12 @@ export default async app => {
         void app.api.op('session.rename', { id, title })
     }
 
-    shell.bar.add({ id: 'home', place: 'start', label: '会话', run: () => shell.go('#/') })
+    shell.bar.add({ id: 'home', place: 'start', icon: BubbleChatIcon, label: '会话', title: '全部会话', run: () => shell.go('#/') })
     shell.bar.add({
         id: 'new',
         place: 'tabs',
-        label: '+',
+        icon: PlusSignIcon,
+        label: '新会话',
         title: '新会话',
         run: async () => {
             const item = await app.api.op('session.create')

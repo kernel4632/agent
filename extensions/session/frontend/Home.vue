@@ -1,11 +1,13 @@
 <!--
-会话主页：搜索、分组、最近对话、新建。点一条会作为标签打开，并不在这里常驻左侧栏。
-双击改标题和分组；删除会从列表里拿掉，若它正在标签栏里也会关掉那个标签。
+会话主页：标题旁是「新会话」主按钮，下面是胶囊搜索框，再按分组列出会话（标题 + 相对时间）。
+点一行把它作为标签打开；行尾两个圆形图标钮改名、删除（触屏上也常显）。改名在行内展开标题和分组两个输入框。
 -->
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { Delete02Icon, PencilEdit02Icon, PlusSignIcon, Search01Icon } from '@hugeicons/core-free-icons'
 
 const props = defineProps({ app: { type: Object, required: true } })
+const Icon = props.app.shared.Components.Icon
 const items = ref([])
 const query = ref('')
 const editing = ref('')
@@ -14,28 +16,35 @@ const groupDraft = ref('')
 
 const groups = computed(() => {
     const map = new Map()
-    for (const item of items.value) {
-        const key = item.group || '最近'
-        const list = map.get(key) ?? []
-        list.push(item)
-        map.set(key, list)
-    }
+    for (const item of items.value) map.set(item.group || '最近', [...(map.get(item.group || '最近') ?? []), item])
     return [...map.entries()]
 })
 
-async function load() {
-    items.value = await props.app.api.op('session.list', { query: query.value })
+// 相对时间：今天内说「几分钟前 / 几小时前」，更早的写日期。
+function when(time) {
+    if (!time) return ''
+    const minutes = Math.floor((Date.now() - time) / 60000)
+    if (minutes < 1) return '刚刚'
+    if (minutes < 60) return `${minutes} 分钟前`
+    if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} 小时前`
+    if (minutes < 48 * 60) return '昨天'
+    const date = new Date(time)
+    return `${date.getMonth() + 1} 月 ${date.getDate()} 日`
 }
 
+async function load() { items.value = await props.app.api.op('session.list', { query: query.value }) }
 async function create() {
     const item = await props.app.api.op('session.create')
-    await load()
     props.app.shell.tabs.open(item.id, item.title)
 }
-
-function open(item) { props.app.shell.tabs.open(item.id, item.title) }
-
-async function rename(item) {
+function open(item) { if (editing.value !== item.id) props.app.shell.tabs.open(item.id, item.title) }
+function start(item) {
+    editing.value = item.id
+    draft.value = item.title
+    groupDraft.value = item.group || ''
+}
+async function save(item) {
+    if (editing.value !== item.id) return
     const title = draft.value.trim()
     const group = groupDraft.value.trim()
     editing.value = ''
@@ -43,7 +52,6 @@ async function rename(item) {
     if (group !== (item.group || '')) await props.app.api.op('session.group', { id: item.id, group })
     await load()
 }
-
 async function remove(item) {
     if (!confirm(`删除「${item.title}」？`)) return
     if (props.app.shell.state.tabs.some(tab => tab.id === item.id)) props.app.shell.tabs.close(item.id)
@@ -51,15 +59,8 @@ async function remove(item) {
     await load()
 }
 
-function start(item) {
-    editing.value = item.id
-    draft.value = item.title
-    groupDraft.value = item.group || ''
-}
-
 onMounted(load)
 props.app.on('session.rename', () => load())
-defineExpose({ load })
 </script>
 
 <template>
@@ -67,47 +68,59 @@ defineExpose({ load })
     <div class="home__column">
       <header class="home__head">
         <h1>会话</h1>
-        <button type="button" class="home__new hit" @click="create">新会话</button>
+        <button type="button" class="home__new" @click="create"><Icon :icon="PlusSignIcon" :size="18" />新会话</button>
       </header>
-      <input v-model="query" class="home__search" placeholder="搜索会话" @input="load">
+      <label class="home__search">
+        <Icon :icon="Search01Icon" :size="18" />
+        <input v-model="query" type="search" placeholder="搜索会话" aria-label="搜索会话" @input="load">
+      </label>
       <section v-for="[group, list] in groups" :key="group" class="home__group">
         <h2>{{ group }}</h2>
-        <button
-          v-for="item in list"
-          :key="item.id"
-          type="button"
-          class="home__item"
-          :class="{ 'is-on': app.shell.session === item.id }"
-          @click="open(item)"
-          @dblclick="start(item)"
-        >
-          <span v-if="editing === item.id" class="home__edit" @click.stop>
-            <input v-model="draft" placeholder="标题" @blur="rename(item)" @keydown.enter="rename(item)">
-            <input v-model="groupDraft" placeholder="分组（可空）" @blur="rename(item)" @keydown.enter="rename(item)">
-          </span>
-          <span v-else class="home__title">{{ item.title }}</span>
-          <span class="home__del hit" title="删除" @click.stop="remove(item)">删除</span>
-        </button>
+        <div v-for="item in list" :key="item.id" class="home__row" :class="{ 'is-on': app.shell.session === item.id }" @click="open(item)">
+          <div v-if="editing === item.id" class="home__edit" @click.stop @focusout="$event.relatedTarget?.closest?.('.home__edit') || save(item)">
+            <input v-model="draft" placeholder="标题" aria-label="标题" @keydown.enter="save(item)">
+            <input v-model="groupDraft" placeholder="分组（可留空）" aria-label="分组" @keydown.enter="save(item)">
+          </div>
+          <div v-else class="home__copy">
+            <span class="home__title">{{ item.title }}</span>
+            <span class="home__time">{{ when(item.updatedAt) }}</span>
+          </div>
+          <button type="button" class="home__round hit" aria-label="改名" title="改名和分组" @click.stop="start(item)"><Icon :icon="PencilEdit02Icon" :size="17" /></button>
+          <button type="button" class="home__round hit" aria-label="删除" title="删除" @click.stop="remove(item)"><Icon :icon="Delete02Icon" :size="17" /></button>
+        </div>
       </section>
-      <p v-if="!items.length" class="home__empty">还没有会话。点右上角新建一个。</p>
+      <p v-if="!items.length" class="home__empty">{{ query ? '没有找到会话' : '还没有会话，点「新会话」开始。' }}</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.home { height: 100%; overflow: auto; }
-.home__column { width: 100%; max-width: 796px; margin: 0 auto; padding: 28px 16px 80px; }
+.home { height: 100%; overflow-y: auto; }
+.home__column { width: 100%; max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
 .home__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-.home__head h1 { margin: 0; font-size: 28px; font-weight: 550; letter-spacing: -.02em; }
-.home__new { min-height: 40px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary); font: inherit; font-size: 14px; cursor: pointer; }
-.home__search { width: 100%; min-height: 48px; margin-bottom: 28px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); padding: 0 18px; font: inherit; font-size: 15px; }
-.home__group h2 { margin: 8px 4px 10px; font-size: 13px; font-weight: 550; color: var(--faint); letter-spacing: .04em; }
-.home__item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 14px; margin-bottom: 6px; border: 0; border-radius: 16px; background: transparent; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
-.home__item:hover, .home__item.is-on { background: var(--hover); }
-.home__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home__edit { flex: 1; display: grid; gap: 6px; }
-.home__item input { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: inherit; background: var(--surface); color: var(--text); }
-.home__del { flex: none; min-height: 40px; padding: 0 12px; border-radius: 999px; color: var(--muted); font-size: 13px; display: grid; place-items: center; }
-.home__del:hover { background: var(--soft-hover); color: var(--text); }
-.home__empty { color: var(--faint); text-align: center; margin-top: 40px; }
+.home__head h1 { margin: 0; font-size: 28px; font-weight: 450; letter-spacing: -.01em; }
+.home__new { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 18px 0 14px; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary); font: inherit; font-size: 14px; font-weight: 550; cursor: pointer; }
+.home__new:hover { opacity: .88; }
+.home__search { display: flex; align-items: center; gap: 10px; height: 48px; margin-bottom: 28px; padding: 0 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--faint); }
+.home__search:focus-within { border-color: var(--line-strong); }
+.home__search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; }
+.home__group + .home__group { margin-top: 20px; }
+.home__group h2 { margin: 0 0 6px; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--faint); }
+.home__row { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 8px 6px 14px; border-radius: 16px; cursor: pointer; }
+.home__row:hover { background: var(--hover); }
+.home__row.is-on { background: var(--soft-strong); }
+.home__copy { display: flex; align-items: baseline; gap: 12px; flex: 1; min-width: 0; }
+.home__title { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home__time { flex: none; font-size: 13px; color: var(--faint); }
+.home__edit { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; flex: 1; min-width: 0; }
+.home__edit input { min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; }
+.home__round { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; }
+.home__round:hover { background: var(--soft-hover); color: var(--text); }
+.home__empty { margin-top: 48px; text-align: center; color: var(--faint); }
+@media (max-width: 640px) {
+  .home__column { padding: 20px 12px 64px; }
+  .home__head h1 { font-size: 24px; }
+  .home__edit { grid-template-columns: 1fr; }
+  .home__copy { flex-direction: column; gap: 2px; align-items: stretch; }
+}
 </style>

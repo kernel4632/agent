@@ -1,7 +1,9 @@
 {
   "name": "settings",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "base": 1,
-  "requires": ["shell"],
-  "description": "整页设置：汇总各扩展的配置描述，按分类用原生控件渲染"
+  "requires": [
+    "shell"
+  ],
+  "description": "整页设置：分组首页 + 分类页 + 详情（RikkaHub 布局），供应商、MCP、权限都用结构化编辑"
 }

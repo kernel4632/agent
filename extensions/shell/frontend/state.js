@@ -14,8 +14,8 @@ export const state = reactive({
     back: '#/',
     tabs: [],              // { id, title }
     pages: [],             // { id, title, parent?, component }
-    header: [],            // { id, label, title?, run?, component? }
-    start: [],             // 顶栏左侧入口（会话）
+    header: [],            // { id, icon?, label, title?, run?, component? }
+    start: [],             // 顶栏左侧入口（会话），{ id, icon?, label, run }
     end: [],               // 顶栏右侧入口（设置）
     extras: [],            // 标签右侧按钮（新会话 +）
     overlays: [],          // 内容区浮层（权限询问）
@@ -26,7 +26,7 @@ export function parse(hash) {
     const path = raw.startsWith('/') ? raw : `/${raw}`
     const parts = path.split('/').filter(Boolean)
     if (parts[0] === 's' && parts[1]) return { page: 'session', session: parts[1], hash: `#/s/${parts[1]}`, category: '' }
-    if (parts[0] === 'settings') return { page: 'settings', session: '', hash: path === '/settings' ? '#/settings' : `#${path}`, category: parts[1] || '' }
+    if (parts[0] === 'settings') return { page: 'settings', session: '', hash: path === '/settings' ? '#/settings' : `#${path}`, category: parts.slice(1).join('/') }
     if (parts[0] && parts[0] !== 'home') return { page: parts[0], session: '', hash: `#${path}`, category: parts.slice(1).join('/') }
     return { page: 'home', session: '', hash: '#/', category: '' }
 }

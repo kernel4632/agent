@@ -1,5 +1,6 @@
 /*
-设置：只汇总各扩展登记的表单描述，并负责整份读写 config.json。
+设置：汇总各扩展登记的表单描述（字段带 type / label / description），并负责读写 config.json。
+供应商列表不走表单，由前端的结构化编辑器整份写 providers。
 其他扩展通过 ctx.use('settings').add(...) 追加一项；字段 key 用点号路径指向配置里的位置。
 */
 
@@ -28,16 +29,11 @@ export default ctx => {
     }
     ctx.expose(api)
     api.add({
-        id: 'providers',
-        title: '供应商',
-        fields: () => [{ key: 'providers', type: 'json', label: '供应商列表（name / baseURL / apiKey / protocol / models）' }],
-    })
-    api.add({
         id: 'models',
         title: '模型',
         fields: (_config, models) => [
-            { key: 'models.chat', type: 'select', label: '对话模型', options: models },
-            { key: 'models.compact', type: 'select', label: '压缩模型', options: [{ value: '', label: '（与对话相同）' }, ...models] },
+            { key: 'models.chat', type: 'select', label: '对话模型', description: '新对话默认用它；已有对话可在输入框下方单独切换', options: [{ value: '', label: '（未选择）' }, ...models] },
+            { key: 'models.compact', type: 'select', label: '压缩模型', description: '上下文快满时用来写总结', options: [{ value: '', label: '和对话模型相同' }, ...models] },
         ],
     })
     async function refresh(config) {

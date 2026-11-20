@@ -5,6 +5,7 @@
 - ToolViews：按工具名替换 ToolCall 的内容区（diff、shell 实时输出等）。
 - PlusMenu：加号菜单的追加项。原版加号只负责上传文件；设置、会话、任务等不要再往这里塞，改走 app.shell。
 - app.shell：由 shell 扩展挂上，提供 tabs / header / pages / bar / overlay。没有壳时为 undefined。
+- 图标：扩展 import '@hugeicons/core-free-icons' 的图标数据，用组件表里的 Components.Icon 渲染。
 - patch：包任意导出对象上的方法（Agent.send、History.group……），每层外面有兜底，扩展抛错就跳过这一层。
 每个扩展做过的改动都记在它名下，拔出时整体撤掉，再从原方法重新叠。
 
