@@ -55,7 +55,7 @@ describe('真实请求', () => {
             models: { chat: 'relay/glm-flash-latest' },
             noToolRounds: 1,
             retryMaxTries: 0,
-            requestTimeout: 60,
+            requestTimeout: 60_000,
             permission: { '*': 'allow' },
         })
         await Loader.start({ roots: [builtins] })
