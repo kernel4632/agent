@@ -30,12 +30,19 @@ function rest(config) {
     return shared
 }
 
-async function options(meta, config) {
+function options(meta, config) {
     const modelId = meta.model || config.models?.chat
-    const resolved = Models.resolve(config, modelId, meta.effort)
-    const compactId = config.models?.compact
-    const compact = compactId ? Models.resolve(config, compactId) : undefined
-    return { ...rest(config), ...resolved, ...(compact ? { compact } : {}), contextRatio: meta.contextRatio, ratios: meta.ratios ?? {} }
+    const models = Models.list(config)
+    const shared = { ...rest(config), contextRatio: meta.contextRatio, ratios: meta.ratios ?? {} }
+    try {
+        const resolved = Models.resolve(config, modelId, meta.effort)
+        const compactId = config.models?.compact
+        const compact = compactId ? Models.resolve(config, compactId) : undefined
+        return { model: modelId, effort: meta.effort, models, fault: '', config: { ...shared, ...resolved, ...(compact ? { compact } : {}) } }
+    } catch (error) {
+        // 没有配好模型时仍打开会话，好让界面和设置能用；真正发请求时再拦住。
+        return { model: modelId || '', effort: meta.effort, models, fault: error.message ?? String(error), config: { ...shared, model: modelId || 'unset', baseURL: 'http://127.0.0.1', apiKey: '', protocol: 'chat' } }
+    }
 }
 
 async function launch(id, work) {
@@ -64,8 +71,9 @@ export const Agents = {
         if (hit) return hit
         await Store.ensure(id)
         const [config, meta, history] = await Promise.all([Store.config(), Store.meta(id), Store.history(id)])
-        const agent = Agent.create({ id, history, tools: extras.tools(), MCP: config.mcp ?? meta.mcp ?? [], ...await options(meta, config) })
-        const current = { agent, model: meta.model || config.models?.chat, effort: meta.effort, models: Models.list(config) }
+        const resolved = options(meta, config)
+        const agent = Agent.create({ id, history, tools: extras.tools(), MCP: config.mcp ?? meta.mcp ?? [], ...resolved.config })
+        const current = { agent, model: resolved.model, effort: resolved.effort, models: resolved.models, fault: resolved.fault }
         agents.set(id, current)
         return current
     },
@@ -78,7 +86,7 @@ export const Agents = {
     snapshot(id) {
         const current = agents.get(id)
         if (!current) throw new Error(`Agent ${id} 尚未打开`)
-        return { history: current.agent.history, tail: Stream.tail(id), running: Agents.running(id), retryUntil: Stream.retry(id), model: current.model, effort: current.effort, models: current.models }
+        return { history: current.agent.history, tail: Stream.tail(id), running: Agents.running(id), retryUntil: Stream.retry(id), model: current.model, effort: current.effort, models: current.models, ...(current.fault ? { fault: current.fault } : {}) }
     },
 
     callbacks(id) {
@@ -97,6 +105,12 @@ export const Agents = {
 
     async send(id, { input, cut } = {}) {
         idle(id)
+        const current = await Agents.open(id)
+        if (current.fault) {
+            const error = new Error(current.fault)
+            error.status = 400
+            throw error
+        }
         reserved.add(id)
         try {
             if (cut) await Agents.cut(id, cut, true)
@@ -135,6 +149,7 @@ export const Agents = {
         current.effort = meta.effort
         current.models = Models.list(config)
         current.agent.config = { ...current.agent.config, ...Models.resolve(config, current.model, current.effort) }
+        current.fault = ''
         return { model: current.model, effort: current.effort }
     },
 

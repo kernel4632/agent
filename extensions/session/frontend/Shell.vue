@@ -31,6 +31,7 @@ function onHash() { open(read()) }
 
 onMounted(async () => {
     window.addEventListener('hashchange', onHash)
+    props.app.on('session.rename', () => sidebar.value?.load())
     const list = await props.app.api.op('session.list')
     if (!list.some(item => item.id === current.value)) {
         if (list[0]) open(list[0].id)

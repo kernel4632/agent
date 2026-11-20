@@ -79,7 +79,7 @@ function group(state: typeof Agent.state): Item[] {
   else if (live) add(live.parts, `r${live.start}`, true)
   flush()
   if (!state.running && state.stopped) items.push({ kind: 'error', key: 'stopped', errors: [], stopped: true })
-  if (state.fault) items.push({ kind: 'error', key: 'fault', errors: [], text: `连接中断：${state.fault}` })
+  if (state.fault) items.push({ kind: 'error', key: 'fault', errors: [], text: state.fault })
   return items
 }
 

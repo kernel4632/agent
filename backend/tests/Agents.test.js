@@ -32,6 +32,14 @@ function collect(id = 'main') {
 }
 
 describe('Agents', () => {
+    test('没有配置模型时仍能打开会话，发送会被拦住并说明原因', async () => {
+        dataDir()
+        await Agents.open('main')
+        expect(Agents.snapshot('main').fault).toContain('未配置模型')
+        await expect(Agents.send('main', { input: 'hi' })).rejects.toThrow('未配置模型')
+        expect(Agents.peek('main').agent.history).toEqual([])
+    })
+
     test('send 的事件顺序：先 run start，用户消息写入后才请求，结束有 message 和 run end', async () => {
         const { model } = script([{ text: '你好' }])
         use(model)

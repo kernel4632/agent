@@ -28,6 +28,11 @@ export default ctx => {
     }
     ctx.expose(api)
     api.add({
+        id: 'providers',
+        title: '供应商',
+        fields: () => [{ key: 'providers', type: 'json', label: '供应商列表（name / baseURL / apiKey / protocol / models）' }],
+    })
+    api.add({
         id: 'models',
         title: '模型',
         fields: (_config, models) => [
@@ -35,14 +40,27 @@ export default ctx => {
             { key: 'models.compact', type: 'select', label: '压缩模型', options: [{ value: '', label: '（与对话相同）' }, ...models] },
         ],
     })
+    async function refresh(config) {
+        for (const current of ctx.Agents.all()) {
+            current.models = ctx.Models.list(config)
+            const modelId = current.model || config.models?.chat
+            if (!modelId) continue
+            try {
+                current.agent.config = { ...current.agent.config, ...ctx.Models.resolve(config, modelId, current.effort) }
+                current.model = modelId
+                current.fault = ''
+            } catch (error) { current.fault = error.message ?? String(error) }
+        }
+        return config
+    }
     ctx.op('settings.forms', async () => {
         const config = await ctx.Store.config()
         const models = ctx.Models.list(config).map(item => ({ value: item.id, label: item.name }))
         return forms.map(form => ({ ...form, fields: typeof form.fields === 'function' ? form.fields(config, models) : form.fields }))
     })
     ctx.op('settings.get', () => ctx.Store.config())
-    ctx.op('settings.set', async ({ key, value }) => ctx.Store.configure(set(await ctx.Store.config(), key, value)))
-    ctx.op('settings.save', ({ config }) => ctx.Store.configure(config))
+    ctx.op('settings.set', async ({ key, value }) => refresh(await ctx.Store.configure(set(await ctx.Store.config(), key, value))))
+    ctx.op('settings.save', async ({ config }) => refresh(await ctx.Store.configure(config)))
     ctx.op('settings.toggle', async ({ name, enabled }) => ctx.Loader.toggle(name, enabled))
     ctx.op('settings.extensions', () => ctx.Loader.list())
 }

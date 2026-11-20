@@ -14,6 +14,7 @@ const items = ref([])
 const query = ref('')
 const editing = ref('')
 const draft = ref('')
+const groupDraft = ref('')
 
 const groups = computed(() => {
     const map = new Map()
@@ -38,9 +39,10 @@ async function create() {
 
 async function rename(item) {
     const title = draft.value.trim()
+    const group = groupDraft.value.trim()
     editing.value = ''
-    if (!title || title === item.title) return
-    await props.api.op('session.rename', { id: item.id, title })
+    if (title && title !== item.title) await props.api.op('session.rename', { id: item.id, title })
+    if (group !== (item.group || '')) await props.api.op('session.group', { id: item.id, group })
     await load()
 }
 
@@ -54,6 +56,7 @@ async function remove(item) {
 function start(item) {
     editing.value = item.id
     draft.value = item.title
+    groupDraft.value = item.group || ''
 }
 
 onMounted(load)
@@ -78,7 +81,10 @@ defineExpose({ load })
           @click="emit('open', item.id)"
           @dblclick="start(item)"
         >
-          <input v-if="editing === item.id" v-model="draft" @blur="rename(item)" @keydown.enter="rename(item)" @click.stop>
+          <span v-if="editing === item.id" class="side__edit" @click.stop>
+            <input v-model="draft" placeholder="标题" @blur="rename(item)" @keydown.enter="rename(item)">
+            <input v-model="groupDraft" placeholder="分组（可空）" @blur="rename(item)" @keydown.enter="rename(item)">
+          </span>
           <span v-else class="side__title">{{ item.title }}</span>
           <span class="side__del" title="删除" @click.stop="remove(item)">×</span>
         </button>
@@ -97,7 +103,8 @@ defineExpose({ load })
 .side__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .side__item:hover, .side__item--on { background: var(--hover); }
 .side__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side__item input { flex: 1; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; font: inherit; }
+.side__edit { flex: 1; display: grid; gap: 4px; }
+.side__item input { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; font: inherit; }
 .side__del { opacity: 0; color: var(--muted); padding: 0 4px; }
 .side__item:hover .side__del { opacity: 1; }
 </style>

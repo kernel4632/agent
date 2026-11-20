@@ -51,8 +51,8 @@ describe('真实请求', () => {
         dataDir()
         wire()
         await Store.configure({
-            providers: [{ name: 'relay', baseURL: cred.baseURL, apiKey: cred.key, protocol: 'chat', models: [{ id: 'glm-flash-latest', context: 128000 }] }],
-            models: { chat: 'relay/glm-flash-latest' },
+            providers: [{ name: 'relay', baseURL: cred.baseURL, apiKey: cred.key, protocol: 'chat', models: [{ id: 'glm-latest', context: 128000 }] }],
+            models: { chat: 'relay/glm-latest' },
             noToolRounds: 1,
             retryMaxTries: 0,
             requestTimeout: 60_000,

@@ -34,8 +34,8 @@ let disconnect: (() => void) | undefined
 const clearLive = () => Object.assign(state, { live: null, retry: null, compacting: null, runs: {} })
 
 function apply(snapshot: Snapshot) {
-  const { history, tail, running, retryUntil, model, effort, models, ...extras } = snapshot as Snapshot & Record<string, unknown>
-  Object.assign(state, { history, model, effort, models, running, stopped: false, fault: '', live: null, runs: {}, compacting: null, retry: retryUntil ? { attempt: 0, until: retryUntil as number } : null, extras })
+  const { history, tail, running, retryUntil, model, effort, models, fault, ...extras } = snapshot as Snapshot & Record<string, unknown>
+  Object.assign(state, { history, model, effort, models, running, stopped: false, fault: typeof fault === 'string' ? fault : '', live: null, runs: {}, compacting: null, retry: retryUntil ? { attempt: 0, until: retryUntil as number } : null, extras })
   for (const event of tail ?? []) receive(event)
 }
 

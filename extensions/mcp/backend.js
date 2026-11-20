@@ -14,7 +14,6 @@ export default ctx => {
     ctx.op('mcp.list', async ({ id } = {}) => {
         const list = (await Store.config()).mcp ?? []
         const current = id ? Agents.peek(id) : undefined
-        const clients = current?.agent?.['#internal'] ? null : current
         const states = {}
         if (current) {
             // 公开状态只在 MCPClients，宿主通常看不到；用 list 本身的 enabled，细节交给 open/close 的返回值。

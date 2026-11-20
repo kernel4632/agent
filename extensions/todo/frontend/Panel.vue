@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 const props = defineProps({ app: { type: Object, required: true } })
 const items = ref([])
@@ -11,6 +11,7 @@ async function load() {
 }
 
 props.app.on('todo.update', data => { items.value = data.items ?? [] })
+watch(() => props.app.api.id(), load)
 onMounted(load)
 </script>
 
