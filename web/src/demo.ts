@@ -2,7 +2,8 @@
 演示数据源：不连后端，按 agent-core 1.2 的真实事件顺序回放一段对话，用来看界面和截图。
 它像扩展一样用 patch 换掉 API 的几个方法，页面和 Agent 完全不知道；接真后端时删掉 main.ts 里那一行即可。
 
-第一次发送：首次请求半路失败（片段撤掉）→ 4 秒后第 2 次尝试 → 思考 → 边写边冒的 shell 调用 → 实时输出 → 再读一个文件 → 正文回答。
+第一次发送：一整轮真实的 agent 过程——首次请求半路失败（片段撤掉）、4 秒后重试；之后说几句、跑测试、思考、
+读文件和搜索、再思考、改文件、再跑测试，最后给出结论。
 之后的发送：一段普通回答；消息里带“失败”两个字会重试两次后最终失败。手动压缩走 compact-start … compact-end。
 */
 
@@ -63,7 +64,7 @@ function player(listener: Listener, signal: AbortSignal) {
     },
     async run(toolCallId: string, toolName: string, lines: string[], value: string) {
       emit({ type: 'tool-run', toolCallId, toolName })
-      for (const line of lines) { await wait(450); emit({ type: 'tool-output', toolCallId, stream: 'stdout', data: line + '\n' }) }
+      for (const line of lines) { await wait(320); emit({ type: 'tool-output', toolCallId, stream: 'stdout', data: line + '\n' }) }
       await wait(300)
       emit({ type: 'tool-result', result: { toolCallId, toolName, input: current.calls.find(call => call.toolCallId === toolCallId)?.input, output: { type: 'text', value } } })
     },
@@ -79,26 +80,46 @@ function player(listener: Listener, signal: AbortSignal) {
 
 type Player = ReturnType<typeof player>
 
-// 第一次：重试 + 两个工具 + 正文。
+// 第一次：像真实 agent 一样边说边想边调工具，五次请求；第一次请求半路失败后自动重试。
 async function explore(play: Player) {
   await play.request(1)
-  await play.stream('reasoning', '用户想知道入口文件在哪里，还要统计前端组件数量。先列一下目录结构，看看 web/src 下面都有哪些文件，再决定要不要打开入口', 40)
+  await play.stream('reasoning', '**定位失败的测试**\n\n用户说 bun test 有一个用例挂了，要找出是哪个、为什么，并修好。\n\n先不要猜，直接把测试跑一遍：看失败的是哪个文件、哪条断言，期望值和实际值分别是多少。\n\n跑完之后再决定读哪段实现', 45)
   await play.fail(1, '上游服务暂时过载（529 Overloaded），稍后自动重试', 4000)
+
   await play.request(2)
-  await play.stream('reasoning', '用户想知道入口在哪，并统计组件数量。先列出 web/src 的目录结构，再打开入口文件确认启动流程。')
-  await play.call('call_ls', 'shell', { command: 'find web/src -name "*.vue" -o -name "*.ts" | sort' })
-  const first = await play.end(5120, 86, 3072)
-  await play.run('call_ls', 'shell', ['web/src/Agent.ts', 'web/src/App.vue', 'web/src/Extension.ts', 'web/src/api.ts', 'web/src/components/Composer.vue', 'web/src/components/History.vue', 'web/src/components/ToolCall.vue', 'web/src/main.ts'], '共 17 个文件，其中 12 个 .vue 组件')
+  await play.stream('text', '好的，我先把测试跑一遍，看看具体是哪个用例挂了。', 22)
+  await play.call('call_test', 'shell', { command: 'cd web && bun test', timeout: 60000 })
+  const first = await play.end(5120, 64, 3072)
+  await play.run('call_test', 'shell', ['bun test v1.4.4', '', 'tests/group.test.ts:', '✓ 正文打断 Process [0.42ms]', '✓ 工具结果按 toolCallId 挂上 [0.18ms]', '✗ 连续重试报错合成一条 ErrorMessage [1.03ms]', '  expect(items.filter(isError)).toHaveLength(1)', '  Expected length: 1', '  Received length: 2', '', ' 11 pass', ' 1 fail', 'Ran 12 tests across 3 files. [214ms]'], '11 pass, 1 fail（tests/group.test.ts：连续重试报错合成一条 ErrorMessage）')
   await play.step(first)
+
   await play.request(1)
-  await play.stream('reasoning', '入口应该是 main.ts，读一下确认它挂载了什么。')
-  await play.call('call_read', 'read_file', { path: 'web/src/main.ts' })
-  const second = await play.end(6480, 41, 5120)
-  await play.run('call_read', 'read_file', [], "import { createApp } from 'vue'\nimport App from './App.vue'\n…\nExtension.register({ History, Composer, … })\ncreateApp(App).mount('#app')")
+  await play.stream('reasoning', '**读 group 的实现**\n\n失败的是“连续重试报错合成一条”。期望 1 条 ErrorMessage，实际 2 条，说明最终失败那条没有把前面的重试合进去。\n\n需要看 History.group 里处理 role:error 的分支：重试的报错会先作为请求条留在 Process 里，最终失败时应该把它们一起拿出来。\n\n同时搜一下 final 标记在哪些地方用到，确认 core 写进历史的字段名，免得改错地方。', 45)
+  await play.stream('text', '挂的是 `History.group` 合并重试报错的用例：期望 1 条，实际 2 条。我看一下实现，顺便查查 `final` 标记在哪里用到。', 20)
+  await play.call('call_read', 'read_file', { path: 'web/src/components/History.vue', offset: 48, limit: 20 })
+  await play.call('call_grep', 'grep', { pattern: 'final', path: 'web/src' })
+  const second = await play.end(6480, 120, 5120)
+  await play.run('call_read', 'read_file', [], "48  if (message.role === 'error') {\n49    const retried = tail?.kind === 'request' && tail.errors ? tail.errors : []\n50    if (message.request?.final) {\n51      flush()\n52      items.push({ kind: 'error', errors: [message] })")
+  await play.run('call_grep', 'grep', ['web/src/Agent.ts:88:  ...(event.retry ? { attempt } : { final: true })', 'web/src/components/History.vue:50:    if (message.request?.final) {'], '2 处匹配')
   await play.step(second)
+
   await play.request(1)
-  await play.stream('text', '入口是 **`web/src/main.ts`**，启动只做三件事：\n\n1. 把所有组件登记进组件表 `Extension.register(...)`，扩展之后从这张表里换组件；\n2. 加载扩展；\n3. 挂载 `App.vue`。\n\n前端一共 **12 个组件**，都在 `components/` 下：\n\n| 类别 | 组件 |\n| --- | --- |\n| 对话流 | History、UserMessage、AssistantMessage |\n| 过程 | Process、Thinking、ToolCall、RequestStatus |\n| 状态 | ErrorMessage、CompactMessage |\n| 输入 | Composer、Stats |\n\n要不要我接着看看 `History.group` 是怎么分组的？', 16)
-  await play.step(await play.end(7012, 228, 6400))
+  await play.stream('reasoning', '**原因**\n\n第 50 行直接 push 了 [message]，没有带上 retried，而且前面的重试已经作为请求条留在 Process 里，所以出现两条。应该先把尾部的重试请求条拿出来，再和最终失败合成一条。', 45)
+  await play.stream('text', '找到原因了：最终失败那条没有带上前面的重试，前面的重试也没从过程里拿出来。我改一下。', 20)
+  await play.call('call_edit', 'edit_file', { path: 'web/src/components/History.vue', old: "flush()\n      items.push({ kind: 'error', errors: [message] })", new: "if (retried.length) steps.pop()\n      flush()\n      items.push({ kind: 'error', errors: [...retried, message] })" })
+  const third = await play.end(7012, 210, 6400)
+  await play.run('call_edit', 'edit_file', [], '已修改 web/src/components/History.vue（+2 −1）')
+  await play.step(third)
+
+  await play.request(1)
+  await play.call('call_retest', 'shell', { command: 'cd web && bun test' })
+  const fourth = await play.end(7380, 32, 7000)
+  await play.run('call_retest', 'shell', ['bun test v1.4.4', '', 'tests/group.test.ts:', '✓ 正文打断 Process [0.40ms]', '✓ 工具结果按 toolCallId 挂上 [0.17ms]', '✓ 连续重试报错合成一条 ErrorMessage [0.31ms]', '', ' 12 pass', ' 0 fail', 'Ran 12 tests across 3 files. [198ms]'], '12 pass, 0 fail')
+  await play.step(fourth)
+
+  await play.request(1)
+  await play.stream('text', '修好了，测试全部通过（12 pass, 0 fail）。\n\n**原因**：`History.group` 遇到最终失败（`final`）时，只把这一条做成 ErrorMessage，前面自动重试的报错还作为请求条留在过程里，所以界面上出现了两条。\n\n**改动**（`web/src/components/History.vue`）：\n\n```ts\nif (retried.length) steps.pop()   // 尾部的重试请求条拿出来\nflush()\nitems.push({ kind: \'error\', errors: [...retried, message] })\n```\n\n现在连续的重试和最后的失败合成一条，写明“已自动重试 N 次”，末条带继续。', 14)
+  await play.step(await play.end(7712, 236, 7040))
 }
 
 // 之后的普通发送；带“失败”就重试两次后放弃。
@@ -117,9 +138,9 @@ async function reply(play: Player, text: string) {
 async function compact(play: Player) {
   play.emit({ type: 'compact-start', reason: 'manual' })
   await play.request(1, true)
-  await play.stream('text', '用户在了解新前端的结构：入口 main.ts 登记组件表、加载扩展、挂载 App；共 12 个组件；History.group 负责分组。', 20)
+  await play.stream('text', '用户让修复 bun test 里挂掉的用例；已定位到 History.group 合并重试报错的分支并修好，12 个测试全部通过。', 20)
   await play.end(7600, 64)
-  play.emit({ type: 'compact-end', reason: 'manual', summary: '用户在了解新前端的结构：入口 main.ts 登记组件表、加载扩展、挂载 App；共 12 个组件；History.group 负责分组。', before: 7600, after: 1200, budget: 256000, compactThreshold: 0.8, ratio: 0.6, ratioSource: 'usage', chars: 12000, media: 0, usage: { inputTokens: 7600, outputTokens: 64, totalTokens: 7664, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+  play.emit({ type: 'compact-end', reason: 'manual', summary: '用户让修复 bun test 里挂掉的用例；已定位到 History.group 合并重试报错的分支并修好，12 个测试全部通过。', before: 7600, after: 1200, budget: 256000, compactThreshold: 0.8, ratio: 0.6, ratioSource: 'usage', chars: 12000, media: 0, usage: { inputTokens: 7600, outputTokens: 64, totalTokens: 7664, cacheReadTokens: 0, cacheWriteTokens: 0 } })
 }
 
 // 回放期间可被 API.stop 打断；打断后像真后端一样直接关闭推送。

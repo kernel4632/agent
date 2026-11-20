@@ -5,6 +5,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import type { Message } from '@kernel4632/agent-core'
+import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import { PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import { Agent } from '../Agent'
 
 const props = defineProps<{ message: Message }>()
@@ -45,24 +47,24 @@ function resend() {
     </form>
     <template v-else>
       <div v-if="text" class="user__bubble">{{ text }}</div>
-      <button class="user__tool" type="button" :disabled="Agent.state.running" @click="edit">编辑</button>
+      <button class="user__tool" type="button" title="编辑后重新发送" aria-label="编辑" :disabled="Agent.state.running" @click="edit"><Icon :icon="PencilEdit01Icon" :size="16" /></button>
     </template>
   </div>
 </template>
 
 <style scoped>
-.user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-top: 8px; }
-.user__bubble { max-width: min(85%, 600px); padding: 10px 16px; border-radius: 24px; background: var(--bubble); color: var(--text); font-size: 16px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.user { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin-top: 8px; }
+.user__bubble { max-width: min(85%, 600px); padding: 10px 16px; border-radius: 24px; background: var(--bubble); color: var(--text); font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .user__files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .user__image { width: 120px; height: 120px; object-fit: cover; border-radius: 16px; border: 1px solid var(--line); }
 .user__file { padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); }
-.user__tool { height: 24px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--faint); font: inherit; font-size: 12px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.user__tool { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 15px; background: none; color: var(--faint); cursor: pointer; opacity: 0; transition: opacity .15s; }
 .user:hover .user__tool:enabled, .user__tool:focus-visible { opacity: 1; }
-.user__tool:hover { color: var(--text); background: var(--soft); }
+.user__tool:hover { color: var(--text); background: var(--hover); }
 .user__edit { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
-.user__edit textarea { width: 100%; border: 0; outline: 0; resize: none; background: none; color: var(--text); font: inherit; font-size: 16px; line-height: 1.6; }
+.user__edit textarea { width: 100%; border: 0; outline: 0; resize: none; background: none; color: var(--text); font: inherit; font-size: 15px; line-height: 1.6; }
 .user__actions { display: flex; justify-content: flex-end; gap: 8px; }
 .user__actions button { height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
-.user__actions .is-primary { border-color: transparent; background: var(--text); color: var(--bg); }
+.user__actions .is-primary { border-color: transparent; background: var(--primary); color: var(--on-primary); }
 .user__actions button:disabled { opacity: .4; cursor: default; }
 </style>

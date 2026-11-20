@@ -34,7 +34,7 @@ const html = computed(() => marked.parse(props.text.slice(0, shown.value), { asy
 </template>
 
 <style scoped>
-.assistant { color: var(--text); font-size: 16px; line-height: 1.75; word-break: break-word; }
+.assistant { color: var(--text); font-size: 15px; line-height: 1.7; word-break: break-word; }
 .assistant :deep(> :first-child) { margin-top: 0; }
 .assistant :deep(> :last-child) { margin-bottom: 0; }
 .assistant :deep(p), .assistant :deep(ul), .assistant :deep(ol), .assistant :deep(pre), .assistant :deep(table) { margin: 0 0 14px; }

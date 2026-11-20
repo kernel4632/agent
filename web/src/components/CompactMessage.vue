@@ -5,6 +5,8 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import { ArchiveIcon } from '@hugeicons/core-free-icons'
 import type { CompactMessage } from '@kernel4632/agent-core'
 
 const props = defineProps<{ message?: CompactMessage; reason?: string; text?: string }>()
@@ -19,7 +21,7 @@ const title = computed(() => live.value ? `正在压缩上下文 · ${reasons[pr
   <div class="compact" :class="{ 'is-live': live, 'is-open': open || live }">
     <button class="compact__line" type="button" :disabled="live" @click="open = !open">
       <span class="compact__rule" />
-      <span class="compact__title">{{ title }}</span>
+      <span class="compact__title"><Icon :icon="ArchiveIcon" :size="14" /><span :class="{ shimmer: live }">{{ title }}</span></span>
       <span class="compact__rule" />
     </button>
     <p v-if="(open || live) && summary" class="compact__summary">{{ summary }}</p>
@@ -31,6 +33,6 @@ const title = computed(() => live.value ? `正在压缩上下文 · ${reasons[pr
 .compact__line:disabled { cursor: default; }
 .compact__line:hover:enabled { color: var(--muted); }
 .compact__rule { flex: 1; height: 1px; background: var(--line); }
-.is-live .compact__title { color: var(--muted); }
+.compact__title { display: inline-flex; align-items: center; gap: 6px; }
 .compact__summary { margin: 6px 0 0; padding: 12px 16px; border-radius: 16px; background: var(--soft); color: var(--muted); font-size: 13.5px; line-height: 1.7; }
 </style>

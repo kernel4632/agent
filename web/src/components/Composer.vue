@@ -8,6 +8,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Agent } from '../Agent'
+import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import { Add01Icon, ArrowUp02Icon, Attachment01Icon, Cancel01Icon, PlayIcon, StopIcon } from '@hugeicons/core-free-icons'
 import { PlusMenu } from '../Extension'
 
 const draft = ref('')
@@ -79,18 +81,18 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
       <div v-for="(item, index) in files" :key="index" class="composer__file" :class="{ 'is-image': item.url }">
         <img v-if="item.url" :src="item.url" alt="" />
         <span v-else>{{ item.file.name }}</span>
-        <button type="button" aria-label="移除" @click="remove(index)">×</button>
+        <button type="button" aria-label="移除" @click="remove(index)"><Icon :icon="Cancel01Icon" :size="12" /></button>
       </div>
     </div>
     <textarea ref="field" v-model="draft" class="composer__field" rows="1" placeholder="有什么想做的？" aria-label="输入消息"
       @keydown.enter="enter" @paste="paste" />
     <div class="composer__plus">
       <button class="composer__round composer__round--plus" type="button" aria-label="更多" :aria-expanded="menu" @click="menu = !menu">
-        <svg viewBox="0 0 20 20" width="18" height="18"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+        <Icon :icon="Add01Icon" :size="20" />
       </button>
       <div v-if="menu" class="composer__menu" role="menu">
         <button type="button" role="menuitem" @click="picker?.click()">
-          <svg viewBox="0 0 20 20" width="18" height="18"><path d="M13.5 6.5l-5.8 5.8a1.6 1.6 0 0 0 2.3 2.3l6-6a3.2 3.2 0 0 0-4.5-4.5l-6.2 6.2a4.8 4.8 0 0 0 6.8 6.8l4.4-4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <Icon :icon="Attachment01Icon" :size="18" />
           上传文件
         </button>
         <button v-for="item in PlusMenu" :key="item.id" type="button" role="menuitem" @click="menu = false; item.run()">{{ item.label }}</button>
@@ -99,15 +101,15 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
     </div>
     <button class="composer__round composer__send" :class="`is-${action}`" type="button" :disabled="action === 'idle'"
       :aria-label="{ stop: '停止', send: '发送', continue: '继续', idle: '发送' }[action]" :title="action === 'continue' ? '继续' : undefined" @click="submit">
-      <svg v-if="action === 'stop'" viewBox="0 0 20 20" width="14" height="14"><rect x="4" y="4" width="12" height="12" rx="2.5" fill="currentColor" /></svg>
-      <svg v-else-if="action === 'continue'" viewBox="0 0 20 20" width="17" height="17"><path d="M15.5 10a5.5 5.5 0 1 1-1.8-4.1M15.5 3.5v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-      <svg v-else viewBox="0 0 20 20" width="18" height="18"><path d="M10 16V4.5M5 9.5l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <Icon v-if="action === 'stop'" :icon="StopIcon" :size="16" />
+      <Icon v-else-if="action === 'continue'" :icon="PlayIcon" :size="17" />
+      <Icon v-else :icon="ArrowUp02Icon" :size="20" />
     </button>
   </div>
 </template>
 
 <style scoped>
-.composer { position: relative; display: grid; grid-template-columns: 32px 1fr 32px; grid-template-areas: 'plus field send'; align-items: center; column-gap: 10px; min-height: 58px; padding: 0 12px 0 11px; border: 1px solid var(--line); border-radius: 29px; background: var(--surface); box-shadow: 0 6px 14px -8px rgba(30, 25, 15, .16); transition: border-color .15s; }
+.composer { position: relative; display: grid; grid-template-columns: 32px 1fr 32px; grid-template-areas: 'plus field send'; align-items: center; column-gap: 10px; min-height: 58px; padding: 0 12px 0 11px; border: 1px solid var(--line); border-radius: 29px; background: var(--surface); box-shadow: 0 6px 14px -8px rgba(30, 25, 15, .14); transition: border-color .15s; }
 .composer:focus-within { border-color: var(--line-strong); }
 .composer.is-dragging { border-color: var(--accent); }
 .composer.is-stacked { grid-template-columns: 32px 1fr 32px; grid-template-areas: 'files files files' 'field field field' 'plus . send'; align-items: end; row-gap: 0; min-height: 108px; padding: 14px 12px 12px; }
@@ -116,19 +118,20 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', close); wind
 .composer__file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer__file.is-image { width: 56px; padding: 0; overflow: hidden; }
 .composer__file img { width: 100%; height: 100%; object-fit: cover; }
-.composer__file button { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
-.composer__field { grid-area: field; align-self: center; height: 24px; max-height: 176px; padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; background: none; color: var(--text); font: inherit; font-size: 16px; line-height: 24px; }
+.composer__file button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer; }
+.composer__field { grid-area: field; align-self: center; height: 24px; max-height: 176px; padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; background: none; color: var(--text); font: inherit; font-size: 15px; line-height: 24px; }
 .composer__field::placeholder { color: var(--faint); }
 .is-stacked .composer__field { height: auto; margin: 2px 0 10px; padding: 0 4px; overflow-y: auto; align-self: start; }
 .composer__plus { grid-area: plus; position: relative; }
 .composer__round { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; transition: background-color .15s, color .15s; }
-.composer__round--plus { background: var(--soft); color: var(--icon); }
-.composer__round--plus:hover { background: var(--soft-hover); }
-.composer__send { grid-area: send; background: var(--accent); color: #fff; }
+.composer__round--plus { background: var(--soft-strong); color: var(--text); }
+.composer__round--plus:hover { background: var(--ghost); }
+.composer__send { grid-area: send; background: var(--accent); color: var(--on-accent); }
 .composer__send.is-idle { background: transparent; color: var(--faint); cursor: default; }
-.composer__send.is-stop { background: var(--text); color: var(--surface); }
-.composer__menu { position: absolute; bottom: calc(100% + 10px); left: -4px; z-index: 5; min-width: 200px; padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 32px -12px rgba(30, 25, 15, .25); }
+.composer__send.is-stop { background: var(--primary); color: var(--on-primary); }
+.composer__send.is-stop :deep(svg *) { fill: currentColor; }
+.composer__menu { position: absolute; bottom: calc(100% + 10px); left: -4px; z-index: 5; min-width: 200px; padding: 6px; border: 1px solid var(--line); border-radius: 18px; background: var(--pane); box-shadow: 0 12px 32px -12px rgba(30, 25, 15, .25); }
 .composer__menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
-.composer__menu button:hover { background: var(--soft); }
-.composer__menu svg { color: var(--icon); }
+.composer__menu button:hover { background: var(--hover); }
+.composer__menu svg { color: var(--muted); }
 </style>

@@ -47,31 +47,51 @@ onMounted(() => new ResizeObserver(([entry]) => { space.value = entry!.contentRe
 
 <style>
 :root {
-  --bg: #f9f8f6; --surface: #fefefc; --bubble: #efeeeb; --soft: #f1f0ed; --soft-hover: #e6e5e1;
-  --line: #e2e1dd; --line-strong: #cfcdc8; --text: #2c2c2b; --icon: #4a4a48; --muted: #6f6e6a; --faint: #a3a29e;
-  --accent: #1084fe; --warn: #b7791f; --danger: #c8443c; --danger-soft: #fcf1ef; --danger-line: #f1d3cf;
-  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
+  /* 取自 grok.com 运行时的 --grok-* 设计变量（浅色 / 深色各量一次），名字改成本项目的用途 */
+  --bg: #f9f8f7;                          /* --grok-bg-chat */
+  --surface: #fefefc;                     /* --grok-bg-elevated：输入框 */
+  --pane: #fefefc;                        /* --grok-bg-pane：弹出面板 */
+  --bubble: #f0efed;                      /* --surface-user-bubble */
+  --soft: rgba(51, 34, 0, .06);           /* --grok-bg-tertiary：代码、输出块 */
+  --soft-strong: rgba(38, 26, 0, .08);    /* --grok-bg-secondary：加号按钮 */
+  --hover: rgba(39, 20, 0, .05);          /* --grok-bg-hover */
+  --line: #e6e5e3;                        /* --grok-border-secondary：输入框边框 */
+  --line-soft: #f0efed;                   /* --grok-border-tertiary */
+  --line-strong: #d4d3cf;                 /* --grok-border-primary */
+  --text: #2c2c2b;                        /* --grok-text-primary */
+  --muted: rgba(44, 44, 42, .62);         /* --grok-text-secondary */
+  --faint: rgba(43, 43, 43, .44);         /* --grok-text-tertiary */
+  --ghost: rgba(43, 43, 43, .18);         /* --grok-text-quaternary */
+  --primary: #2c2c2b; --on-primary: #fff; /* --grok-bg-primary / --grok-text-on-primary：停止按钮 */
+  --accent: #1084fe; --on-accent: #fff;   /* --grok-bg-accent-primary：发送按钮 */
+  --danger: #ff263c; --warn: #d77f02; --success: #05a95f;
+  --mono: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141413; --surface: #1d1d1c; --bubble: #262624; --soft: #242422; --soft-hover: #2f2f2d;
-    --line: #2e2e2c; --line-strong: #444441; --text: #ecebe7; --icon: #d4d3cf; --muted: #a09f9a; --faint: #6c6b67;
-    --danger: #ec7066; --danger-soft: #2a1b19; --danger-line: #4a2723; --warn: #d9a441;
+    --bg: #1e1d1d; --surface: #191919; --pane: #282726; --bubble: #282726;
+    --soft: rgba(255, 255, 255, .06); --soft-strong: rgba(255, 255, 255, .08); --hover: rgba(255, 255, 255, .06);
+    --line: #383836; --line-soft: rgba(255, 255, 255, .06); --line-strong: #5f5e59;
+    --text: #e6e5e3; --muted: rgba(230, 229, 227, .65); --faint: rgba(229, 229, 227, .47); --ghost: rgba(232, 232, 225, .13);
+    --primary: #e6e5e3; --on-primary: #1e1d1d; --on-accent: #1e1d1d;
+    --warn: #ff9800; --success: #00c972;
     color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.spinner { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.6px solid var(--line); border-top-color: var(--text); animation: spin .8s linear infinite; }
+.spinner { display: inline-block; flex: none; width: 12px; height: 12px; margin: 2px; border-radius: 50%; border: 1.5px solid var(--ghost); border-top-color: var(--text); animation: spin .8s linear infinite; }
+.shimmer { background: linear-gradient(90deg, var(--faint) 0%, var(--faint) 40%, var(--text) 50%, var(--faint) 60%, var(--faint) 100%); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .app { position: relative; height: 100dvh; }
 .app__flow { height: 100%; overflow-y: auto; padding-top: 72px; scrollbar-gutter: stable both-edges; }
 .app__column { width: 100%; max-width: 796px; margin: 0 auto; padding: 0 16px; }
-.app__empty { margin: 30vh 0 0; text-align: center; font-size: 28px; font-weight: 500; letter-spacing: -.01em; color: var(--text); }
+.app__empty { margin: 30vh 0 0; text-align: center; font-size: 28px; font-weight: 450; letter-spacing: -.01em; color: var(--text); }
 .app__dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 0 max(6px, env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--bg) 24px); scrollbar-gutter: stable both-edges; }
 @media (max-width: 640px) {
   .app__flow { padding-top: 40px; }

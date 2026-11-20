@@ -1,33 +1,53 @@
 <!--
-一段思考：正在思考时显示最新几行（淡色、不抢正文）；想完收成一行，点开看全文。
+一段思考，参照 RikkaHub 的思考卡片：
+- 正在思考：半展开，固定高度的小窗只露最新几行并跟着滚到底，顶部渐隐；标题取思考里最新的 **加粗小标题**。
+- 想完：收成一行，只留标题或第一句；点开看全文，再点收起。用户点过之后以用户为准。
 调用示例：<component :is="Components.Thinking" :text="text" :live="false" />
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { marked } from 'marked'
+import { HugeiconsIcon as Icon } from '@hugeicons/vue'
+import { ArrowRight01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 
 const props = defineProps<{ text: string; live: boolean }>()
 const manual = ref<boolean | null>(null)
-const open = computed(() => manual.value ?? false)
-const preview = computed(() => props.text.trim().split('\n').at(-1) ?? '')
+const window_ = ref<HTMLElement>()
+const mode = computed(() => manual.value ? 'full' : manual.value === false ? 'closed' : props.live ? 'preview' : 'closed')
+const title = computed(() => [...props.text.matchAll(/\*\*([^*\n]{2,40})\*\*/g)].at(-1)?.[1])
+const summary = computed(() => title.value ?? props.text.trim().split(/[。.!！?？\n]/)[0])
+const html = computed(() => marked.parse(props.text.trim().replace(/</g, '&lt;'), { async: false }) as string)
+
+// 小窗跟着最新内容滚到底。
+watch(() => props.text, async () => {
+  if (mode.value !== 'preview') return
+  await nextTick()
+  window_.value?.scrollTo({ top: window_.value.scrollHeight })
+}, { immediate: true })
 </script>
 
 <template>
-  <div class="thinking" :class="{ 'is-live': live, 'is-open': open }">
-    <button class="thinking__head" type="button" @click="manual = !open">
-      <svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 2.5a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.2v.6h3.6v-.6c0-.5.2-.9.6-1.2A4 4 0 0 0 8 2.5zM6.4 13.5h3.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" /></svg>
-      <span class="thinking__title">{{ live ? '思考中' : '思考' }}</span>
-      <span v-if="!open" class="thinking__preview">{{ preview }}</span>
+  <div class="thinking" :class="`is-${mode}`">
+    <button class="thinking__head" type="button" :aria-expanded="mode === 'full'" @click="manual = mode !== 'full'">
+      <Icon :icon="Idea01Icon" :size="16" />
+      <span v-if="live" class="shimmer">{{ title ?? '正在思考' }}</span>
+      <span v-else class="thinking__summary">{{ summary }}</span>
+      <Icon class="thinking__chevron" :icon="ArrowRight01Icon" :size="14" />
     </button>
-    <p v-if="open" class="thinking__text">{{ text.trim() }}</p>
+    <div v-if="mode !== 'closed'" ref="window_" class="thinking__body" v-html="html" />
   </div>
 </template>
 
 <style scoped>
-.thinking__head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--muted); text-align: left; cursor: pointer; }
-.thinking__head svg { flex: none; color: var(--faint); }
-.thinking__title { flex: none; }
-.thinking__preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); }
-.is-live .thinking__title { color: var(--text); }
-.is-live .thinking__preview { color: var(--muted); }
-.thinking__text { margin: 2px 0 8px 22px; color: var(--muted); font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }
+.thinking__head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--faint); text-align: left; cursor: pointer; }
+.thinking__head > svg { flex: none; }
+.thinking__head:hover { color: var(--muted); }
+.thinking__summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thinking__chevron { opacity: 0; transition: transform .2s ease, opacity .15s; }
+.thinking__head:hover .thinking__chevron, .is-full .thinking__chevron { opacity: 1; }
+.is-full .thinking__chevron { transform: rotate(90deg); }
+.thinking__body { margin: 0 0 8px 26px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.thinking__body :deep(p) { margin: 0 0 6px; }
+.thinking__body :deep(strong) { font-weight: 550; color: var(--text); }
+.is-preview .thinking__body { max-height: 110px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent, #000 44px); mask-image: linear-gradient(to bottom, transparent, #000 44px); }
 </style>
