@@ -2,21 +2,21 @@
 
 agent-core 的可视化界面和扩展系统，带一组可开关的内置扩展示例。面向二次开发，不是最终产品。
 
-Agent 循环和历史写入只来自 `@kernel4632/agent-core`（本仓库用本地 `file:../../agent-core`，当前是尚未发布到 npm 的 1.2.1）。没有的能力才用扩展加入。
+Agent 循环和历史写入只来自 npm 上的 [`@kernel4632/agent-core`](https://www.npmjs.com/package/@kernel4632/agent-core)（`^1.2.1`），`bun install` 即可装好，不需要旁边再放一份 agent-core 源码。没有的能力才用扩展加入。
 
 ## 现在有什么
 
 | 部分 | 版本 | 说明 |
 | --- | --- | --- |
-| `backend/` | 0.2.2 | Bun.serve，把 agent-core 事件原样推给前端，并加载扩展 |
-| `web/` | 0.8.0 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
+| `backend/` | 0.2.3 | Bun.serve，把 agent-core 事件原样推给前端，并加载扩展 |
+| `web/` | 0.8.1 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
 | `extensions/` | 内置 9 个 | 顶部栏、会话、设置、基础工具、权限审批、技能、任务清单、MCP 管理、自动标题 |
 
 旧的 `server/`、`frontend/`、`cli/` 已经删除。桌面端还没写。
 
 ## 跑起来
 
-先在 `~/.agent/config.json` 写好供应商和模型（没有配置时界面仍能打开，但不能发送）：
+需要 Bun ≥ 1.4.4。供应商和模型可以启动后在「设置 → 模型供应商」里填，也可以先写进 `~/.agent/config.json`（没有配置时界面仍能打开，但不能发送）：
 
 ```json
 {
