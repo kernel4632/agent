@@ -9,6 +9,7 @@ export const state = reactive({
     hash: '',
     page: 'home',          // home | session | settings | 其他 pages.id
     session: '',
+    category: '',         // 设置页的当前分类（#/settings/<分类>/<详情>）
     title: '',
     side: '',              // 对话顶栏打开的侧栏 id（todo 等）
     back: '#/',

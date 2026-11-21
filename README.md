@@ -9,7 +9,7 @@ Agent 循环和历史写入只来自 npm 上的 [`@kernel4632/agent-core`](https
 | 部分 | 版本 | 说明 |
 | --- | --- | --- |
 | `backend/` | 0.2.3 | Bun.serve，把 agent-core 事件原样推给前端，并加载扩展 |
-| `web/` | 0.8.1 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
+| `web/` | 0.8.2 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
 | `extensions/` | 内置 9 个 | 顶部栏、会话、设置、基础工具、权限审批、技能、任务清单、MCP 管理、自动标题 |
 
 旧的 `server/`、`frontend/`、`cli/` 已经删除。桌面端还没写。

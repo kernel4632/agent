@@ -35,7 +35,7 @@ function title(id) {
 function apply(hash, app) {
     const next = parse(hash)
     if (state.page !== 'settings' && next.page === 'settings') state.back = state.hash || '#/'
-    Object.assign(state, { hash: next.hash, page: next.page, session: next.session, side: next.page === 'session' ? state.side : '' })
+    Object.assign(state, { hash: next.hash, page: next.page, session: next.session, category: next.category, side: next.page === 'session' ? state.side : '' })
     if (next.page === 'session' && next.session) {
         if (!state.tabs.some(item => item.id === next.session)) {
             state.tabs.push({ id: next.session, title: '会话' })
@@ -59,7 +59,8 @@ export function create(app) {
     const shell = {
         get state() { return state },
         get session() { return state.session },
-        get category() { return parse(location.hash).category },
+        // 读 state 而不是 location.hash：hash 不是响应式的，设置页的 computed 不会重算，点分类会停在空白页。
+        get category() { return state.category },
 
         go(hash) {
             const next = parse(hash).hash
