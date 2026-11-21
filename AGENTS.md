@@ -61,11 +61,11 @@ cd web && bun run check && bun run build
 
 - `GET /api/agent/:id/stream`
 - `POST /api/agent/:id/send` / `compact` / `stop` / `configure`
-- `GET /api/extensions`、`GET /api/extensions/:name/frontend.js`
+- `GET /api/extensions`、`GET /api/extensions/inspect`、`GET /api/extensions/:name/frontend.js`
 - `POST /api/op/:name`
 
 正在跑的会话再 send / compact 返回 409。进程重启不自动续跑。
 
 ## 扩展
 
-扩展扫描 `extensions/` 和 `~/.agents/extensions`，按 `requires` 拓扑、`after` 软边加载 `backend.js`。前端入口打包后由网页 `import`。业务代码用 `ctx.patch` / `ctx.tool` / `ctx.op` 和 `app.shell` / `app.settings` / `app.toolViews`。加号菜单只留给上传文件。内置扩展示例的分工见 `NOTES.md` 第五节。
+扩展扫描 `extensions/` 和 `~/.agents/extensions`，按 `requires` 拓扑、`after` 软边加载 `backend.js`。前端入口打包后由网页 `import`。业务代码用 `ctx.patch` / `ctx.tool` / `ctx.op` 和 `app.shell` / `app.settings` / `app.toolViews`。加号菜单只留给上传文件。内置扩展示例的分工见 `NOTES.md` 第七节。

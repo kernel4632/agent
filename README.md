@@ -61,10 +61,13 @@ cd web && bun install && bun dev          # 127.0.0.1:5180，把 /api 代理到�
 | `POST` | `/api/agent/:id/stop` | 停止 |
 | `POST` | `/api/agent/:id/configure` | 换模型或思考强度 |
 | `GET` | `/api/extensions` | 已加载扩展的前端入口 |
+| `GET` | `/api/extensions/inspect` | 当前 patch 链、动作和扩展加载状态 |
 | `GET` | `/api/extensions/:name/frontend.js` | 打包好的扩展前端 |
 | `POST` | `/api/op/:name` | 扩展动作（会话列表、设置读写、权限回答等） |
 
 `core` 事件就是 agent-core 的事件（含每条历史的 `message`）。`run` 表示整轮开始或结束，`cut` 表示宿主截断了历史。进程重启后不自动续跑。
+
+`snapshot` 一次发完整历史，没有分页；很长的会话打开会慢（实测 1.6 万条消息约 51MB）。
 
 ## 内置扩展
 

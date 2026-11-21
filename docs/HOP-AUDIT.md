@@ -1,12 +1,12 @@
 # 接手说明
 
-最后更新：2026-11-20。这是当前仓库的结构，不是旧 `server/` / `frontend/` / `cli/` 的审查。那三处已经删除。
+最后更新：2026-11-21。这是当前仓库的结构，不是旧 `server/` / `frontend/` / `cli/` 的审查。那三处已经删除。
 
 ## 先读什么
 
 1. [README.md](../README.md)：现在有什么、怎么启动、有哪些接口。
 2. [AGENTS.md](../AGENTS.md)：提交、版本号、验证。
-3. [NOTES.md](../NOTES.md)：定位、原版本体和扩展系统设计。
+3. [NOTES.md](../NOTES.md)：定位、核心概念、数据形状、扩展写法。
 
 ## 现在长什么样
 
@@ -15,7 +15,7 @@ backend/server.js              路由：stream / send / compact / stop / configu
 backend/features/
   Agents.js                    打开、发送、停止、压缩、截断历史
   Stream.js                    SSE 订阅、尾巴合并、run / cut / core 分发
-  Store.js                     AGENT_HOME（默认 ~/.agent）里的 config 与会话落盘
+  Store.js                     AGENT_HOME（默认 ~/.agent）里的 config 与 meta / history
   Models.js                    供应商/模型 → agent-core 连接参数，无供应商特例
   Extension.js                 patch 链、ctx.tool / op / expose / use
   Loader.js                    扫描、拓扑、启停、打包前端入口
@@ -26,10 +26,10 @@ web/src/
   Extension.ts                 组件表、patch、加载 /api/extensions
   App.vue                      对话流 + 输入区，没有顶栏
   components/                  History、Composer、Stats、ToolCall…
-extensions/<name>/             内置与第三方同一写法（见 NOTES 第五节）
+extensions/<name>/             内置与第三方同一写法（manifest + backend.js + 可选 frontend/）
 ```
 
-依赖：`@kernel4632/agent-core` 通过 `file:../../agent-core` 引用本地 1.2.1，尚未发到 npm。
+依赖：`@kernel4632/agent-core` 通过 npm 的 `^1.2.1` 安装（`bun install` 即可），不要改用 `file:` 本地路径。
 
 ## 一次请求怎么走
 
@@ -41,6 +41,18 @@ extensions/<name>/             内置与第三方同一写法（见 NOTES 第五
 
 扩展后端在进程启动时织入；扩展前端由 Loader 打包，页面按 `GET /api/extensions` 给出的地址 `import`。
 
+## 数据
+
+数据目录是 `AGENT_HOME`，默认 `~/.agent`；新布局只读 `agents/<id>/`。
+
+- `config.json`：供应商、默认模型、MCP、权限、压缩阈值、扩展/技能关闭名单。
+- `agents/<id>/meta.json`：标题、分组、模型、思考强度、学到的比例、更新时间。
+- `agents/<id>/history.jsonl`：一行一条 core 消息，只有截断时整份重写。
+
+旧 `server/` 的 `sessions/<id>/`（分块历史、checkpoints、snapshots）不再被读取。
+2026-11-21 已用 `tmp/migrate-legacy.mjs` 把其中带 `meta.json` 的会话迁成 `agents/`；
+旧目录原样保留，确认不需要后再手动删除。
+
 ## 验证
 
 ```sh
@@ -48,12 +60,13 @@ cd backend && bun test --max-concurrency 1
 cd web && bun run check && bun run build
 ```
 
-2026-11-20 的 mock 测试是后端 27 个通过（另有一条真实请求默认跳过），前端 `vue-tsc` 通过。数字只用来对照，验收以当次输出为准。
+2026-11-21 的 mock 测试：28 个通过、1 个真实请求测试默认跳过；需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`，1.3 上重连那条会红）。
+前端 `vue-tsc` 与 `vite build` 通过。数字只用来对照，验收以当次输出为准。
 
 ## 已知边界
 
-- 桌面端还没开始。
-- 工具工作目录继承服务进程的 cwd；按会话分开的工作区还没有。
-- 不提供 git、项目规则、斜杠命令，这些留给 fork 后的产品。
+- `snapshot` 一次发完整历史，没有分页；很长的会话打开会慢（实测 1.6 万条 ≈ 51MB，读取约 20 秒）。
+- cwd 还没按会话保存；工具继承后端进程的工作目录。
+- MCP 只支持 http / sse，stdio 条目接不了。
+- 桌面端还没开始；git、项目规则、斜杠命令、子 agent、流程编排都不做。
 - 服务端没有登录鉴权。部署时让前后端同源或走反向代理，并关闭 SSE 缓冲。
-- agent-core 1.2.1 的 `message` 事件还只在本地，发布前不要假定 npm 上已经有。
