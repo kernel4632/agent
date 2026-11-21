@@ -1,6 +1,6 @@
 # 给接手的人
 
-本仓库是 agent-core 的可视化 + 扩展系统。循环和历史只由 agent-core 写。当前分支的后端是 `backend/`，界面是 `web/`，内置扩展在 `extensions/`。旧的 `server/`、`frontend/`、`cli/` 已删除。
+本仓库是 agent-core 的可视化 + 扩展系统。循环和历史只由 agent-core 写。当前分支的后端是 `backend/`，界面是 `web/`，内置扩展在 `extensions/`。
 
 ## 目录
 

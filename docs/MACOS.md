@@ -1,6 +1,6 @@
 # macOS 使用与验证
 
-当前用 `backend/` + `web/`。旧的 `frontend/`、`cli/` 和 `server/` 已从仓库删除。桌面应用尚未实现，没有 `.app` 或 DMG。
+当前用 `backend/` + `web/`。桌面应用尚未实现，没有 `.app` 或 DMG。
 
 ## 安装和启动
 

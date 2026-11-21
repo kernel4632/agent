@@ -1,7 +1,6 @@
 # Agent 设计笔记
 
-> 2026-11-21 按当前代码重写（backend 0.2.3 / web 0.8.1 / agent-core ^1.2.1）。
-> 旧的 `server/`、`frontend/`、`cli/` 已删除，本文不再描述它们。
+> 2026-11-22 按当前代码整理（backend 0.2.3 / web 0.8.2 / agent-core ^1.2.1）。
 > 启动、目录、接口见 [README.md](README.md)；接手检查表见 [docs/HOP-AUDIT.md](docs/HOP-AUDIT.md)。
 
 这是一个**通用 Agent 基座**，不是开发者专用的编码工具，也不是把 OpenCode、Roo Code、RikkaHub、Cherry Studio 的功能拼在一起。
@@ -212,12 +211,6 @@ cd web && bun run check && bun run build
 - 桌面端没开始；git、项目规则、斜杠命令、子 agent、流程编排都不做。
 - agent-core 只从 npm 装（`^1.2.1`）；要改 core 先在 agent-core 仓库发版，不要提交 `file:` 本地路径。
 
-## 十、发布前不写向后兼容
+## 十、不做兼容
 
-正式版发布之前，代码只认最新版本的数据形状。旧版本没有用户，也没有需要保留的数据。
-
-- 不写旧字段迁移：没有 `modelSettings`、全局 `model`、`uses` 这些别名。
-- 不写旧会话兼容：`meta.json` 只认 `model: "供应商/模型"` 字符串。
-- 不写旧接口兼容：前端只对接当前后端，删掉的路由不再提供。
-
-旧数据不迁移。开发机上的 `~/.agent` 可以直接删掉重建；测试和文档也不写"旧版本会怎样"的用例。
+正式版发布之前，只认当前的数据形状和接口，不写字段迁移、旧会话兼容或旧接口层。开发机上的 `~/.agent` 可以直接删掉重建；测试和文档也不写"旧版本会怎样"的用例。

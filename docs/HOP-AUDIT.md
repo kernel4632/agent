@@ -1,6 +1,6 @@
 # 接手说明
 
-最后更新：2026-11-21。这是当前仓库的结构，不是旧 `server/` / `frontend/` / `cli/` 的审查。那三处已经删除。
+最后更新：2026-11-22。这是当前仓库的结构。
 
 ## 先读什么
 
@@ -43,15 +43,14 @@ extensions/<name>/             内置与第三方同一写法（manifest + backe
 
 ## 数据
 
-数据目录是 `AGENT_HOME`，默认 `~/.agent`；新布局只读 `agents/<id>/`。
+数据目录是 `AGENT_HOME`，默认 `~/.agent`。
 
 - `config.json`：供应商、默认模型、MCP、权限、压缩阈值、扩展/技能关闭名单。
 - `agents/<id>/meta.json`：标题、分组、模型、思考强度、学到的比例、更新时间。
 - `agents/<id>/history.jsonl`：一行一条 core 消息，只有截断时整份重写。
+- `agents/<id>/todos.json`：用过任务清单时才有。
 
-旧 `server/` 的 `sessions/<id>/`（分块历史、checkpoints、snapshots）不再被读取。
-2026-11-21 已用 `tmp/migrate-legacy.mjs` 把其中带 `meta.json` 的会话迁成 `agents/`；
-旧目录原样保留，确认不需要后再手动删除。
+没有其他目录会被读取。
 
 ## 验证
 
