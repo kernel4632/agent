@@ -55,12 +55,12 @@ extensions/<name>/             内置与第三方同一写法（manifest + backe
 ## 验证
 
 ```sh
-cd backend && bun test --max-concurrency 1
+cd backend && bun run test    # mock 测试 + 扩展后端类型检查（--max-concurrency 1 由 script 带上）
 cd web && bun run check && bun run build
 ```
 
-2026-11-21 的 mock 测试：28 个通过、1 个真实请求测试默认跳过；需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`，1.3 上重连那条会红）。
-前端 `vue-tsc` 与 `vite build` 通过。数字只用来对照，验收以当次输出为准。
+2026-11-25 的 mock 测试：30 个通过、1 个真实请求测试默认跳过；需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`，1.3 上重连那条会红）。
+前端 `vue-tsc` 与 `vite build` 通过；扩展前后端各有 checkJs 类型检查（前端 `extensions/tsconfig.json`、后端 `backend/tsconfig.extensions.json`），类型声明在 `web/src/types.ts` 和 `backend/extension.d.ts`。数字只用来对照，验收以当次输出为准。
 
 ## 已知边界
 

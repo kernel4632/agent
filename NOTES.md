@@ -1,6 +1,6 @@
 # Agent 设计笔记
 
-> 2026-11-22 按当前代码整理（backend 0.2.3 / web 0.8.2 / agent-core ^1.2.1）。
+> 2026-11-25 按当前代码整理（backend 0.3.0 / web 0.9.0 / agent-core ^1.2.1）。
 > 启动、目录、接口见 [README.md](README.md)；接手检查表见 [docs/HOP-AUDIT.md](docs/HOP-AUDIT.md)。
 
 这是一个**通用 Agent 基座**，不是开发者专用的编码工具，也不是把 OpenCode、Roo Code、RikkaHub、Cherry Studio 的功能拼在一起。
@@ -176,6 +176,8 @@ extensions/<name>/         manifest.json、backend.js、可选 frontend/
 - `requires` 是硬边，缺依赖或上游没启动自己也不启动；`after` 是软边。
 - `backend.js` 默认导出 `ctx => { … }`；`frontend/index.js` 默认导出 `app => { … }`。
 - 前端由后端打包，`vue` 留成外部引用，页面从 `globalThis.__agentVue__` 取；改 `.vue` 会按 mtime 重打。
+- 类型：JS 写扩展也全程有编辑器推导——前端 `/** @param {import('agent-extension').App} app */`（形状在 `web/src/types.ts`），后端 `/** @param {import('agent-backend').Ctx} ctx */`（形状在 `backend/extension.d.ts`）；两份声明与实现同步维护，检查命令在第八节。
+- 调试前端组件不用等后端打包：vite dev 下把地址开成 `?ext=<名字>,<名字>`，列出的扩展直接从源码加载（HMR、Volar 全可用）；后端照常跑，只是这些扩展的前端不走打包产物。
 
 内置九个：
 
@@ -196,11 +198,11 @@ extensions/<name>/         manifest.json、backend.js、可选 frontend/
 ## 八、验证
 
 ```sh
-cd backend && bun test --max-concurrency 1   # 只用 mock；真实请求需显式 RUN_REAL=1
-cd web && bun run check && bun run build
+cd backend && bun run test   # mock 测试 + 扩展后端 checkJs（tsc -p tsconfig.extensions.json）
+cd web && bun run check && bun run build   # 本体 vue-tsc + 扩展前端 checkJs（extensions/tsconfig.json）
 ```
 
-需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`）。新加接口或改行为时，在同一次提交里补测试。
+需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`）。新加接口或改行为时，在同一次提交里补测试。改 `App` / `Ctx` 的形状时同步改 `web/src/types.ts` / `backend/extension.d.ts`。
 
 ## 九、已知边界
 

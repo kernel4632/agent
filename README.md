@@ -8,8 +8,8 @@ Agent 循环和历史写入只来自 npm 上的 [`@kernel4632/agent-core`](https
 
 | 部分 | 版本 | 说明 |
 | --- | --- | --- |
-| `backend/` | 0.2.3 | Bun.serve，把 agent-core 事件原样推给前端，并加载扩展 |
-| `web/` | 0.8.2 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
+| `backend/` | 0.3.0 | Bun.serve，把 agent-core 事件原样推给前端，并加载扩展 |
+| `web/` | 0.9.0 | Vue 3 对话页，经 `/api` 连到后端；界面壳由 shell 扩展提供 |
 | `extensions/` | 内置 9 个 | 顶部栏、会话、设置、基础工具、权限审批、技能、任务清单、MCP 管理、自动标题 |
 
 桌面端还没写。
@@ -85,10 +85,17 @@ cd web && bun install && bun dev          # 127.0.0.1:5180，把 /api 代理到�
 ## 验证
 
 ```sh
-cd backend && bun test         # mock，默认不打真实模型
-cd web && bun run check        # 类型检查
+cd backend && bun run test    # mock 测试 + 扩展后端的类型检查；真实请求需 RUN_REAL=1
+cd web && bun run check       # 本体 vue-tsc + 扩展前端的类型检查（checkJs + JSDoc）
 cd web && bun run build
 ```
+
+扩展代码是 JS，靠两份类型声明获得编辑器推导（编辑时也生效，不必等检查）：
+
+- 前端：`web/src/types.ts`（`import('agent-extension')`），入口写 `/** @param {import('agent-extension').App} app */`
+- 后端：`backend/extension.d.ts`（`import('agent-backend')`），入口写 `/** @param {import('agent-backend').Ctx} ctx */`
+
+写扩展前端时不用后端打包，直接把页面开成 `?ext=<名字>,<名字>`（vite dev 模式）：列出的扩展从源码加载，有 HMR 和完整 Volar 推导；后端照常跑，只是扩展前端不走打包产物。地址如 `http://127.0.0.1:5180/?ext=shell,session`。
 
 一次真实模型请求（需本机密钥，会消耗额度）：
 
