@@ -6,33 +6,38 @@
 import { computed, ref } from 'vue'
 
 const props = defineProps({ app: { type: Object, required: true } })
+/** @typedef {{ requestId: string, call?: { toolName?: string, input?: unknown } }} AskItem */
+/** @type {import('vue').Ref<Array<AskItem>>} */
 const asks = ref([])
 
-props.app.on('permission.ask', data => {
+props.app.on('permission.ask', /** @param {AskItem} data */ data => {
     asks.value = [...asks.value.filter(item => item.requestId !== data.requestId), data]
 })
-props.app.on('permission.answered', data => {
+props.app.on('permission.answered', /** @param {{ requestId: string }} data */ data => {
     asks.value = asks.value.filter(item => item.requestId !== data.requestId)
 })
 
 const pending = computed(() => {
     const from = props.app.shared.Agent?.state?.extras?.permission
     const seen = new Set(asks.value.map(item => item.requestId))
-    const recovered = (from ?? []).filter(item => !seen.has(item.requestId))
+    const recovered = (from ?? []).filter(/** @param {AskItem} item */ item => !seen.has(item.requestId))
     return [...asks.value, ...recovered]
 })
 
+/** @param {AskItem} item @param {boolean} allow @param {boolean} [always] */
 async function answer(item, allow, always = false) {
     await props.app.api.op('permission.answer', { requestId: item.requestId, allow, always })
     asks.value = asks.value.filter(one => one.requestId !== item.requestId)
     const extras = props.app.shared.Agent?.state?.extras
-    if (extras?.permission) extras.permission = extras.permission.filter(one => one.requestId !== item.requestId)
+    if (extras?.permission) extras.permission = extras.permission.filter(/** @param {AskItem} one */ one => one.requestId !== item.requestId)
 }
 
+/** @param {AskItem} item */
 function label(item) {
     const call = item.call ?? {}
     return call.toolName || '工具'
 }
+/** @param {AskItem} item */
 function detail(item) {
     const input = item.call?.input
     try { return JSON.stringify(input, null, 2) } catch { return String(input ?? '') }

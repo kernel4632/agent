@@ -114,11 +114,13 @@ export const Extension = {
     shared.Panels = Panels
     shared.Settings = Settings
     const entries = await API.extensions().catch(() => [])
-    for (const entry of entries) {
-      try { const module = await import(/* @vite-ignore */ entry.url); await module.default(scope(entry.name, shared)) } catch (error) {
-        unload(entry.name)
-        Loaded.push({ name: entry.name, patched: [], error: String(error) })
-      }
+    for (const entry of entries) await Extension.run(entry.name, shared, () => import(/* @vite-ignore */ entry.url))
+  },
+  // 执行一个扩展前端并登记它的改动；失败只撤它自己。importer 由调用方给（远程 URL 或 vite 源码模块）。
+  async run(name: string, shared: Record<string, unknown>, importer: () => Promise<{ default: (app: any) => unknown }>) {
+    try { const module = await importer(); await module.default(scope(name, shared)) } catch (error) {
+      unload(name)
+      Loaded.push({ name, patched: [], error: String(error) })
     }
   },
 }

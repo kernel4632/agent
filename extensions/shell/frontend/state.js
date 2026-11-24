@@ -5,6 +5,27 @@
 
 import { reactive } from 'vue'
 
+/** @typedef {import('agent-extension').ShellTab} ShellTab */
+/** @typedef {import('agent-extension').ShellPage} ShellPage */
+/** @typedef {import('agent-extension').ShellHeaderItem} ShellHeaderItem */
+/** @typedef {import('agent-extension').ShellBarItem} ShellBarItem */
+/** @typedef {import('agent-extension').ShellOverlay} ShellOverlay */
+
+/** @type {ShellTab[]} */
+const tabs = []
+/** @type {ShellPage[]} */
+const pages = []
+/** @type {ShellHeaderItem[]} */
+const header = []
+/** @type {ShellBarItem[]} */
+const start = []
+/** @type {ShellBarItem[]} */
+const end = []
+/** @type {ShellBarItem[]} */
+const extras = []
+/** @type {ShellOverlay[]} */
+const overlays = []
+
 export const state = reactive({
     hash: '',
     page: 'home',          // home | session | settings | 其他 pages.id
@@ -13,15 +34,20 @@ export const state = reactive({
     title: '',
     side: '',              // 对话顶栏打开的侧栏 id（todo 等）
     back: '#/',
-    tabs: [],              // { id, title }
-    pages: [],             // { id, title, parent?, component }
-    header: [],            // { id, icon?, label, title?, run?, component? }
-    start: [],             // 顶栏左侧入口（会话），{ id, icon?, label, run }
-    end: [],               // 顶栏右侧入口（设置）
-    extras: [],            // 标签右侧按钮（新会话 +）
-    overlays: [],          // 内容区浮层（权限询问）
+    tabs,                  // { id, title }
+    pages,                 // { id, title, parent?, component }
+    header,                // { id, icon?, label, title?, run?, component? }
+    start,                 // 顶栏左侧入口（会话），{ id, icon?, label, run }
+    end,                   // 顶栏右侧入口（设置）
+    extras,                // 标签右侧按钮（新会话 +）
+    overlays,              // 内容区浮层（权限询问）
 })
 
+/**
+ * 地址 → 当前页。约定：#/ 会话列表，#/s/<id> 已打开的对话，#/settings/<分类>/<详情> 设置页，#/<pages.id> 其他整页。
+ * @param {string} hash
+ * @returns {{ page: string, session: string, hash: string, category: string }}
+ */
 export function parse(hash) {
     const raw = String(hash || '').replace(/^#/, '') || '/'
     const path = raw.startsWith('/') ? raw : `/${raw}`
@@ -34,10 +60,12 @@ export function parse(hash) {
 
 const KEY = 'agent.openTabs'
 
+/** @param {string[]} ids */
 export function remember(ids) {
     try { sessionStorage.setItem(KEY, JSON.stringify(ids)) } catch { /* 私密模式就只留这一次 */ }
 }
 
+/** @returns {string[]} */
 export function recalled() {
     try {
         const value = JSON.parse(sessionStorage.getItem(KEY) || '[]')

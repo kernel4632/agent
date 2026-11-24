@@ -3,6 +3,7 @@
 -->
 <script setup>
 const props = defineProps({ step: { type: Object, required: true } })
+/** @param {import('agent-extension').ToolStep} step */
 function text(step) {
     if (step.log) return step.log
     const output = step.output?.value ?? step.output

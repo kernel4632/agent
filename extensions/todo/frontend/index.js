@@ -4,6 +4,7 @@
 import { CheckListIcon } from '@hugeicons/core-free-icons'
 import Panel from './Panel.vue'
 
+/** @param {import('agent-extension').App} app */
 export default app => {
     app.shell?.header.add({ id: 'todo', icon: CheckListIcon, label: '任务', title: '任务清单', component: Panel })
 }

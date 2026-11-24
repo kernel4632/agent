@@ -15,13 +15,19 @@
 import { markRaw } from 'vue'
 import { parse, recalled, remember, state } from './state.js'
 
+/** @typedef {import('agent-extension').App} App */
+/** @typedef {import('agent-extension').ShellApi} ShellApi */
+/** @typedef {import('agent-extension').ShellLookupItem} ShellLookupItem */
+
 function stash() {
     remember(state.tabs.map(item => item.id))
 }
 
 // 新标签先用占位标题，再向会话扩展登记的 lookup 要它自己的标题；不能沿用上一个会话的标题。
+/** @type {((id: string) => Promise<ShellLookupItem | undefined | null> | ShellLookupItem | undefined | null) | null} */
 let lookup = null
 
+/** @param {string} id */
 function title(id) {
     if (!lookup) return
     Promise.resolve(lookup(id)).then(meta => {
@@ -32,6 +38,7 @@ function title(id) {
     }).catch(() => {})
 }
 
+/** @param {string} hash @param {App} app */
 function apply(hash, app) {
     const next = parse(hash)
     if (state.page !== 'settings' && next.page === 'settings') state.back = state.hash || '#/'
@@ -47,7 +54,14 @@ function apply(hash, app) {
     }
 }
 
+/** @param {App} app @returns {ShellApi} */
 export function create(app) {
+    /**
+     * @template T
+     * @param {T[]} list
+     * @param {T} item
+     * @returns {() => void}
+     */
     const own = (list, item) => {
         list.push(item)
         return () => {
@@ -62,6 +76,7 @@ export function create(app) {
         // 读 state 而不是 location.hash：hash 不是响应式的，设置页的 computed 不会重算，点分类会停在空白页。
         get category() { return state.category },
 
+        /** @param {string} hash */
         go(hash) {
             const next = parse(hash).hash
             if (location.hash !== next) location.hash = next
@@ -70,6 +85,7 @@ export function create(app) {
 
         tabs: {
             list: state.tabs,
+            /** @param {string} id @param {string} [title] */
             open(id, title) {
                 if (!id) return
                 const hit = state.tabs.find(item => item.id === id)
@@ -78,6 +94,7 @@ export function create(app) {
                 stash()
                 shell.go(`#/s/${id}`)
             },
+            /** @param {string} id */
             close(id) {
                 const index = state.tabs.findIndex(item => item.id === id)
                 if (index < 0) return
@@ -88,12 +105,16 @@ export function create(app) {
                 if (neighbor) shell.go(`#/s/${neighbor.id}`)
                 else shell.go('#/')
             },
+            /** @param {string} id @param {string} title */
             rename(id, title) {
                 const tab = state.tabs.find(item => item.id === id)
                 if (tab) tab.title = title
                 if (state.session === id) state.title = title
             },
             // 刷新后按 sessionStorage 还原标签；lookup 由会话扩展给，返回 { title } 或 undefined（已删）。
+            /**
+             * @param {((id: string) => Promise<ShellLookupItem | undefined | null> | ShellLookupItem | undefined | null)} [find]
+             */
             async restore(find) {
                 lookup = find ?? (async id => ({ id, title: '会话' }))
                 const wanted = recalled()
@@ -119,17 +140,22 @@ export function create(app) {
 
         header: {
             list: state.header,
+            /** @param {import('agent-extension').ShellHeaderItem} item */
             add(item) { return own(state.header, { ...item, component: item.component ? markRaw(item.component) : undefined }) },
+            /** @param {string} id */
             toggle(id) { state.side = state.side === id ? '' : id },
         },
 
         pages: {
             list: state.pages,
+            /** @param {import('agent-extension').ShellPage} item */
             add(item) { return own(state.pages, { ...item, component: markRaw(item.component) }) },
+            /** @param {string} id */
             open(id) { shell.go(id === 'home' ? '#/' : `#/${id}`) },
         },
 
         bar: {
+            /** @param {import('agent-extension').ShellBarItem} item */
             add(item) {
                 const place = item.place === 'end' ? state.end : item.place === 'tabs' ? state.extras : state.start
                 return own(place, item)
@@ -137,6 +163,7 @@ export function create(app) {
         },
 
         overlay: {
+            /** @param {import('agent-extension').ShellOverlay} item */
             add(item) { return own(state.overlays, { ...item, component: markRaw(item.component) }) },
         },
 

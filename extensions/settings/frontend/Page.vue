@@ -14,15 +14,17 @@ import Form from './Form.vue'
 const props = defineProps({ app: { type: Object, required: true }, shell: { type: Object, required: true } })
 const ui = kit(props.app.shared.Components.Icon)
 const Icon = ui.Icon
+/** @type {import('vue').Ref<Array<import('agent-extension').SettingForm>>} */
 const forms = ref([])
 
 async function load() { forms.value = await props.app.api.op('settings.forms').catch(() => []) }
 load()
 
+/** @type {import('vue').ComputedRef<Array<Record<string, any>>>} */
 const sections = computed(() => {
-    const pages = props.shell.state.pages.filter(item => item.parent === 'settings')
-    const claimed = new Set(pages.flatMap(item => [item.id, ...(item.ids ?? [])]))
-    const extra = forms.value.filter(form => !claimed.has(form.id)).map((form, index) => ({
+    const pages = props.shell.state.pages.filter(/** @param {import('agent-extension').ShellPage} item */ item => item.parent === 'settings')
+    const claimed = new Set(pages.flatMap(/** @param {import('agent-extension').ShellPage} item */ item => [item.id, ...(item.ids ?? [])]))
+    const extra = forms.value.filter(/** @param {import('agent-extension').SettingForm} form */ form => !claimed.has(form.id)).map((form, index) => ({
         id: form.id, title: form.title, description: form.description || '由扩展登记的设置项', icon: SlidersHorizontalIcon,
         group: '扩展设置', order: 100 + index, component: Form, ids: [form.id],
     }))
@@ -39,18 +41,20 @@ const route = computed(() => {
     const [id = '', ...rest] = (props.shell.category || '').split('/')
     return { id, detail: rest.length ? decodeURIComponent(rest.join('/')) : '' }
 })
-const current = computed(() => sections.value.find(item => item.id === route.value.id) ?? null)
+const current = computed(() => sections.value.find(/** @param {Record<string, any>} item */ item => item.id === route.value.id) ?? null)
 
 const nav = computed(() => ({
-    open: detail => props.shell.go(`#/settings/${route.value.id}/${encodeURIComponent(detail)}`),
+    open: /** @param {string} detail */ detail => props.shell.go(`#/settings/${route.value.id}/${encodeURIComponent(detail)}`),
     back: () => up(),
 }))
 
+/** @param {Record<string, any>} item */
 function open(item) { props.shell.go(`#/settings/${item.id}`) }
 function up() { props.shell.go(route.value.detail ? `#/settings/${route.value.id}` : '#/settings') }
 function leave() { props.shell.go(props.shell.state.back || '#/') }
 
 // 换分类时把右侧滚回顶部，避免停在上一页的位置。
+/** @type {import('vue').Ref<HTMLElement | null>} */
 const scroller = ref(null)
 watch(() => props.shell.category, () => scroller.value?.scrollTo?.(0, 0))
 </script>

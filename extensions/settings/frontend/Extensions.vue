@@ -9,11 +9,14 @@ import { PuzzleIcon, RefreshIcon } from '@hugeicons/core-free-icons'
 const props = defineProps({ api: { type: Object, required: true }, ui: { type: Object, required: true } })
 const ui = props.ui
 const Icon = ui.Icon
+/** @typedef {{ name: string, version?: string, error?: string, description?: string }} ExtEntry */
+/** @type {import('vue').Ref<Array<ExtEntry>>} */
 const items = ref([])
 const busy = ref('')
 const changed = ref(false)
 
 async function load() { items.value = await props.api.op('settings.extensions') }
+/** @param {ExtEntry} item @param {boolean} enabled */
 async function toggle(item, enabled) {
     busy.value = item.name
     try {
@@ -23,9 +26,12 @@ async function toggle(item, enabled) {
     } finally { busy.value = '' }
 }
 
+/** @param {ExtEntry} item */
 const off = item => item.error === '已关闭'
 // 关掉壳或设置页后就没有入口再打开它们，所以这两个在这里锁住，要关请改 config.json。
+/** @param {ExtEntry} item */
 const locked = item => item.name === 'shell' || item.name === 'settings'
+/** @param {ExtEntry} item */
 const state = item => off(item) ? '已关闭' : item.error ? item.error : `${item.version ? `v${item.version} · ` : ''}运行中`
 const sorted = computed(() => [...items.value].sort((a, b) => a.name.localeCompare(b.name)))
 

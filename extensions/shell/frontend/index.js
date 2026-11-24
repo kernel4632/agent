@@ -7,6 +7,7 @@ import { defineComponent, h, onMounted, onUnmounted } from 'vue'
 import { create } from './api.js'
 import Chrome from './Chrome.vue'
 
+/** @param {import('agent-extension').App} app */
 export default app => {
     const shell = create(app)
     app.shared.shell = shell

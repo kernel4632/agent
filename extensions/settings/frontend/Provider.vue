@@ -21,8 +21,10 @@ const protocols = [
     { value: 'gemini', label: 'Generate Content（gemini）' },
 ]
 
+/** @param {string} key @param {unknown} value */
 function set(key, value) { emit('update', { ...props.provider, [key]: typeof value === 'string' ? value.trim() : value }) }
 
+/** @param {number} index */
 function edit(index) {
     const model = props.provider.models?.[index] ?? {}
     editing.value = index
@@ -42,8 +44,10 @@ function done() {
     }
     editing.value = -1
 }
-function drop(index) { set('models', (props.provider.models ?? []).filter((_, at) => at !== index)) }
+/** @param {number} index */
+function drop(index) { set('models', (props.provider.models ?? []).filter(/** @param {unknown} _ @param {number} at */ (_, at) => at !== index)) }
 function remove() { if (confirm(`删除供应商「${props.provider.name}」和它下面的全部模型？`)) emit('remove') }
+/** @param {{ efforts?: Record<string, unknown> }} model */
 const efforts = model => model.efforts ? Object.keys(model.efforts).length : 0
 </script>
 

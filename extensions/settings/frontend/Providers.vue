@@ -16,10 +16,13 @@ const props = defineProps({
 })
 const ui = props.ui
 const Icon = ui.Icon
+/** @typedef {{ name: string, baseURL?: string, apiKey?: string, protocol?: string, models?: Array<{ id?: string, name?: string, context?: number, efforts?: Record<string, unknown> }> }} ProviderEntry */
+/** @type {import('vue').Ref<Record<string, any> | null>} */
 const config = ref(null)
 const query = ref('')
 const error = ref('')
 
+/** @type {import('vue').ComputedRef<Array<ProviderEntry>>} */
 const providers = computed(() => config.value?.providers ?? [])
 const filtered = computed(() => {
     const needle = query.value.trim().toLowerCase()
@@ -28,6 +31,7 @@ const filtered = computed(() => {
 const selected = computed(() => providers.value.find(item => item.name === props.detail) ?? null)
 
 async function load() { config.value = await props.api.op('settings.get') }
+/** @param {ProviderEntry[]} list */
 async function write(list) {
     error.value = ''
     try { config.value = await props.api.op('settings.set', { key: 'providers', value: list }) }
@@ -41,6 +45,7 @@ async function add() {
     props.nav.open(name)
 }
 
+/** @param {ProviderEntry} next */
 async function update(next) {
     const before = selected.value
     if (!before) return
@@ -50,7 +55,9 @@ async function update(next) {
     }
     await write(providers.value.map(item => item === before ? next : item))
     if (next.name === before.name) return
-    const models = { ...config.value.models }
+    const current = config.value
+    if (!current) return
+    const models = { ...current.models }
     for (const task of Object.keys(models)) {
         if (typeof models[task] === 'string' && models[task].startsWith(`${before.name}/`)) models[task] = `${next.name}/${models[task].slice(before.name.length + 1)}`
     }

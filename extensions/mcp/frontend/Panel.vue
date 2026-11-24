@@ -15,50 +15,64 @@ const props = defineProps({
 })
 const ui = props.ui
 const Icon = ui.Icon
+/** @typedef {{ name: string, url?: string, transport?: string, enabled?: boolean, headers?: Record<string, string> }} McpEntry */
+/** @type {import('vue').Ref<Array<McpEntry> | null>} */
 const list = ref(null)
 const error = ref('')
 const selected = computed(() => list.value?.find(item => item.name === props.detail) ?? null)
 const transports = [{ value: 'http', label: 'Streamable HTTP（http）' }, { value: 'sse', label: 'Server-Sent Events（sse）' }]
 
 async function load() { list.value = (await props.app.api.op('mcp.list', { id: props.app.api.id() })).list ?? [] }
+/** @param {McpEntry[]} next */
 async function save(next) {
     error.value = ''
     try { list.value = await props.app.api.op('mcp.save', { mcp: next }) }
     catch (item) { error.value = item instanceof Error ? item.message : String(item) }
 }
 
+/** @param {McpEntry} item @param {boolean} enabled */
 async function toggle(item, enabled) {
     const id = props.app.api.id()
     error.value = ''
     try {
         if (id && item.url) await props.app.api.op(enabled ? 'mcp.open' : 'mcp.close', { id, name: item.name })
-        else await save(list.value.map(one => one === item ? { ...one, enabled } : one))
+        else await save((list.value ?? []).map(one => one === item ? { ...one, enabled } : one))
         await load()
     } catch (err) { error.value = err instanceof Error ? err.message : String(err) }
 }
 
 async function add() {
     let name = 'mcp'
-    for (let index = 2; list.value.some(item => item.name === name); index++) name = `mcp-${index}`
-    await save([...list.value, { name, url: '', transport: 'http', enabled: false }])
+    for (let index = 2; list.value?.some(item => item.name === name); index++) name = `mcp-${index}`
+    await save([...(list.value ?? []), { name, url: '', transport: 'http', enabled: false }])
     props.nav.open(name)
 }
 
+/** @param {McpEntry} next */
 async function update(next) {
-    if (next.name !== selected.value.name && (!next.name || list.value.some(item => item.name === next.name))) {
+    const current = selected.value
+    if (!current) return
+    if (next.name !== current.name && (!next.name || list.value?.some(item => item.name === next.name))) {
         error.value = next.name ? `已经有叫「${next.name}」的连接了` : '名称不能为空'
         return
     }
-    const before = selected.value.name
-    await save(list.value.map(item => item.name === before ? next : item))
+    const before = current.name
+    await save((list.value ?? []).map(item => item.name === before ? next : item))
     if (next.name !== before) props.nav.open(next.name)
 }
 
-function set(key, value) { update({ ...selected.value, [key]: typeof value === 'string' ? value.trim() : value }) }
+/** @param {string} key @param {string | boolean} value */
+function set(key, value) {
+    const current = selected.value
+    if (!current) return
+    update({ ...current, [key]: typeof value === 'string' ? value.trim() : value })
+}
 
 async function remove() {
-    if (!confirm(`删除 MCP 连接「${selected.value.name}」？`)) return
-    await save(list.value.filter(item => item !== selected.value))
+    const current = selected.value
+    if (!current) return
+    if (!confirm(`删除 MCP 连接「${current.name}」？`)) return
+    await save((list.value ?? []).filter(item => item !== current))
     props.nav.back()
 }
 

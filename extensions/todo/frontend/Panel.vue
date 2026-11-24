@@ -8,6 +8,8 @@ import { CheckmarkCircle02Icon, CircleIcon, CheckListIcon } from '@hugeicons/cor
 
 const props = defineProps({ app: { type: Object, required: true } })
 const Icon = props.app.shared.Components.Icon
+/** @typedef {{ id: string, content: string, status: 'done' | 'pending' }} TodoItem */
+/** @type {import('vue').Ref<Array<TodoItem>>} */
 const items = ref([])
 
 async function load() {
@@ -19,7 +21,7 @@ async function load() {
 
 const done = computed(() => items.value.filter(item => item.status === 'done').length)
 
-props.app.on('todo.update', data => { items.value = data.items ?? [] })
+props.app.on('todo.update', /** @param {{ items?: TodoItem[] }} data */ data => { items.value = data.items ?? [] })
 watch(() => props.app.api.id(), load)
 onMounted(load)
 </script>

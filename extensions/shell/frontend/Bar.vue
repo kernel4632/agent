@@ -12,20 +12,25 @@ const props = defineProps({ shell: { type: Object, required: true }, app: { type
 const Icon = props.app.shared.Components.Icon
 const editing = ref('')
 const draft = ref('')
+/** @type {import('vue').Ref<Array<HTMLInputElement> | null>} */
 const input = ref(null)
 
+/** @param {string} id */
 function close(id) { props.shell.tabs.close(id) }
+/** @param {{ id: string, title: string }} item */
 async function start(item) {
     editing.value = item.id
     draft.value = item.title
     await nextTick()
     input.value?.[0]?.select()
 }
+/** @param {{ id: string, title: string }} item */
 function commit(item) {
     const title = draft.value.trim()
     editing.value = ''
     if (title && title !== item.title) props.shell.tabs.rename(item.id, title)
 }
+/** @param {{ id: string }} item */
 const on = item => (item.id === 'home' && state.page === 'home') || (item.id === state.page)
 </script>
 

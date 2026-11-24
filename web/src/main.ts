@@ -12,6 +12,8 @@ import App from './App.vue'
 import { Agent } from './Agent'
 import { API } from './api'
 import { Components, Extension } from './Extension'
+import { loadDevExtensions } from './dev-extensions'
+import { loadDevExtensions as loadDevExtensionsProd } from './dev-extensions.prod'
 import History, { History as Grouping } from './components/History.vue'
 import UserMessage from './components/UserMessage.vue'
 import AssistantMessage from './components/AssistantMessage.vue'
@@ -28,11 +30,17 @@ import Icon from './components/Icon.vue'
 
 ;(globalThis as any).__agentVue__ = Vue
 Extension.register({ App, History, UserMessage, AssistantMessage, CodeBlock, Thinking, ToolCall, Process, RequestStatus, ErrorMessage, CompactMessage, Composer, Stats, Icon })
-const demo = new URLSearchParams(location.search).has('demo')
+const params = new URLSearchParams(location.search)
+const demo = params.has('demo')
+// 开发模式 ?ext=a,b：把列出的扩展前端换成源码直载（见 dev-extensions.ts）。后端仍要跑着，数据接口不换。
+const dev = params.get('ext')?.split(',').map(name => name.trim()).filter(Boolean)
 const shared: Record<string, unknown> = { Agent, API, History: Grouping, Components }
 if (demo) await import('./demo')
 Agent.push = Extension.dispatch
 if (demo) Agent.connect('main')
-await Extension.load(shared)
+if (dev) {
+  // 开发模式：从源码加载列出的扩展（HMR + Volar）；生产构建走空实现，扩展源码不进产物。
+  await (import.meta.env.PROD ? loadDevExtensionsProd : loadDevExtensions)(dev, shared)
+} else await Extension.load(shared)
 if (!demo && !shared.shell) Agent.connect('main')
 createApp({ render: () => h(Components.App) }).mount('#app')

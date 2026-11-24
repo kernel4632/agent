@@ -8,12 +8,15 @@ import { Delete02Icon, PencilEdit02Icon, PlusSignIcon, Search01Icon } from '@hug
 
 const props = defineProps({ app: { type: Object, required: true } })
 const Icon = props.app.shared.Components.Icon
+/** @typedef {{ id: string, title: string, group?: string, updatedAt?: number }} SessionEntry */
+/** @type {import('vue').Ref<Array<SessionEntry>>} */
 const items = ref([])
 const query = ref('')
 const editing = ref('')
 const draft = ref('')
 const groupDraft = ref('')
 
+/** @type {import('vue').ComputedRef<Array<[string, Array<SessionEntry>]>>} */
 const groups = computed(() => {
     const map = new Map()
     for (const item of items.value) map.set(item.group || '最近', [...(map.get(item.group || '最近') ?? []), item])
@@ -21,6 +24,7 @@ const groups = computed(() => {
 })
 
 // 相对时间：今天内说「几分钟前 / 几小时前」，更早的写日期。
+/** @param {number} time @returns {string} */
 function when(time) {
     if (!time) return ''
     const minutes = Math.floor((Date.now() - time) / 60000)
@@ -37,12 +41,15 @@ async function create() {
     const item = await props.app.api.op('session.create')
     props.app.shell.tabs.open(item.id, item.title)
 }
+/** @param {SessionEntry} item */
 function open(item) { if (editing.value !== item.id) props.app.shell.tabs.open(item.id, item.title) }
+/** @param {SessionEntry} item */
 function start(item) {
     editing.value = item.id
     draft.value = item.title
     groupDraft.value = item.group || ''
 }
+/** @param {SessionEntry} item */
 async function save(item) {
     if (editing.value !== item.id) return
     const title = draft.value.trim()
@@ -52,9 +59,10 @@ async function save(item) {
     if (group !== (item.group || '')) await props.app.api.op('session.group', { id: item.id, group })
     await load()
 }
+/** @param {SessionEntry} item */
 async function remove(item) {
     if (!confirm(`删除「${item.title}」？`)) return
-    if (props.app.shell.state.tabs.some(tab => tab.id === item.id)) props.app.shell.tabs.close(item.id)
+    if (props.app.shell?.state.tabs.some(/** @param {{ id: string }} tab */ tab => tab.id === item.id)) props.app.shell.tabs.close(item.id)
     await props.app.api.op('session.delete', { id: item.id })
     await load()
 }

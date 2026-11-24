@@ -15,9 +15,11 @@ const props = defineProps({
 })
 
 const Icon = props.app.shared.Components.Icon
+/** @type {import('vue').ComputedRef<import('agent-extension').ShellHeaderItem | null>} */
 const side = computed(() => state.header.find(item => item.id === state.side && item.component) ?? null)
 const title = computed(() => state.tabs.find(item => item.id === state.session)?.title || state.title || '会话')
 
+/** @param {import('agent-extension').ShellHeaderItem} item */
 function act(item) {
     if (item.component) props.shell.header.toggle(item.id)
     else item.run?.()

@@ -6,10 +6,12 @@
 import { BubbleChatIcon, PlusSignIcon } from '@hugeicons/core-free-icons'
 import Home from './Home.vue'
 
+/** @param {import('agent-extension').App} app */
 export default async app => {
     const shell = app.shell
     if (!shell) return
 
+    /** @typedef {{ id: string, title: string }} Entry */
     const rename = shell.tabs.rename
     shell.tabs.rename = (id, title) => {
         rename(id, title)
@@ -24,7 +26,7 @@ export default async app => {
         label: '新会话',
         title: '新会话',
         run: async () => {
-            const item = await app.api.op('session.create')
+            const item = /** @type {Entry} */ (await app.api.op('session.create'))
             shell.tabs.open(item.id, item.title)
         },
     })
@@ -35,7 +37,7 @@ export default async app => {
     })
 
     await shell.tabs.restore(async id => {
-        const list = await app.api.op('session.list')
+        const list = /** @type {Entry[]} */ (await app.api.op('session.list'))
         return list.find(item => item.id === id)
     })
 }

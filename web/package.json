@@ -1,14 +1,14 @@
 {
   "name": "agent-web",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.9.0",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "demo": "vite --host 127.0.0.1 --open /?demo",
     "build": "vue-tsc --noEmit && vite build",
-    "check": "vue-tsc --noEmit"
+    "check": "vue-tsc --noEmit && vue-tsc --noEmit -p ../extensions/tsconfig.json"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",

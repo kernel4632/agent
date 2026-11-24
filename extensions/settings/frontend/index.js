@@ -11,6 +11,7 @@ import Form from './Form.vue'
 import Providers from './Providers.vue'
 import Extensions from './Extensions.vue'
 
+/** @param {import('agent-extension').App} app */
 export default app => {
     const shell = app.shell
     if (!shell) return

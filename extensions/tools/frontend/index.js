@@ -1,6 +1,7 @@
 import ShellView from './ShellView.vue'
 import FileView from './FileView.vue'
 
+/** @param {import('agent-extension').App} app */
 export default app => {
     app.toolViews.add('shell', ShellView)
     app.toolViews.add('read_file', FileView)

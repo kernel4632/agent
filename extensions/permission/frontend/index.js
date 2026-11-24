@@ -5,6 +5,7 @@ import { Shield01Icon } from '@hugeicons/core-free-icons'
 import Ask from './Ask.vue'
 import Rules from './Rules.vue'
 
+/** @param {import('agent-extension').App} app */
 export default app => {
     app.shell?.overlay.add({ id: 'permission', component: Ask })
     app.shell?.pages.add({ id: 'permission', parent: 'settings', group: '安全', order: 50, tone: 'warn', icon: Shield01Icon, title: '权限', description: '哪些工具直接执行、哪些先问你', component: Rules })

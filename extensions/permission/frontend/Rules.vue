@@ -10,12 +10,18 @@ import { Delete02Icon, PlusSignIcon, Shield01Icon } from '@hugeicons/core-free-i
 const props = defineProps({ api: { type: Object, required: true }, ui: { type: Object, required: true } })
 const ui = props.ui
 const Icon = ui.Icon
+/** @type {import('vue').Ref<Record<string, unknown>>} */
 const rules = ref({})
 const name = ref('')
 const options = [{ value: 'allow', label: '允许' }, { value: 'ask', label: '询问' }, { value: 'deny', label: '拒绝' }]
 
 const rows = computed(() => Object.keys(rules.value).filter(key => key !== '*').sort())
-const action = value => typeof value === 'object' && value ? (value['*'] ?? 'ask') : (value ?? 'ask')
+/** @param {unknown} value @returns {'allow' | 'ask' | 'deny'} */
+const action = value => {
+    const all = typeof value === 'object' && value ? (/** @type {Record<string, unknown>} */ (value))['*'] : value
+    return all === 'allow' || all === 'deny' ? all : 'ask'
+}
+/** @param {unknown} value */
 const detail = value => {
     if (!value || typeof value !== 'object') return ''
     const count = Object.keys(value).filter(key => key !== '*').length
@@ -23,12 +29,15 @@ const detail = value => {
 }
 
 async function load() { rules.value = await props.api.op('permission.rules') }
+/** @param {Record<string, unknown>} next */
 async function write(next) { rules.value = next; await props.api.op('permission.set', { permission: next }) }
 
+/** @param {string} key @param {'allow' | 'ask' | 'deny'} value */
 function choose(key, value) {
     const current = rules.value[key]
     write({ ...rules.value, [key]: current && typeof current === 'object' ? { ...current, '*': value } : value })
 }
+/** @param {string} key */
 function drop(key) {
     const next = { ...rules.value }
     delete next[key]

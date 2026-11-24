@@ -5,13 +5,20 @@ kit(Icon) 用组件表里的 Icon 生成一次；设置页把它作为 ui 传给
     <ui.Card :icon="Globe02Icon" title="relay" subtitle="https://…" :tags="['chat', '3 个模型']" @click="open" />
 样式在 css 里，由 index.js 用 app.style 挂一次；手机宽度下行内控件落到标题下面（按 .set__pane 容器宽度）。
 */
+
 import { defineComponent, h } from 'vue'
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 
+/** @typedef {import('agent-extension').UiKit} UiKit */
+/** @typedef {import('vue').Component} Component */
+
+/** @type {UiKit | null} */
 let made = null
 
+/** @param {Component} Icon @returns {UiKit} */
 export function kit(Icon) {
     if (made) return made
+    /** @param {import('agent-extension').IconData} [icon] @param {string} [tone] */
     const tile = (icon, tone) => h('span', { class: ['ui-tile', `ui-tile--${tone || 'plain'}`], 'aria-hidden': 'true' }, [h(Icon, { icon, size: 20 })])
     const chevron = () => h('span', { class: 'ui-chevron' }, [h(Icon, { icon: ArrowRight01Icon, size: 16 })])
 
@@ -45,14 +52,14 @@ export function kit(Icon) {
 
     // 列表里的一张卡片（供应商、MCP 连接）：图标、名字、一行副标题、几个小标签，点开进详情。
     const Card = defineComponent({
-        props: { title: String, subtitle: String, icon: [Object, Array], tone: String, tags: Array, off: Boolean },
+        props: { title: String, subtitle: String, icon: [Object, Array], tone: String, tags: { type: Array, default: () => [] }, off: Boolean },
         emits: ['click'],
         setup: (props, { slots, emit }) => () => h('div', { class: ['ui-card', { 'is-off': props.off }], role: 'button', tabindex: 0, onClick: () => emit('click'), onKeydown: event => event.key === 'Enter' && emit('click') }, [
             props.icon && tile(props.icon, props.tone || 'accent'),
             h('span', { class: 'ui-card__copy' }, [
                 h('strong', props.title),
                 props.subtitle && h('small', props.subtitle),
-                props.tags?.length && h('span', { class: 'ui-tags' }, props.tags.filter(Boolean).map(tag => h('span', tag))),
+                props.tags.length ? h('span', { class: 'ui-tags' }, /** @type {string[]} */ (props.tags).filter(Boolean).map(tag => h('span', tag))) : undefined,
             ]),
             slots.default && h('span', { class: 'ui-row__control', onClick: event => event.stopPropagation() }, slots.default()),
             chevron(),
@@ -63,7 +70,7 @@ export function kit(Icon) {
         props: { modelValue: Boolean, label: String, disabled: Boolean },
         emits: ['update:modelValue'],
         setup: (props, { emit }) => () => h('label', { class: ['ui-switch', { 'is-disabled': props.disabled }] }, [
-            h('input', { type: 'checkbox', role: 'switch', 'aria-label': props.label, checked: props.modelValue, disabled: props.disabled, onChange: event => emit('update:modelValue', event.target.checked) }),
+            h('input', { type: 'checkbox', role: 'switch', 'aria-label': props.label, checked: props.modelValue, disabled: props.disabled, onChange: event => emit('update:modelValue', /** @type {HTMLInputElement} */ (event.target).checked) }),
             h('span', { class: 'ui-switch__track' }, [h('span', { class: 'ui-switch__thumb' })]),
         ]),
     })
@@ -75,22 +82,22 @@ export function kit(Icon) {
         setup: (props, { emit }) => () => h('input', {
             class: 'ui-field', type: props.type, value: props.modelValue ?? '', placeholder: props.placeholder, 'aria-label': props.label || props.placeholder,
             autocomplete: props.type === 'password' ? 'off' : undefined, spellcheck: false,
-            onChange: event => emit('update:modelValue', props.type === 'number' ? (event.target.value === '' ? undefined : Number(event.target.value)) : event.target.value),
+            onChange: event => emit('update:modelValue', props.type === 'number' ? (/** @type {HTMLInputElement} */ (event.target).value === '' ? undefined : Number(/** @type {HTMLInputElement} */ (event.target).value)) : /** @type {HTMLInputElement} */ (event.target).value),
         }),
     })
 
     const Select = defineComponent({
         props: { modelValue: String, options: { type: Array, default: () => [] }, label: String },
         emits: ['update:modelValue'],
-        setup: (props, { emit }) => () => h('select', { class: 'ui-field ui-select', value: props.modelValue ?? '', 'aria-label': props.label, onChange: event => emit('update:modelValue', event.target.value) },
-            props.options.map(item => h('option', { value: item.value, selected: item.value === (props.modelValue ?? '') }, item.label))),
+        setup: (props, { emit }) => () => h('select', { class: 'ui-field ui-select', value: props.modelValue ?? '', 'aria-label': props.label, onChange: event => emit('update:modelValue', /** @type {HTMLSelectElement} */ (event.target).value) },
+            /** @type {Array<{ value: string, label: string }>} */ (props.options).map(item => h('option', { value: item.value, selected: item.value === (props.modelValue ?? '') }, item.label))),
     })
 
     // 分段选择（允许 / 询问 / 拒绝）：每段都是 ≥36px 高的按钮。
     const Segmented = defineComponent({
         props: { modelValue: String, options: { type: Array, default: () => [] }, label: String },
         emits: ['update:modelValue'],
-        setup: (props, { emit }) => () => h('span', { class: 'ui-seg', role: 'radiogroup', 'aria-label': props.label }, props.options.map(item => h('button', {
+        setup: (props, { emit }) => () => h('span', { class: 'ui-seg', role: 'radiogroup', 'aria-label': props.label }, /** @type {Array<{ value: string, label: string }>} */ (props.options).map(item => h('button', {
             type: 'button', role: 'radio', 'aria-checked': item.value === props.modelValue, class: { 'is-on': item.value === props.modelValue }, onClick: () => emit('update:modelValue', item.value),
         }, item.label))),
     })

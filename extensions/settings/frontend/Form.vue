@@ -12,28 +12,34 @@ const props = defineProps({
     ids: { type: Array, default: undefined },
 })
 const ui = props.ui
+/** @typedef {{ id: string, title: string, note?: string, fields?: Array<{ key: string, type?: string, label?: string, description?: string, options?: Array<{ value: string, label: string }> }> }} FormEntry */
+/** @type {import('vue').Ref<Array<FormEntry>>} */
 const forms = ref([])
 const values = reactive({})
 const error = ref('')
 
-function take(key) { return key.split('.').reduce((cursor, part) => cursor?.[part], values) }
+/** @param {string} key */
+function take(key) { return key.split('.').reduce((/** @type {Record<string, any>} */ cursor, part) => cursor?.[part], values) }
 
 async function load() {
     forms.value = await props.api.op('settings.forms')
     Object.assign(values, await props.api.op('settings.get'))
 }
 
+/** @param {string} key @param {unknown} value */
 async function change(key, value) {
     error.value = ''
     try { Object.assign(values, await props.api.op('settings.set', { key, value })) }
     catch (item) { error.value = item instanceof Error ? item.message : String(item) }
 }
 
+/** @param {string} key @param {string} text */
 function parse(key, text) {
     try { change(key, JSON.parse(text)) } catch (item) { error.value = `JSON 写得不完整：${item instanceof Error ? item.message : item}` }
 }
 
-const shown = computed(() => props.ids?.length ? forms.value.filter(item => props.ids.includes(item.id)) : forms.value)
+const shown = computed(() => props.ids && props.ids.length ? forms.value.filter(/** @param {FormEntry} item */ item => props.ids && props.ids.includes(item.id)) : forms.value)
+/** @param {{ type?: string }} field */
 const wide = field => field.type === 'textarea' || field.type === 'json'
 
 onMounted(load)

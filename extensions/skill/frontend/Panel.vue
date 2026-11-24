@@ -8,10 +8,12 @@ import { BookOpen01Icon } from '@hugeicons/core-free-icons'
 
 const props = defineProps({ api: { type: Object, required: true }, ui: { type: Object, required: true } })
 const ui = props.ui
+/** @type {import('vue').Ref<Array<{ name: string, title: string, description?: string, enabled?: boolean }> | null>} */
 const items = ref(null)
 const busy = ref('')
 
 async function load() { items.value = await props.api.op('skill.list') }
+/** @param {{ name: string }} item @param {boolean} enabled */
 async function toggle(item, enabled) {
     busy.value = item.name
     try { items.value = await props.api.op('skill.toggle', { name: item.name, enabled }) }
