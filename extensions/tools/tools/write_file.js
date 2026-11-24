@@ -19,6 +19,7 @@ export default {
         },
         required: ['path', 'content'],
     },
+    /** @param {{ path?: string, content?: string, cwd?: string }} [args] */
     async run({ path, content, cwd } = {}) {
         const file = guard(resolvePath(path, cwd))
         const backup = await snapshot(file)

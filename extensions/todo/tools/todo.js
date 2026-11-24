@@ -7,15 +7,20 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
+/** @typedef {{ id: string, content: string, status: 'pending' | 'done' }} TodoItem */
+
+/** @param {string} agentId */
 function path(agentId) {
     const home = process.env.AGENT_HOME || join(homedir(), '.agent')
     return join(home, 'agents', agentId, 'todos.json')
 }
 
+/** @param {string} agentId @returns {Promise<TodoItem[]>} */
 async function load(agentId) {
     try { return JSON.parse(await readFile(path(agentId), 'utf8')) } catch { return [] }
 }
 
+/** @param {string} agentId @param {TodoItem[]} items */
 async function save(agentId, items) {
     await mkdir(join(path(agentId), '..'), { recursive: true })
     await writeFile(path(agentId), JSON.stringify(items, null, 2) + '\n')
@@ -40,8 +45,10 @@ export default {
         },
         required: ['agentId', 'action'],
     },
+    /** @param {{ agentId?: string, action?: string, id?: string, content?: string, status?: string }} [args] */
     async run({ agentId, action, id, content, status } = {}) {
         if (!agentId) throw new Error('需要 agentId（当前会话 id）')
+        /** @type {TodoItem[]} */
         const items = await load(agentId)
         if (action === 'list') return { items }
         if (action === 'add') {
@@ -54,7 +61,7 @@ export default {
             if (!item) throw new Error(`找不到任务 ${id}`)
             if (action === 'complete') item.status = 'done'
             if (content) item.content = content
-            if (status) item.status = status
+            if (status) item.status = /** @type {TodoItem['status']} */ (status)
             return { items: await save(agentId, items) }
         }
         if (action === 'clear') return { items: await save(agentId, []) }

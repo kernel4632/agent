@@ -10,15 +10,16 @@ import { truncate } from './common.js'
 const LIMIT = 20000
 const DEFAULT_MS = 30000
 
+/** @param {string} command @param {string} cwd @param {number} timeout @returns {Promise<{ code: number, stdout: string, stderr: string }>} */
 function run(command, cwd, timeout) {
     return new Promise((ok, fail) => {
         const child = spawn(command, { cwd, shell: true, env: process.env })
         const chunks = { out: '', err: '' }
         const timer = setTimeout(() => { child.kill('SIGKILL'); fail(new Error(`命令超时（${timeout}ms）：${command}`)) }, timeout)
-        child.stdout.on('data', chunk => { chunks.out += chunk })
-        child.stderr.on('data', chunk => { chunks.err += chunk })
-        child.on('error', error => { clearTimeout(timer); fail(error) })
-        child.on('close', code => { clearTimeout(timer); ok({ code, stdout: chunks.out, stderr: chunks.err }) })
+        child.stdout.on('data', (/** @type {string} */ chunk) => { chunks.out += chunk })
+        child.stderr.on('data', (/** @type {string} */ chunk) => { chunks.err += chunk })
+        child.on('error', (/** @type {Error} */ error) => { clearTimeout(timer); fail(error) })
+        child.on('close', (/** @type {number} */ code) => { clearTimeout(timer); ok({ code, stdout: chunks.out, stderr: chunks.err }) })
     })
 }
 
@@ -34,6 +35,7 @@ export default {
         },
         required: ['command'],
     },
+    /** @param {{ command?: string, cwd?: string, timeout?: number }} [args] */
     async run({ command, cwd, timeout } = {}) {
         if (!command) throw new Error('command 不能为空')
         const dir = cwd && isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd || '.')

@@ -22,6 +22,7 @@ export default {
         },
         required: ['path'],
     },
+    /** @param {{ path?: string, cwd?: string, offset?: number, limit?: number }} [args] */
     async run({ path, cwd, offset, limit } = {}) {
         const file = guard(resolvePath(path, cwd))
         const text = await readFile(file, 'utf8')

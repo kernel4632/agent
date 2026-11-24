@@ -4,25 +4,30 @@
 其他扩展通过 ctx.use('settings').add(...) 追加一项；字段 key 用点号路径指向配置里的位置。
 */
 
+/** @param {Record<string, unknown>} data @param {string} key */
 function get(data, key) {
-    return key.split('.').reduce((cursor, part) => cursor?.[part], data)
+    return key.split('.').reduce((/** @type {Record<string, any> | undefined} */ cursor, part) => cursor?.[part], data)
 }
 
+/** @param {Record<string, unknown>} data @param {string} key @param {unknown} value */
 function set(data, key, value) {
     const parts = key.split('.')
-    const last = parts.pop()
+    const last = /** @type {string} */ (parts.pop())
     let cursor = data
     for (const part of parts) {
         if (cursor[part] == null || typeof cursor[part] !== 'object') cursor[part] = {}
-        cursor = cursor[part]
+        cursor = /** @type {Record<string, unknown>} */ (cursor[part])
     }
     cursor[last] = value
     return data
 }
 
+/** @param {import('agent-backend').Ctx} ctx */
 export default ctx => {
+    /** @type {Array<{ id: string, title: string, fields: any, note?: string }>} */
     const forms = []
     const api = {
+        /** @param {{ id: string, title: string, fields: any, note?: string }} form */
         add(form) { forms.push(form) },
         list() { return forms },
         get,
@@ -31,11 +36,12 @@ export default ctx => {
     api.add({
         id: 'models',
         title: '模型',
-        fields: (_config, models) => [
+        fields: (/** @type {Record<string, any>} */ _config, /** @type {Array<{ value: string, label: string }>} */ models) => [
             { key: 'models.chat', type: 'select', label: '对话模型', description: '新对话默认用它；已有对话可在输入框下方单独切换', options: [{ value: '', label: '（未选择）' }, ...models] },
             { key: 'models.compact', type: 'select', label: '压缩模型', description: '上下文快满时用来写总结', options: [{ value: '', label: '和对话模型相同' }, ...models] },
         ],
     })
+    /** @param {Record<string, any>} config */
     async function refresh(config) {
         for (const current of ctx.Agents.all()) {
             current.models = ctx.Models.list(config)
@@ -45,7 +51,7 @@ export default ctx => {
                 current.agent.config = { ...current.agent.config, ...ctx.Models.resolve(config, modelId, current.effort) }
                 current.model = modelId
                 current.fault = ''
-            } catch (error) { current.fault = error.message ?? String(error) }
+            } catch (error) { current.fault = error instanceof Error ? error.message : String(error) }
         }
         return config
     }
@@ -55,8 +61,8 @@ export default ctx => {
         return forms.map(form => ({ ...form, fields: typeof form.fields === 'function' ? form.fields(config, models) : form.fields }))
     })
     ctx.op('settings.get', () => ctx.Store.config())
-    ctx.op('settings.set', async ({ key, value }) => refresh(await ctx.Store.configure(set(await ctx.Store.config(), key, value))))
-    ctx.op('settings.save', async ({ config }) => refresh(await ctx.Store.configure(config)))
-    ctx.op('settings.toggle', async ({ name, enabled }) => ctx.Loader.toggle(name, enabled))
+    ctx.op('settings.set', async (/** @type {{ key: string, value: unknown }} */ { key, value }) => refresh(await ctx.Store.configure(set(await ctx.Store.config(), key, value))))
+    ctx.op('settings.save', async (/** @type {{ config: Record<string, unknown> }} */ { config }) => refresh(await ctx.Store.configure(config)))
+    ctx.op('settings.toggle', async (/** @type {{ name: string, enabled: boolean }} */ { name, enabled }) => ctx.Loader.toggle(name, enabled))
     ctx.op('settings.extensions', () => ctx.Loader.list())
 }

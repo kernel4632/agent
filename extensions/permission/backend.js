@@ -4,9 +4,15 @@
 `*` 是默认动作。问的时候推 permission.ask，等 permission.answer；页面刷新时快照里带上还在等的请求。
 */
 
+/** @type {Record<string, string>} */
 const DEFAULTS = { '*': 'ask', read_file: 'allow', list_dir: 'allow', finish: 'allow' }
+/** @type {Map<string, { id: string, call: ToolCallInfo, resolve: (allow: boolean) => void }>} */
 const pending = new Map()
 
+/** @typedef {Record<string, string | Record<string, string>>} Rules */
+/** @typedef {{ toolName: string, input?: unknown }} ToolCallInfo */
+
+/** @param {unknown} value */
 function flatten(value) {
     const parts = []
     const queue = [value]
@@ -19,30 +25,39 @@ function flatten(value) {
     return parts.join(' ')
 }
 
+/**
+ * 通配符匹配：* 匹配任意一段（含空），其余字符按字面。参数被拍平成一段文本后整体匹配。
+ * @param {string} text
+ * @param {string} pattern
+ */
 function wildcard(text, pattern) {
     if (pattern === '*') return true
     const source = `^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`
     return new RegExp(source, 's').test(text)
 }
 
+/** @param {unknown} value @returns {'allow' | 'deny' | 'ask'} */
 function normalize(value) {
     return value === 'allow' || value === 'deny' ? value : 'ask'
 }
 
+/** @param {string} toolName @param {unknown} input @param {Record<string, unknown>} rules @returns {'allow' | 'deny' | 'ask'} */
 function decide(toolName, input, rules) {
     let action = normalize(rules['*'])
     const rule = rules[toolName]
     if (typeof rule === 'string') action = normalize(rule)
     else if (rule && typeof rule === 'object') {
-        if ('*' in rule) action = normalize(rule['*'])
+        const table = /** @type {Record<string, unknown>} */ (rule)
+        if ('*' in table) action = normalize(table['*'])
         const text = flatten(input)
-        for (const [pattern, value] of Object.entries(rule)) {
+        for (const [pattern, value] of Object.entries(table)) {
             if (pattern !== '*' && wildcard(text, pattern)) action = normalize(value)
         }
     }
     return action
 }
 
+/** @param {import('agent-backend').Ctx} ctx @param {string} id @param {ToolCallInfo} call */
 function ask(ctx, id, call) {
     const requestId = crypto.randomUUID()
     return new Promise(resolve => {
@@ -51,6 +66,7 @@ function ask(ctx, id, call) {
     })
 }
 
+/** @param {import('agent-backend').Ctx} ctx @param {{ id: string, call: ToolCallInfo, resolve: (allow: boolean) => void }} item */
 async function remember(ctx, item) {
     const config = await ctx.Store.config()
     const permission = { ...DEFAULTS, ...config.permission }
@@ -62,13 +78,15 @@ async function remember(ctx, item) {
     await ctx.Store.configure({ ...config, permission })
 }
 
+/** @param {import('agent-backend').Ctx} ctx */
 export default ctx => {
-    ctx.patch(ctx.Agents, 'callbacks', original => id => {
+    ctx.patch(ctx.Agents, 'callbacks', /** @param {(id: string) => Record<string, unknown>} original */ original => id => {
         const base = original(id)
         return {
             ...base,
+            /** @param {ToolCallInfo} call */
             async onPermission(call) {
-                const rules = { ...DEFAULTS, ...(await ctx.Store.config()).permission }
+                const rules = /** @type {Record<string, unknown>} */ ({ ...DEFAULTS, ...(await ctx.Store.config()).permission })
                 const action = decide(call.toolName, call.input, rules)
                 if (action === 'allow') return true
                 if (action === 'deny') return false
@@ -76,15 +94,15 @@ export default ctx => {
             },
         }
     })
-    ctx.patch(ctx.Agents, 'snapshot', original => id => {
+    ctx.patch(ctx.Agents, 'snapshot', /** @param {(id: string) => Record<string, unknown>} original */ original => id => {
         const asks = [...pending.entries()].filter(([, item]) => item.id === id).map(([requestId, item]) => ({ requestId, call: item.call }))
         return { ...original(id), permission: asks }
     })
-    ctx.patch(ctx.Agents, 'stop', original => async id => {
+    ctx.patch(ctx.Agents, 'stop', /** @param {(id: string) => Promise<unknown>} original */ original => async id => {
         for (const [requestId, item] of [...pending]) if (item.id === id) { item.resolve(false); pending.delete(requestId) }
         return original(id)
     })
-    ctx.op('permission.answer', async ({ requestId, allow, always }) => {
+    ctx.op('permission.answer', async (/** @type {{ requestId: string, allow?: boolean, always?: boolean }} */ { requestId, allow, always }) => {
         const item = pending.get(requestId)
         if (!item) return { ok: false }
         pending.delete(requestId)
@@ -93,8 +111,8 @@ export default ctx => {
         ctx.push(item.id, 'answered', { requestId, allow: Boolean(allow) })
         return { ok: true }
     })
-    ctx.op('permission.rules', async () => ({ ...DEFAULTS, ...(await ctx.Store.config()).permission }))
-    ctx.op('permission.set', async ({ permission }) => {
+    ctx.op('permission.rules', async () => /** @type {Record<string, unknown>} */ ({ ...DEFAULTS, ...(await ctx.Store.config()).permission }))
+    ctx.op('permission.set', async (/** @type {{ permission: Record<string, unknown> }} */ { permission }) => {
         const config = await ctx.Store.config()
         return ctx.Store.configure({ ...config, permission })
     })

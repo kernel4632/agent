@@ -8,6 +8,7 @@ import { truncate } from './common.js'
 const LIMIT = 20000
 const TIMEOUT = 15000
 
+/** @param {string} html */
 function strip(html) {
     return html
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -31,6 +32,7 @@ export default {
         },
         required: ['url'],
     },
+    /** @param {{ url?: string, maxBytes?: number }} [args] */
     async run({ url, maxBytes } = {}) {
         if (!url || !/^https?:\/\//i.test(url)) throw new Error('只允许 http 或 https 地址')
         const controller = new AbortController()

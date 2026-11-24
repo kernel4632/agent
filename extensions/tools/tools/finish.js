@@ -14,6 +14,7 @@ export default {
         type: 'object',
         properties: { summary: { type: 'string', description: '这一轮的简短结论' } },
     },
+    /** @param {{ summary?: string }} [args] */
     async run({ summary } = {}) {
         return { output: summary || '已完成', stop: true }
     },

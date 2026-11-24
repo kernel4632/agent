@@ -3,17 +3,20 @@ MCP 管理：连接配置写在 config.mcp，形状跟 agent-core 的 MCPServer 
 改名单后同步到已经打开的 Agent；开关一条就调 agent.MCP.open / close。
 */
 
+/** @param {import('agent-backend').Ctx} ctx */
 export default ctx => {
     const { Store, Agents } = ctx
+    /** @param {Array<{ name?: string } & Record<string, unknown>>} list */
     async function write(list) {
         const config = await Store.config()
         await Store.configure({ ...config, mcp: list })
-        for (const current of Agents.all()) current.agent.MCP.list = list
+        for (const current of Agents.all()) current.agent.MCP.list = /** @type {any} */ (list)
         return list
     }
-    ctx.op('mcp.list', async ({ id } = {}) => {
+    ctx.op('mcp.list', async (/** @type {{ id?: string }} */ { id } = {}) => {
         const list = (await Store.config()).mcp ?? []
         const current = id ? Agents.peek(id) : undefined
+        /** @type {Record<string, { enabled: boolean }>} */
         const states = {}
         if (current) {
             // 公开状态只在 MCPClients，宿主通常看不到；用 list 本身的 enabled，细节交给 open/close 的返回值。
@@ -21,14 +24,14 @@ export default ctx => {
         }
         return { list, states }
     })
-    ctx.op('mcp.save', async ({ mcp }) => write(Array.isArray(mcp) ? mcp : []))
-    ctx.op('mcp.open', async ({ id, name }) => {
+    ctx.op('mcp.save', async (/** @type {{ mcp: Array<Record<string, unknown>> }} */ { mcp }) => write(/** @type {Array<{ name?: string } & Record<string, unknown>>} */ (Array.isArray(mcp) ? mcp : [])))
+    ctx.op('mcp.open', async (/** @type {{ id: string, name: string }} */ { id, name }) => {
         const current = await Agents.open(id)
         const result = await current.agent.MCP.open(name)
         await write(current.agent.MCP.list)
         return result
     })
-    ctx.op('mcp.close', async ({ id, name }) => {
+    ctx.op('mcp.close', async (/** @type {{ id: string, name: string }} */ { id, name }) => {
         const current = await Agents.open(id)
         const result = await current.agent.MCP.close(name)
         await write(current.agent.MCP.list)

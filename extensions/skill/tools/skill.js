@@ -18,6 +18,7 @@ export default {
         properties: { name: { type: 'string', description: '技能目录名' } },
         required: ['name'],
     },
+    /** @param {{ name?: string }} [args] */
     async run({ name } = {}) {
         if (!name) throw new Error('name 不能为空')
         for (const home of homes()) {

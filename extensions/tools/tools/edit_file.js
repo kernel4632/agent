@@ -19,6 +19,7 @@ export default {
         },
         required: ['path', 'oldText', 'newText'],
     },
+    /** @param {{ path?: string, oldText?: string, newText?: string, cwd?: string }} [args] */
     async run({ path, oldText, newText, cwd } = {}) {
         if (!oldText) throw new Error('oldText 不能为空')
         const file = guard(resolvePath(path, cwd))

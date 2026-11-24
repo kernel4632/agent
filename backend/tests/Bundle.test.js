@@ -5,7 +5,7 @@
 */
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtemp, rm, utimes, writeFile, mkdir } from 'node:fs/promises'
+import { mkdtemp, rm, utimes, writeFile, mkdir, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Bundle } from '../features/Bundle.js'
@@ -39,5 +39,15 @@ describe('Bundle', () => {
         const after = await Bundle.pack('demo', folder)
         expect(after).not.toBe(before)
         expect(after).toContain('changed-view')
+    })
+
+    // 编译一致性：扩展前端由 Bundle 用 @vue/compiler-sfc 编，本体走 vite 的 vue 插件（同版本编译器）。
+    // 两边 major.minor 必须一致，否则同一份 .vue 可能一边能编一边不能。
+    test('vue 与 @vue/compiler-sfc 的 major.minor 一致', async () => {
+        const read = async name => JSON.parse(await readFile(join(import.meta.dir, '../node_modules', name, 'package.json'), 'utf8'))
+        const vue = await read('vue')
+        const sfc = await read('@vue/compiler-sfc')
+        const [a, b] = [vue.version, sfc.version].map(version => version.split('.').slice(0, 2).join('.'))
+        expect(a).toBe(b)
     })
 })

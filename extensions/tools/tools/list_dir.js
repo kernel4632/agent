@@ -17,6 +17,7 @@ export default {
         },
         required: ['path'],
     },
+    /** @param {{ path?: string, cwd?: string }} [args] */
     async run({ path, cwd } = {}) {
         const dir = resolvePath(path, cwd)
         const names = await readdir(dir)

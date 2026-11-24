@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 const dir = join(dirname(fileURLToPath(import.meta.url)), 'tools')
 const files = ['read_file.js', 'write_file.js', 'edit_file.js', 'list_dir.js', 'shell.js', 'webfetch.js', 'finish.js']
 
+/** @param {import('agent-backend').Ctx} ctx */
 export default ctx => {
     for (const file of files) ctx.tool(join(dir, file))
 }
