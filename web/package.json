@@ -8,7 +8,8 @@
     "dev": "vite --host 127.0.0.1",
     "demo": "vite --host 127.0.0.1 --open /?demo",
     "build": "vue-tsc --noEmit && vite build",
-    "check": "vue-tsc --noEmit"
+    "check": "vue-tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",
