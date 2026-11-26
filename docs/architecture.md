@@ -8,7 +8,6 @@
 
 ```mermaid
 graph TD
-    %%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
     n1n01kdc["<b>@kernel4632/agent-core（npm）</b>"]:::agent-core
     ne4psym["<b>vue（npm）</b>"]:::route
     noesvxz["<b>@hugeicons（npm）</b>"]:::route
@@ -59,32 +58,32 @@ graph TD
     n2s7pfr --> n14sdej9
     n2s7pfr --> naobem8
     n2s7pfr --> n1qcy0uz
-    n10ycygf -.-> |patch Agents| nbxek49
-    ndhwbyt -.-> |patch Agents| nbxek49
-    n1pd8dgu -.-> |patch Agents| nbxek49
-    n19q3pg8 -.-> |patch Agents| nbxek49
-    ndhwbyt -.-> |登记工具| nbxek49
-    n19q3pg8 -.-> |登记工具| nbxek49
-    n1xk5nt7 -.-> |登记工具| nbxek49
+    n10ycygf -. patch Agents .-> nbxek49
+    ndhwbyt -. patch Agents .-> nbxek49
+    n1pd8dgu -. patch Agents .-> nbxek49
+    n19q3pg8 -. patch Agents .-> nbxek49
+    ndhwbyt -. 登记工具 .-> nbxek49
+    n19q3pg8 -. 登记工具 .-> nbxek49
+    n1xk5nt7 -. 登记工具 .-> nbxek49
     n1pd8dgu -.-> n6ceey8
-    nhqebqq -.-> |注入 tools()| n1gcjvhk
-    nhqebqq -.-> |注入 targets| n1r47d4k
+    nhqebqq -. 注入 tools .-> n1gcjvhk
+    nhqebqq -. 注入 targets .-> n1r47d4k
     nhqebqq ==> nbxek49
     nhqebqq ==> nytphuv
     nhqebqq ==> n1gcjvhk
-    naobem8 ==> |REST + SSE| nhqebqq
-    nopqhf0 -.-> |requires| n176bot2
-    nopqhf0 -.-> |after| n1bwj4wr
-    n10ycygf -.-> |requires| n176bot2
-    n10ycygf -.-> |after| n1bwj4wr
-    n6ceey8 -.-> |requires| n176bot2
-    n1bwj4wr -.-> |requires| n176bot2
-    ndhwbyt -.-> |requires| n176bot2
-    ndhwbyt -.-> |after| n1bwj4wr
-    n1pd8dgu -.-> |after| n6ceey8
-    n19q3pg8 -.-> |requires| n176bot2
-    n19q3pg8 -.-> |after| n1bwj4wr
-    n1xk5nt7 -.-> |after| n1bwj4wr
+    naobem8 == REST + SSE ==> nhqebqq
+    nopqhf0 -. requires .-> n176bot2
+    nopqhf0 -. after .-> n1bwj4wr
+    n10ycygf -. requires .-> n176bot2
+    n10ycygf -. after .-> n1bwj4wr
+    n6ceey8 -. requires .-> n176bot2
+    n1bwj4wr -. requires .-> n176bot2
+    ndhwbyt -. requires .-> n176bot2
+    ndhwbyt -. after .-> n1bwj4wr
+    n1pd8dgu -. after .-> n6ceey8
+    n19q3pg8 -. requires .-> n176bot2
+    n19q3pg8 -. after .-> n1bwj4wr
+    n1xk5nt7 -. after .-> n1bwj4wr
     classDef agent-core fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
     classDef backend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
     classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e
@@ -98,7 +97,6 @@ graph TD
 
 ```mermaid
 graph TD
-    %%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
     nbxek49["<b>Agents</b><br/>bind()  all()  open()  peek()  done()  running()  snapshot()  callbacks() +9"]:::backend
     nfkptut["<b>Bundle</b><br/>forget()  pack()"]:::backend
     n1gcjvhk["<b>Extension</b><br/>patch()  restack()  scope()  tool()  track()  op()  push()  expose() +6"]:::backend
@@ -121,8 +119,8 @@ graph TD
     nhqebqq --> n6t2ykd
     nhqebqq --> n1gcjvhk
     nhqebqq --> n1r47d4k
-    nhqebqq -.-> |注入 tools()| n1gcjvhk
-    nhqebqq -.-> |注入 targets| n1r47d4k
+    nhqebqq -. 注入 tools .-> n1gcjvhk
+    nhqebqq -. 注入 targets .-> n1r47d4k
     nhqebqq ==> nbxek49
     nhqebqq ==> nytphuv
     nhqebqq ==> n1gcjvhk
@@ -139,7 +137,6 @@ graph TD
 
 ```mermaid
 graph TD
-    %%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
     n14sdej9["<b>Agent</b><br/>stop()  configure()  connect()"]:::web
     naobem8["<b>api</b><br/>connect()"]:::web
     n3f77po["<b>App</b>"]:::webui
@@ -225,7 +222,6 @@ graph TD
 
 ```mermaid
 graph TD
-    %%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%
     nopqhf0["<b>mcp/backend</b>"]:::ext
     n10ycygf["<b>permission/backend</b>"]:::ext
     n6ceey8["<b>session/backend</b>"]:::ext
@@ -256,18 +252,18 @@ graph TD
     n1pd8dgu -.-> n6ceey8
     n1c2qxkf -.-> n1qcy0uz
     n1i1cj8a -.-> n1qcy0uz
-    nopqhf0 -.-> |requires| n176bot2
-    nopqhf0 -.-> |after| n1bwj4wr
-    n10ycygf -.-> |requires| n176bot2
-    n10ycygf -.-> |after| n1bwj4wr
-    n6ceey8 -.-> |requires| n176bot2
-    n1bwj4wr -.-> |requires| n176bot2
-    ndhwbyt -.-> |requires| n176bot2
-    ndhwbyt -.-> |after| n1bwj4wr
-    n1pd8dgu -.-> |after| n6ceey8
-    n19q3pg8 -.-> |requires| n176bot2
-    n19q3pg8 -.-> |after| n1bwj4wr
-    n1xk5nt7 -.-> |after| n1bwj4wr
+    nopqhf0 -. requires .-> n176bot2
+    nopqhf0 -. after .-> n1bwj4wr
+    n10ycygf -. requires .-> n176bot2
+    n10ycygf -. after .-> n1bwj4wr
+    n6ceey8 -. requires .-> n176bot2
+    n1bwj4wr -. requires .-> n176bot2
+    ndhwbyt -. requires .-> n176bot2
+    ndhwbyt -. after .-> n1bwj4wr
+    n1pd8dgu -. after .-> n6ceey8
+    n19q3pg8 -. requires .-> n176bot2
+    n19q3pg8 -. after .-> n1bwj4wr
+    n1xk5nt7 -. after .-> n1bwj4wr
     classDef agent-core fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
     classDef backend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
     classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e

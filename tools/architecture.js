@@ -53,8 +53,18 @@ function areaOf(path) {
 }
 
 // ---------- 通用渲染 ----------
+// 边只使用 mermaid 文档保证的形式：实线 -->；粗线带字 == text ==>；虚线带字 -. text .->。
+// （GitHub 的渲染器不接受「箭头 |标签|」的写法，实测 Parse error got 'PS'。）
+function edgeLine(edge) {
+    const from = nodeId(edge.from), to = nodeId(edge.to)
+    const label = (edge.label ?? '').replace(/[|=.()]/g, '').trim()
+    if (edge.kind === 'import') return `    ${from} --> ${to}`
+    if (edge.kind === 'http') return label ? `    ${from} == ${label} ==> ${to}` : `    ${from} ==> ${to}`
+    return label ? `    ${from} -. ${label} .-> ${to}` : `    ${from} -.-> ${to}`
+}
+
 function render(direction, entries) {
-    const lines = [`graph ${direction}`, `    %%{init: {'theme':'neutral','flowchart':{'curve':'basis'}}}%%`]
+    const lines = [`graph ${direction}`]
     const used = new Set()
     const draw = path => {
         if (used.has(path)) return
@@ -73,9 +83,7 @@ function render(direction, entries) {
     }
     for (const edge of edges) {
         if (!used.has(edge.from) || !used.has(edge.to)) continue
-        const head = edge.kind === 'import' ? '-->' : edge.kind === 'http' ? '==>' : '-.->'
-        const tag = edge.label ? `|${edge.label}|` : ''
-        lines.push(`    ${nodeId(edge.from)} ${head}${tag ? ` ${tag}` : ''} ${nodeId(edge.to)}`)
+        lines.push(edgeLine(edge))
     }
     for (const [name, style] of Object.entries(AREA_STYLE)) lines.push(`    classDef ${name} ${style}`)
     return lines.join('\n')
