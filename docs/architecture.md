@@ -4,13 +4,18 @@
 
 **图例（图一、图三、图四）**：实线 → import；粗线 ⇒ HTTP/SSE 数据流；虚线 ⇢ patch（扩展改写宿主方法）／inject（宿主反向注入）／扩展拓扑（requires/after）／登记。节点内是导出函数清单（超过 8 个显示 +n，本身就提示该文件该拆分）。图二的图例见其章节。
 
-## 一、宏观：core → 后端 → 前端 → 扩展
+## 一、宏观：五个架构层
+
+每层一个分组框，**层间连线只有向下**（agent-core ← backend ← web/扩展 → 外部依赖）；
+扩展组只有虚线（patch / 拓扑 / 登记）指向宿主——实线越层或跨组向上即违规。
+节点内嵌导出函数清单（超 8 个显示 +n，本身就是该拆文件的信号）。
 
 ```mermaid
 graph TD
+    subgraph g0["agent-core（npm，唯一循环）"]
     n1n01kdc["<b>@kernel4632/agent-core（npm）</b>"]:::agent-core
-    ne4psym["<b>vue（npm）</b>"]:::route
-    noesvxz["<b>@hugeicons（npm）</b>"]:::route
+    end
+    subgraph g1["backend —— Bun.serve 宿主"]
     nhqebqq["<b>server</b><br/>create()  wire()"]:::backend
     nbxek49["<b>Agents</b><br/>setup()  all()  open()  done()  running()  snapshot()  callbacks()  send() +6"]:::backend
     nfkptut["<b>Bundle</b><br/>forget()  pack()"]:::backend
@@ -19,11 +24,15 @@ graph TD
     n6t2ykd["<b>Models</b><br/>list()  resolve()"]:::backend
     n4hgrwm["<b>Store</b><br/>config()  configure()  ensure()  meta()  touch()  history()  appendHistory()  rewriteHistory() +2"]:::store
     nytphuv["<b>Stream</b><br/>subscribe()  emit()  add()  tail()  retryDeadline()  clear()"]:::backend
+    end
+    subgraph g2["web —— Vue3 宿主"]
     naobem8["<b>api</b><br/>connect()"]:::web
     n14sdej9["<b>Agent</b><br/>stop()  configure()  connect()"]:::web
     n1qcy0uz["<b>Extension</b><br/>Components()  dispatch()  register()  load()  run()  Loaded()  Panels()  PlusMenu() +2"]:::web
     n2s7pfr["<b>main</b>"]:::web
     n3f77po["<b>App</b>"]:::webui
+    end
+    subgraph g3["extensions —— 内置九个（后端）"]
     nopqhf0["<b>mcp/backend</b>"]:::ext
     n10ycygf["<b>permission/backend</b>"]:::ext
     n6ceey8["<b>session/backend</b>"]:::ext
@@ -33,6 +42,11 @@ graph TD
     n1pd8dgu["<b>title/backend</b>"]:::ext
     n19q3pg8["<b>todo/backend</b>"]:::ext
     n1xk5nt7["<b>tools/backend</b>"]:::ext
+    end
+    ne4psym["<b>vue（npm）</b>"]:::route
+    noesvxz["<b>@hugeicons（npm）</b>"]:::route
+    nqe4fzi["<b>markstream-vue（npm）</b>"]:::route
+    n9necmj["<b>highlight.js（npm）</b>"]:::route
     nbxek49 --> n1n01kdc
     nbxek49 --> n4hgrwm
     nbxek49 --> n6t2ykd
@@ -266,12 +280,21 @@ graph LR
     classDef fbad fill:#fdecea,stroke:#e57373,color:#8f1f1f,font-style:italic
 ```
 
-## 三、web
+## 三、web：状态层 → 展示层
+
+状态层四件套经唯一出口 `api.ts` 连后端；展示层全部从 `Extension.ts` 的组件表取（`App.vue` 也只是表项之一），
+扩展可替换任何组件——**展示层 → 组件表 → 状态层 → api → 后端**是唯一的依赖方向，箭头逆流即是违规。
+demo / dev 工具 / 类型声明不是运行时代码，不画。
 
 ```mermaid
 graph TD
+    subgraph g0["状态层 —— Agent.ts（历史与实时状态）· api.ts（唯一请求出口）· Extension.ts（组件表与扩展加载）· main.ts（装配）"]
     n14sdej9["<b>Agent</b><br/>stop()  configure()  connect()"]:::web
     naobem8["<b>api</b><br/>connect()"]:::web
+    n1qcy0uz["<b>Extension</b><br/>Components()  dispatch()  register()  load()  run()  Loaded()  Panels()  PlusMenu() +2"]:::web
+    n2s7pfr["<b>main</b>"]:::web
+    end
+    subgraph g1["展示层 —— App.vue + 13 个组件（全部从组件表取，可被扩展替换）"]
     n3f77po["<b>App</b>"]:::webui
     nmdvte5["<b>AssistantMessage</b>"]:::webui
     n1x4hqj0["<b>CodeBlock</b>"]:::webui
@@ -286,47 +309,57 @@ graph TD
     n13y2e7o["<b>Thinking</b>"]:::webui
     nlm1wpm["<b>ToolCall</b>"]:::webui
     nfh54tk["<b>UserMessage</b>"]:::webui
-    nep9kbh["<b>demo</b>"]:::web
-    net13y9["<b>dev-extensions.prod</b><br/>loadDevExtensions()"]:::web
-    nx39sr8["<b>dev-extensions</b><br/>loadDevExtensions()"]:::web
-    n1qcy0uz["<b>Extension</b><br/>Components()  dispatch()  register()  load()  run()  Loaded()  Panels()  PlusMenu() +2"]:::web
-    n7xbudi["<b>history</b><br/>group()"]:::web
-    n2s7pfr["<b>main</b>"]:::web
-    n492da9["<b>types</b>"]:::web
+    end
+    ne4psym["<b>vue（npm）</b>"]:::route
+    nqe4fzi["<b>markstream-vue（npm）</b>"]:::route
+    n9necmj["<b>highlight.js（npm）</b>"]:::route
+    n14sdej9 --> ne4psym
     n14sdej9 --> naobem8
+    n3f77po --> ne4psym
     n3f77po --> n14sdej9
     n3f77po --> n1qcy0uz
+    nmdvte5 --> ne4psym
+    nmdvte5 --> nqe4fzi
     nmdvte5 --> n1qcy0uz
+    n1x4hqj0 --> ne4psym
     n1x4hqj0 --> n1v8qy0t
+    n1eedbfs --> ne4psym
     n1eedbfs --> n1v8qy0t
+    n1fukcf8 --> ne4psym
     n1fukcf8 --> n14sdej9
     n1fukcf8 --> n1v8qy0t
     n1fukcf8 --> n1qcy0uz
+    n1p9n7s3 --> ne4psym
     n1p9n7s3 --> n1v8qy0t
     n1p9n7s3 --> n14sdej9
-    n18bqnpc --> n7xbudi
+    n18bqnpc --> ne4psym
     n18bqnpc --> n14sdej9
     n18bqnpc --> n1qcy0uz
+    n1v8qy0t --> ne4psym
+    n15uqdp7 --> ne4psym
     n15uqdp7 --> n1v8qy0t
     n15uqdp7 --> n1qcy0uz
+    n1txskb1 --> ne4psym
     n1txskb1 --> n1v8qy0t
+    ne2t5vv --> ne4psym
     ne2t5vv --> n1v8qy0t
     ne2t5vv --> n14sdej9
+    n13y2e7o --> ne4psym
+    n13y2e7o --> nqe4fzi
     n13y2e7o --> n1v8qy0t
+    nlm1wpm --> ne4psym
     nlm1wpm --> n1v8qy0t
     nlm1wpm --> n1qcy0uz
+    nfh54tk --> ne4psym
     nfh54tk --> n1v8qy0t
     nfh54tk --> n14sdej9
-    nep9kbh --> naobem8
-    nep9kbh --> n1qcy0uz
-    nx39sr8 --> n1qcy0uz
+    n1qcy0uz --> ne4psym
     n1qcy0uz --> naobem8
+    n2s7pfr --> ne4psym
     n2s7pfr --> n3f77po
     n2s7pfr --> n14sdej9
     n2s7pfr --> naobem8
     n2s7pfr --> n1qcy0uz
-    n2s7pfr --> nx39sr8
-    n2s7pfr --> net13y9
     n2s7pfr --> n18bqnpc
     n2s7pfr --> nfh54tk
     n2s7pfr --> nmdvte5
@@ -340,8 +373,6 @@ graph TD
     n2s7pfr --> n1fukcf8
     n2s7pfr --> ne2t5vv
     n2s7pfr --> n1v8qy0t
-    n2s7pfr --> nep9kbh
-    nep9kbh -.-> naobem8
     classDef agent-core fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
     classDef backend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
     classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e
@@ -351,10 +382,21 @@ graph TD
     classDef route fill:#fff3e0,stroke:#e0a458,color:#8a5a1a
 ```
 
-## 四、extensions（拓扑：requires / after / patch / use）
+## 四、extensions：宿主接口 ⇄ 内置扩展
+
+左组是扩展的全部接入点：后端 `ctx = Extension.scope`（patch 链 / 登记表），前端 `app`（`web/src/Extension.ts`）。
+右组九个扩展；**虚线 requires/after = manifest 拓扑**（后加载的可以依赖先加载的）、**patch = 扩展改写宿主方法**、
+**登记工具/动作 = ctx.tool / ctx.op**。哪个扩展包住了哪个方法，看它发出的虚线指向谁。
 
 ```mermaid
 graph TD
+    subgraph g0["宿主接口 —— 扩展从这里接入（ctx = Extension.scope）"]
+    n1gcjvhk["<b>Extension</b><br/>patch()  scope()  invoke()  paths()  inspect()  revert()"]:::backend
+    nbxek49["<b>Agents</b><br/>setup()  all()  open()  done()  running()  snapshot()  callbacks()  send() +6"]:::backend
+    n4hgrwm["<b>Store</b><br/>config()  configure()  ensure()  meta()  touch()  history()  appendHistory()  rewriteHistory() +2"]:::store
+    n1qcy0uz["<b>Extension</b><br/>Components()  dispatch()  register()  load()  run()  Loaded()  Panels()  PlusMenu() +2"]:::web
+    end
+    subgraph g1["内置扩展（后端 backend.js；前端入口由 Loader 打包）"]
     nopqhf0["<b>mcp/backend</b>"]:::ext
     n10ycygf["<b>permission/backend</b>"]:::ext
     n6ceey8["<b>session/backend</b>"]:::ext
@@ -364,27 +406,16 @@ graph TD
     n1pd8dgu["<b>title/backend</b>"]:::ext
     n19q3pg8["<b>todo/backend</b>"]:::ext
     n1xk5nt7["<b>tools/backend</b>"]:::ext
-    n1p4lu5a["<b>mcp/manifest.json</b>"]:::ext
-    nh9mo8r["<b>permission/manifest.json</b>"]:::ext
-    n9ybtui["<b>session/manifest.json</b>"]:::ext
-    nvbxbwv["<b>settings/manifest.json</b>"]:::ext
-    nypfrp0["<b>shell/manifest.json</b>"]:::ext
-    n3qc1n9["<b>skill/manifest.json</b>"]:::ext
-    nndscv0["<b>title/manifest.json</b>"]:::ext
-    n1fqln5e["<b>todo/manifest.json</b>"]:::ext
-    njiy8v3["<b>tools/manifest.json</b>"]:::ext
-    n13im5ax["<b>mcp</b>"]:::ext
-    n1qtj8za["<b>permission</b>"]:::ext
-    n178volx["<b>session</b>"]:::ext
-    n17ncvwq["<b>settings</b>"]:::ext
-    n1c2qxkf["<b>shell</b>"]:::ext
-    nvyz2a8["<b>skill</b>"]:::ext
-    nktdwj1["<b>todo</b>"]:::ext
-    n1i1cj8a["<b>tools</b>"]:::ext
-    n1qcy0uz["<b>Extension</b><br/>Components()  dispatch()  register()  load()  run()  Loaded()  Panels()  PlusMenu() +2"]:::web
+    end
+    nbxek49 --> n4hgrwm
+    n10ycygf -. patch Agents .-> nbxek49
+    ndhwbyt -. patch Agents .-> nbxek49
+    n1pd8dgu -. patch Agents .-> nbxek49
+    n19q3pg8 -. patch Agents .-> nbxek49
+    ndhwbyt -. 登记工具 .-> nbxek49
+    n19q3pg8 -. 登记工具 .-> nbxek49
+    n1xk5nt7 -. 登记工具 .-> nbxek49
     n1pd8dgu -.-> n6ceey8
-    n1c2qxkf -.-> n1qcy0uz
-    n1i1cj8a -.-> n1qcy0uz
     nopqhf0 -. requires .-> n176bot2
     nopqhf0 -. after .-> n1bwj4wr
     n10ycygf -. requires .-> n176bot2

@@ -65,7 +65,7 @@ function edgeLine(edge) {
     return label ? `    ${from} -. ${label} .-> ${to}` : `    ${from} -.-> ${to}`
 }
 
-function render(direction, entries) {
+function render(direction, entries, groups) {
     const lines = [`graph ${direction}`]
     const used = new Set()
     const draw = path => {
@@ -76,12 +76,27 @@ function render(direction, entries) {
         const name = path.startsWith('external:') ? `${path.replace('external:', '')}（npm）` : label(path)
         lines.push(`    ${nodeId(path)}["<b>${name}</b>${text ? `<br/>${text}` : ''}"]:::${area}`)
     }
-    for (const entry of entries) {
-        if (nodes.has(entry) || entry.startsWith('external:')) draw(entry)
-        else if (entry === 'ext-backends') { for (const path of nodes.keys()) if (/^extensions\/[\w-]+\/backend\.js$/.test(path)) draw(path) }
-        else if (entry === 'ext-manifests') { for (const path of nodes.keys()) if (path.endsWith('manifest.json')) draw(path) }
-        else if (entry === 'ext-frontends') { for (const path of nodes.keys()) if (/^extensions\/[\w-]+\/frontend\/index\.js$/.test(path)) draw(path) }
-        else { for (const path of nodes.keys()) if (path.startsWith(entry)) draw(path) }
+    const collect = entry => {
+        const picked = []
+        if (nodes.has(entry) || entry.startsWith('external:')) picked.push(entry)
+        else if (entry === 'ext-backends') { for (const path of nodes.keys()) if (/^extensions\/[\w-]+\/backend\.js$/.test(path)) picked.push(path) }
+        else if (entry === 'ext-frontends') { for (const path of nodes.keys()) if (/^extensions\/[\w-]+\/frontend\/index\.js$/.test(path)) picked.push(path) }
+        else { for (const path of nodes.keys()) if (path.startsWith(entry)) picked.push(path) }
+        return picked
+    }
+    if (groups) {
+        // 分组模式：每个 { title, entries } 一个 subgraph；未入组的端点画在组外。
+        let index = 0
+        const grouped = new Set()
+        for (const group of groups) {
+            lines.push(`    subgraph g${index}["${group.title}"]`)
+            for (const path of group.entries.flatMap(collect)) { draw(path); grouped.add(path) }
+            lines.push('    end')
+            index++
+        }
+        for (const entry of entries.flatMap(collect)) if (!grouped.has(entry)) draw(entry)
+    } else {
+        for (const path of entries.flatMap(collect)) draw(path)
     }
     for (const edge of edges) {
         if (!used.has(edge.from) || !used.has(edge.to)) continue
@@ -91,23 +106,28 @@ function render(direction, entries) {
     return lines.join('\n')
 }
 
-// ---------- 图一：宏观（每层代表 + 全部扩展后端 + 外部包）----------
-const macro = render('TD', [
-    'external:@kernel4632/agent-core', 'external:vue', 'external:@hugeicons',
-    'backend/server.js',
-    'backend/features/',
-    'web/src/api.ts', 'web/src/Agent.ts', 'web/src/Extension.ts', 'web/src/main.ts', 'web/src/App.vue',
-    'ext-backends',
+// ---------- 图一：宏观（五个架构层各一个 subgraph；层内排列、层间连线）----------
+const macro = render('TD', ['external:vue', 'external:@hugeicons', 'external:markstream-vue', 'external:highlight.js'], [
+    { title: 'agent-core（npm，唯一循环）', entries: ['external:@kernel4632/agent-core'] },
+    { title: 'backend —— Bun.serve 宿主', entries: ['backend/server.js', 'backend/features/'] },
+    { title: 'web —— Vue3 宿主', entries: ['web/src/api.ts', 'web/src/Agent.ts', 'web/src/Extension.ts', 'web/src/main.ts', 'web/src/App.vue'] },
+    { title: 'extensions —— 内置九个（后端）', entries: ['ext-backends'] },
 ])
 
 // ---------- 图二：backend 四条运行链路（subgraph=链路、并排、主链顺连）----------
 const backDoc = back
 
-// ---------- 图三：web（状态层 + 组件 + 外部渲染库）----------
-const web = render('TD', ['web/src/'])
+// ---------- 图三：web（状态层 / 展示层两个 subgraph；demo、dev 工具、类型声明不画）----------
+const webDoc = render('TD', ['external:vue', 'external:markstream-vue', 'external:highlight.js'], [
+    { title: '状态层 —— Agent.ts（历史与实时状态）· api.ts（唯一请求出口）· Extension.ts（组件表与扩展加载）· main.ts（装配）', entries: ['web/src/Agent.ts', 'web/src/api.ts', 'web/src/Extension.ts', 'web/src/main.ts'] },
+    { title: '展示层 —— App.vue + 13 个组件（全部从组件表取，可被扩展替换）', entries: ['web/src/App.vue', 'web/src/components/'] },
+])
 
-// ---------- 图四：extensions（拓扑 + patch/use + 扩展前端登记；前端文件不画，看 web 图）----------
-const ext = render('TD', ['ext-backends', 'ext-manifests', 'ext-frontends', 'web/src/Extension.ts'])
+// ---------- 图四：extensions（宿主接口 / 扩展两组；manifest 的 requires-after-topology 边直连扩展节点）----------
+const extDoc = render('TD', [], [
+    { title: '宿主接口 —— 扩展从这里接入（ctx = Extension.scope）', entries: ['backend/features/Extension.js', 'backend/features/Agents.js', 'backend/features/Store.js', 'web/src/Extension.ts'] },
+    { title: '内置扩展（后端 backend.js；前端入口由 Loader 打包）', entries: ['ext-backends'] },
+])
 
 // ---------- 汇总输出 ----------
 const legend = `**图例（图一、图三、图四）**：实线 → import；粗线 ⇒ HTTP/SSE 数据流；虚线 ⇢ patch（扩展改写宿主方法）／inject（宿主反向注入）／扩展拓扑（requires/after）／登记。节点内是导出函数清单（超过 8 个显示 +n，本身就提示该文件该拆分）。图二的图例见其章节。`
@@ -118,7 +138,11 @@ const doc = `# 架构图
 
 ${legend}
 
-## 一、宏观：core → 后端 → 前端 → 扩展
+## 一、宏观：五个架构层
+
+每层一个分组框，**层间连线只有向下**（agent-core ← backend ← web/扩展 → 外部依赖）；
+扩展组只有虚线（patch / 拓扑 / 登记）指向宿主——实线越层或跨组向上即违规。
+节点内嵌导出函数清单（超 8 个显示 +n，本身就是该拆文件的信号）。
 
 \`\`\`mermaid
 ${macro}
@@ -136,16 +160,24 @@ HTTP 信封（json / fail / read）所有路由等价使用，与运行路径无
 ${backDoc}
 \`\`\`
 
-## 三、web
+## 三、web：状态层 → 展示层
+
+状态层四件套经唯一出口 \`api.ts\` 连后端；展示层全部从 \`Extension.ts\` 的组件表取（\`App.vue\` 也只是表项之一），
+扩展可替换任何组件——**展示层 → 组件表 → 状态层 → api → 后端**是唯一的依赖方向，箭头逆流即是违规。
+demo / dev 工具 / 类型声明不是运行时代码，不画。
 
 \`\`\`mermaid
-${web}
+${webDoc}
 \`\`\`
 
-## 四、extensions（拓扑：requires / after / patch / use）
+## 四、extensions：宿主接口 ⇄ 内置扩展
+
+左组是扩展的全部接入点：后端 \`ctx = Extension.scope\`（patch 链 / 登记表），前端 \`app\`（\`web/src/Extension.ts\`）。
+右组九个扩展；**虚线 requires/after = manifest 拓扑**（后加载的可以依赖先加载的）、**patch = 扩展改写宿主方法**、
+**登记工具/动作 = ctx.tool / ctx.op**。哪个扩展包住了哪个方法，看它发出的虚线指向谁。
 
 \`\`\`mermaid
-${ext}
+${extDoc}
 \`\`\`
 
 ## 五、机器检查
