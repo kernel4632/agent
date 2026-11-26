@@ -22,7 +22,7 @@ function label(path) {
 }
 
 // 节点内嵌的函数清单：导出非 default 的名字，最多 8 个，按显示宽度折行
-// （mermaid 节点宽度约 12 个全角字符；中文计 1、英文数字计 0.5）。
+// （GitHub 实测节点约 6-7 全角字符宽；中文计 1、英文数字计 0.5）。
 function member(path) {
     const names = nodes.get(path)?.exports ?? []
     if (!names.length) return ''
@@ -32,7 +32,7 @@ function member(path) {
     const rows = []
     let line = ''
     for (const one of shown) {
-        if (line && width(line + ' ' + one) > 22) { rows.push(line); line = one }
+        if (line && width(line + ' ' + one) > 11) { rows.push(line); line = one }
         else line = line ? `${line} ${one}` : one
     }
     if (line) rows.push(line)

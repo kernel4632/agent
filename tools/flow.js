@@ -261,7 +261,7 @@ const CHAINS = [
         nodes: [
             { id: 'sse', label: 'api.connect 收到 SSE 帧', file: 'web/src/api.ts' },
             { id: 'which', label: '帧类型？', file: 'web/src/api.ts', check: true },
-            { id: 'apply', label: 'Agent.apply（snapshot：整份历史 + 尾巴重放）', file: 'web/src/Agent.ts' },
+            { id: 'apply', label: 'Agent.apply<br/>snapshot 重放', file: 'web/src/Agent.ts', desc: true },
             { id: 'receive', label: 'Agent.receive（core 事件分发）', file: 'web/src/Agent.ts' },
             { id: 'msg', label: 'message → history.push（消息出现）', file: 'web/src/Agent.ts', desc: true },
             { id: 'live', label: 'request-start → live 请求条出现', file: 'web/src/Agent.ts', desc: true },
@@ -299,7 +299,7 @@ const CHAINS = [
             { id: 'api', label: 'api.connect（GET SSE）', file: 'web/src/api.ts' },
             { id: 'down', label: '连接断开？', file: 'web/src/api.ts', check: true },
             { id: 'wait', label: '1 秒后重连', file: 'web/src/api.ts', desc: true },
-            { id: 'resnap', label: '重新 snapshot（历史重放 + 尾巴补帧，不丢不重）', file: 'web/src/Agent.ts', desc: true },
+            { id: 'resnap', label: '重新 snapshot<br/>补帧不丢不重', file: 'web/src/Agent.ts', desc: true },
         ],
         edges: [
             { from: 'main', to: 'shell' },
@@ -389,21 +389,33 @@ function validate(chains, exports) {
     return problems
 }
 
-// 标签整形：mermaid 节点宽度约 12 全角字符一行（中文 1、英文 0.5），超长截断。
-// 「主名（说明）」拆成两行；长行按显示宽度在空格 / 斜杠处软折。
+// 标签整形：GitHub 实测节点约 6-7 全角字符宽（中文 1、英文 0.5）。
+// 「主名（说明）」拆两行；超宽行在空格/斜杠处软折，无处可折的英文标识按 5.5 宽硬折。
 function foldLabel(label) {
     const width = text => [...text].reduce((sum, ch) => sum + (ch.charCodeAt(0) > 0xff ? 1 : 0.5), 0)
     const m = label.match(/^(.{2,16})（(.*)）$/)
-    if (m) return `${m[1]}<br/>${m[2]}`
-    if (width(label) <= 12) return label
+    if (m && width(m[1]) <= 6 && width(m[2]) <= 11) return `${m[1]}<br/>${m[2]}`
+    if (width(label) <= 6) return label
+    // 优先在空格 / 斜杠 / · 处软折
     const parts = []
     let line = ''
     for (const ch of label) {
         line += ch
-        if (width(line) >= 11 && /[ /·]/.test(ch)) { parts.push(line.trim()); line = '' }
+        if (width(line) >= 5.5 && /[ /·-]/.test(ch)) { parts.push(line.trim()); line = '' }
     }
     if (line.trim()) parts.push(line.trim())
-    return parts.join('<br/>')
+    // 软折后仍超宽的行：含空格的（长句）硬折；连续英文标识（Composer.submit）保留整词
+    const folded = []
+    for (const part of parts) {
+        if (width(part) <= 11 || !part.includes(' ')) { folded.push(part); continue }
+        let line2 = ''
+        for (const ch of part) {
+            line2 += ch
+            if (width(line2) >= 11) { folded.push(line2); line2 = '' }
+        }
+        if (line2.trim()) folded.push(line2.trim())
+    }
+    return folded.join('<br/>')
 }
 
 // 渲染：graph LR，一条路由一个 subgraph（九组并排，组间零连线）。

@@ -17,18 +17,18 @@ graph TD
     end
     subgraph g1["backend —— Bun.serve 宿主"]
     nhqebqq["<b>server</b><br/>create() wire()"]:::backend
-    nbxek49["<b>Agents</b><br/>setup() all() open() done() running()<br/>snapshot() callbacks() send() +6"]:::backend
+    nbxek49["<b>Agents</b><br/>setup() all() open()<br/>done() running()<br/>snapshot() callbacks()<br/>send() +6"]:::backend
     nfkptut["<b>Bundle</b><br/>forget() pack()"]:::backend
-    n1gcjvhk["<b>Extension</b><br/>patch() scope() invoke() paths() inspect()<br/>revert()"]:::backend
-    n1r47d4k["<b>Loader</b><br/>hook() roots() scan() list() entries()<br/>inspect() start() stop() +3"]:::backend
+    n1gcjvhk["<b>Extension</b><br/>patch() scope()<br/>invoke() paths()<br/>inspect() revert()"]:::backend
+    n1r47d4k["<b>Loader</b><br/>hook() roots() scan()<br/>list() entries()<br/>inspect() start()<br/>stop() +3"]:::backend
     n6t2ykd["<b>Models</b><br/>list() resolve()"]:::backend
-    n4hgrwm["<b>Store</b><br/>config() configure() ensure() meta() touch()<br/>history() appendHistory() rewriteHistory()<br/>+2"]:::store
-    nytphuv["<b>Stream</b><br/>subscribe() emit() add() tail()<br/>retryDeadline() clear()"]:::backend
+    n4hgrwm["<b>Store</b><br/>config() configure()<br/>ensure() meta()<br/>touch() history()<br/>appendHistory()<br/>rewriteHistory() +2"]:::store
+    nytphuv["<b>Stream</b><br/>subscribe() emit()<br/>add() tail()<br/>retryDeadline()<br/>clear()"]:::backend
     end
     subgraph g2["web —— Vue3 宿主"]
     naobem8["<b>api</b><br/>connect()"]:::web
-    n14sdej9["<b>Agent</b><br/>stop() configure() connect()"]:::web
-    n1qcy0uz["<b>Extension</b><br/>Components() dispatch() register() load()<br/>run() Loaded() Panels() PlusMenu() +2"]:::web
+    n14sdej9["<b>Agent</b><br/>stop() configure()<br/>connect()"]:::web
+    n1qcy0uz["<b>Extension</b><br/>Components()<br/>dispatch() register()<br/>load() run() Loaded()<br/>Panels() PlusMenu() +2"]:::web
     n2s7pfr["<b>main</b>"]:::web
     n3f77po["<b>App</b>"]:::webui
     end
@@ -115,7 +115,7 @@ HTTP 信封（json / fail / read）所有路由等价使用，与运行路径无
 ```mermaid
 graph LR
     subgraph c0["① POST /send —— 发消息"]
-        c0_in["POST /api/agent/:id/send"]:::froute
+        c0_in["POST /api/agent/<br/>:id/send"]:::froute
         c0_send["Agents.send"]:::fagents
         c0_idle{"在运行中？"}:::fcheck
         c0_lock["409 正在运行"]:::fbad
@@ -125,10 +125,10 @@ graph LR
         c0_docut["Agents.cut"]:::fagents
         c0_rewrite["Store.rewriteHistory"]:::fstore
         c0_open["Agents.open"]:::fagents
-        c0_read["Store.config / meta /<br/>history"]:::fstore
+        c0_read["Store.config<br/>/ meta / history"]:::fstore
         c0_launch["launch"]:::fagents
-        c0_run["Stream.emit(run start)"]:::fstream
-        c0_core["agent-core 循环"]:::fcore
+        c0_run["Stream.emit(run<br/>start)"]:::fstream
+        c0_core["agent-core<br/>循环"]:::fcore
         c0_cb["Agents.callbacks"]:::fagents
         c0_save["Store.appendHistory（message）"]:::fstore
         c0_touch["Store.touch<br/>step"]:::fstore
@@ -136,61 +136,61 @@ graph LR
         c0_sse["浏览器<br/>SSE"]:::fweb
     end
     subgraph c1["② GET /stream —— 连接与刷新"]
-        c1_in["GET /api/agent/:id/stream"]:::froute
+        c1_in["GET /api/agent/<br/>:id/stream"]:::froute
         c1_open["Agents.open"]:::fagents
         c1_sub["Stream.subscribe"]:::fstream
         c1_snap["Agents.snapshot"]:::fagents
         c1_tail["Stream.tail<br/>合并后的尾巴"]:::fstream
         c1_retry["Stream.retryDeadline"]:::fstream
         c1_sse["浏览器<br/>snapshot 首帧"]:::fweb
-        c1_core["agent-core 事件"]:::fcore
+        c1_core["agent-core<br/>事件"]:::fcore
         c1_add["Stream.add"]:::fstream
         c1_emit["Stream.emit"]:::fstream
         c1_sse2["浏览器<br/>core 事件"]:::fweb
     end
     subgraph c2["③ POST /compact —— 手动压缩"]
-        c2_in["POST /api/agent/:id/compact"]:::froute
+        c2_in["POST /api/agent/<br/>:id/compact"]:::froute
         c2_compact["Agents.compact"]:::fagents
         c2_idle{"在运行中？"}:::fcheck
         c2_lock["409 正在运行"]:::fbad
         c2_launch["launch"]:::fagents
-        c2_run["Stream.emit(run start)"]:::fstream
+        c2_run["Stream.emit(run<br/>start)"]:::fstream
         c2_core["agent-core<br/>compact 循环"]:::fcore
         c2_cb["Agents.callbacks"]:::fagents
         c2_save["Store.appendHistory（总结消息）"]:::fstore
         c2_end["run end<br/>历史变短"]:::fweb
     end
     subgraph c3["④ POST /stop —— 停止"]
-        c3_in["POST /api/agent/:id/stop"]:::froute
+        c3_in["POST /api/agent/<br/>:id/stop"]:::froute
         c3_stop["Agents.stop"]:::fagents
         c3_core["agent-core<br/>中止信号"]:::fcore
         c3_wait["Agents.done<br/>等任务收尾"]:::fagents
         c3_run["run stopped"]:::fweb
     end
     subgraph c4["⑤ POST /configure —— 换模型 / 思考强度"]
-        c4_in["POST /api/agent/:id/configure"]:::froute
+        c4_in["POST /api/agent/<br/>:id/configure"]:::froute
         c4_configure["Agents.configure"]:::fagents
         c4_touch["Store.touch<br/>写 meta"]:::fstore
         c4_resolve["Models.resolve"]:::fmodels
         c4_hot["热替换 agent.config"]:::fagents
-        c4_out["返回新 model / effort"]:::fserver
+        c4_out["返回新 model<br/>/ effort"]:::fserver
     end
     subgraph c5["⑥ GET /extensions —— 前端入口列表"]
         c5_in["GET /api/extensions"]:::froute
         c5_entries["Loader.entries"]:::floader
-        c5_out["已加载扩展的 frontend.js<br/>地址"]:::fweb
+        c5_out["已加载扩展的<br/>frontend.js<br/>地址"]:::fweb
     end
     subgraph c6["⑦ GET /extensions/inspect —— 加载状态"]
-        c6_in["GET /api/extensions/inspect"]:::froute
+        c6_in["GET /api/extensions/<br/>inspect"]:::froute
         c6_inspect["Loader.inspect"]:::floader
         c6_chain["Extension.inspect（patch<br/>链 / 动作表）"]:::fextension
-        c6_out["加载状态 + 冲突可见"]:::fweb
+        c6_out["加载状态 +<br/>冲突可见"]:::fweb
     end
     subgraph c7["⑧ GET /extensions/:name/frontend.js —— 扩展前端"]
-        c7_in["GET /api/extensions/:name/<br/>frontend.js"]:::froute
+        c7_in["GET /api/extensions/<br/>:name/frontend.js"]:::froute
         c7_frontend["frontend()"]:::fserver
         c7_bundle["Loader.bundle"]:::floader
-        c7_pack["Bundle.pack<br/>mtime 缓存，改 .vue 重打"]:::fbundle
+        c7_pack["Bundle.pack（mtime<br/>缓存，改 .vue<br/>重打）"]:::fbundle
         c7_out["ESM 前端包<br/>vue 外部化"]:::fweb
     end
     c0_in --> c0_send
@@ -275,7 +275,7 @@ graph LR
 ```mermaid
 graph LR
     subgraph c0["W① 发送 —— 用户敲字之后"]
-        c0_user["用户输入 / 回车"]:::fweb
+        c0_user["用户输入 /<br/>回车"]:::fweb
         c0_submit["Composer.submit"]:::fstream
         c0_running{"running 中？"}:::fcheck
         c0_stopbtn["变「停止」钮<br/>不动"]:::fweb
@@ -284,21 +284,21 @@ graph LR
         c0_cont["Agent.continue"]:::fagents
         c0_pack["pack<br/>文本 + 附件"]:::fagents
         c0_send["api.send<br/>POST /send"]:::fweb
-        c0_fault["网络/409 → state.fault"]:::fbad
+        c0_fault["网络/409 →<br/>state.fault"]:::fbad
     end
     subgraph c1["W② SSE 帧 → 状态 → 界面（核心链路）"]
-        c1_sse["api.connect 收到 SSE 帧"]:::fweb
+        c1_sse["api.connect<br/>收到 SSE 帧"]:::fweb
         c1_which{"帧类型？"}:::fcheck
-        c1_apply["Agent.apply<br/>snapshot：整份历史 + 尾巴重放"]:::fagents
-        c1_receive["Agent.receive<br/>core 事件分发"]:::fagents
-        c1_msg["message → history.push（消息出现）"]:::fagents
-        c1_live["request-start → live<br/>请求条出现"]:::fagents
-        c1_parts["text/reasoning/tool-*<br/>→ live.parts 增量"]:::fagents
-        c1_retry["request-error → retry<br/>倒计时"]:::fagents
+        c1_apply["Agent.apply<br/<br/>>snapshot 重放"]:::fagents
+        c1_receive["Agent.receive（core<br/>事件分发）"]:::fagents
+        c1_msg["message →<br/>history.push（消息出现）"]:::fagents
+        c1_live["request-start<br/>→ live 请求条出现"]:::fagents
+        c1_parts["text/reasoning/<br/>tool-* → live.parts<br/>增量"]:::fagents
+        c1_retry["request-error<br/>→ retry 倒计时"]:::fagents
         c1_state["Agent.state<br/>唯一真相源，响应式"]:::fagents
-        c1_group["History.group<br/>纯函数：历史 → 显示条目"]:::fstore
-        c1_dispatch["History.vue 按 kind 分发"]:::fstore
-        c1_view["按 kind 分发<br/>UserMessage<br/>· Process · AssistantMessage<br/>· ErrorMessage<br/>「继续」钮<br/>→ Agent.continue"]:::fweb
+        c1_group["History.group（纯函数：历史<br/>→ 显示条目）"]:::fstore
+        c1_dispatch["History.vue<br/>按 kind 分发"]:::fstore
+        c1_view["按 kind 分发<br/<br/>>UserMessage<br/>· Process ·<br/>AssistantMessage<br/>· ErrorMessage<br/<br/>>「继续」钮<br/>→ Agent.continue"]:::fweb
     end
     subgraph c2["W③ 连接生命周期"]
         c2_main["main.ts<br/>装配"]:::fserver
@@ -307,7 +307,7 @@ graph LR
         c2_api["api.connect<br/>GET SSE"]:::fweb
         c2_down{"连接断开？"}:::fcheck
         c2_wait["1 秒后重连"]:::fweb
-        c2_resnap["重新 snapshot<br/>历史重放 + 尾巴补帧，不丢不重"]:::fagents
+        c2_resnap["重新 snapshot<br/<br/>>补帧不丢不重"]:::fagents
     end
     c0_user --> c0_submit
     c0_submit --> c0_running
@@ -364,10 +364,10 @@ graph LR
 ```mermaid
 graph TD
     subgraph g0["宿主接口 —— 扩展从这里接入（ctx = Extension.scope）"]
-    n1gcjvhk["<b>Extension</b><br/>patch() scope() invoke() paths() inspect()<br/>revert()"]:::backend
-    nbxek49["<b>Agents</b><br/>setup() all() open() done() running()<br/>snapshot() callbacks() send() +6"]:::backend
-    n4hgrwm["<b>Store</b><br/>config() configure() ensure() meta() touch()<br/>history() appendHistory() rewriteHistory()<br/>+2"]:::store
-    n1qcy0uz["<b>Extension</b><br/>Components() dispatch() register() load()<br/>run() Loaded() Panels() PlusMenu() +2"]:::web
+    n1gcjvhk["<b>Extension</b><br/>patch() scope()<br/>invoke() paths()<br/>inspect() revert()"]:::backend
+    nbxek49["<b>Agents</b><br/>setup() all() open()<br/>done() running()<br/>snapshot() callbacks()<br/>send() +6"]:::backend
+    n4hgrwm["<b>Store</b><br/>config() configure()<br/>ensure() meta()<br/>touch() history()<br/>appendHistory()<br/>rewriteHistory() +2"]:::store
+    n1qcy0uz["<b>Extension</b><br/>Components()<br/>dispatch() register()<br/>load() run() Loaded()<br/>Panels() PlusMenu() +2"]:::web
     end
     subgraph g1["内置扩展（后端 backend.js；前端入口由 Loader 打包）"]
     nopqhf0["<b>mcp/backend</b>"]:::ext
