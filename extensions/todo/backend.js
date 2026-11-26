@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url'
 
 /** @param {import('agent-backend').Ctx['Store']} Store @param {string} id @returns {Promise<Array<{ id: string, content: string, status: string }>>} */
 async function load(Store, id) {
-    try { return JSON.parse(await readFile(join(Store.home(), 'agents', id, 'todos.json'), 'utf8')) } catch { return [] }
+    try { return JSON.parse(await readFile(join(Store.home(), 'agents', id, 'todos.json'), 'utf8')) } catch (error) {
+        if (/** @type {NodeJS.ErrnoException} */ (error)?.code === 'ENOENT') return []
+        throw error
+    }
 }
 
 /** @param {import('agent-backend').Ctx} ctx */
@@ -26,7 +29,7 @@ export default ctx => {
             onEvent(event) {
                 const result = onEvent?.(event)
                 if (event.type === 'tool-result' && event.result?.toolName === 'todo') {
-                    void load(ctx.Store, id).then(items => ctx.push(id, 'update', { items }))
+                    void load(ctx.Store, id).then(items => ctx.push(id, 'update', { items })).catch(() => {})
                 }
                 return result
             },
