@@ -9,9 +9,11 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { build, KIND_COLOR } from './graph.js'
+import { buildFlow, renderFlow } from './flow.js'
 
 // ---------- 数据面 ----------
 const { nodes, edges, violations } = await build()
+const flow = buildFlow(nodes)
 
 // 节点显示名：去掉前缀目录，保留区分度需要的部分。
 function label(path) {
@@ -98,8 +100,8 @@ const macro = render('TD', [
     'ext-backends',
 ])
 
-// ---------- 图二：backend（含注入边和 agent-core）----------
-const back = render('TD', ['backend/', 'external:@kernel4632/agent-core'])
+// ---------- 图二：backend 函数级流程（subgraph=文件、节点=函数、实线=运行时调用）----------
+const back = renderFlow(flow)
 
 // ---------- 图三：web（状态层 + 组件 + 外部渲染库）----------
 const web = render('TD', ['web/src/'])
@@ -108,7 +110,7 @@ const web = render('TD', ['web/src/'])
 const ext = render('TD', ['ext-backends', 'ext-manifests', 'ext-frontends', 'web/src/Extension.ts'])
 
 // ---------- 汇总输出 ----------
-const legend = `**图例**：实线 → import；粗线 ⇒ HTTP/SSE 数据流；虚线 ⇢ patch（扩展改写宿主方法）／inject（宿主反向注入）／扩展拓扑（requires/after）／登记。节点内是导出函数清单（超过 8 个显示 +n，本身就提示该文件该拆分）。`
+const legend = `**图例（图一、图三、图四）**：实线 → import；粗线 ⇒ HTTP/SSE 数据流；虚线 ⇢ patch（扩展改写宿主方法）／inject（宿主反向注入）／扩展拓扑（requires/after）／登记。节点内是导出函数清单（超过 8 个显示 +n，本身就提示该文件该拆分）。图二的图例见其章节。`
 
 const doc = `# 架构图
 
@@ -122,7 +124,12 @@ ${legend}
 ${macro}
 \`\`\`
 
-## 二、backend features
+## 二、backend：函数级流程图
+
+文件是分组框（subgraph），函数是节点。**实线 → 运行时调用**（路由 → 业务函数 → Store/Stream/Models…）；
+**粗线 ⇒ 交给 agent-core**（唯一循环，内部不可见）；
+斜体淡色 = 文件内非导出的辅助函数（不是公开接口，但在执行路径上，名字撞车的加 ′ 区分）。
+backend 同层文件之间没有静态 import（导入只往下走的铁律），跨文件调用全部发生在运行时——这张图按 \`Name.method(\` 调用点扫描还原。
 
 \`\`\`mermaid
 ${back}

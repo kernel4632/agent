@@ -8,6 +8,7 @@ http（前后端接口）、manifest（扩展 requires/after）、tool（扩展�
 
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative, resolve, dirname } from 'node:path'
+import { KEYWORDS, CONSTANT, sliceObject, topMembers } from './slice.js'
 
 const ROOT = resolve(import.meta.dir, '..')
 const TRANSPILE = { js: new Bun.Transpiler({ loader: 'js' }), ts: new Bun.Transpiler({ loader: 'ts' }) }
@@ -91,8 +92,8 @@ const RUNTIME = [
     { area: 'extensions', re: /\bctx\.tool\(/g, to: () => FEATURE('Agents'), kind: 'tool', label: () => '登记工具' },
     { area: 'extensions', re: /ctx\.use\(['"](\w+)['"]\)/g, to: m => `extensions/${m[1]}/backend.js`, kind: 'use' },
     // 宿主：server.js 的路由和反向注入。
-    { area: 'backend', file: 'backend/server.js', re: /\bAgents\.bind\(/g, to: () => FEATURE('Extension'), kind: 'inject', label: () => '注入 tools()' },
-    { area: 'backend', file: 'backend/server.js', re: /\bLoader\.bind\(/g, to: () => FEATURE('Loader'), kind: 'inject', label: () => '注入 targets' },
+    { area: 'backend', file: 'backend/server.js', re: /\bAgents\.setup\(/g, to: () => FEATURE('Extension'), kind: 'inject', label: () => '注入 tools()' },
+    { area: 'backend', file: 'backend/server.js', re: /\bLoader\.hook\(/g, to: () => FEATURE('Loader'), kind: 'inject', label: () => '注入 targets' },
     { area: 'backend', file: 'backend/server.js', re: /\bawait Agents\.|\bAgents\.open\(/g, to: () => FEATURE('Agents'), kind: 'http' },
     { area: 'backend', file: 'backend/server.js', re: /\bStream\.|await stream\(/g, to: () => FEATURE('Stream'), kind: 'http' },
     { area: 'backend', file: 'backend/server.js', re: /\bExtension\.invoke\(|Loader\.bundle\(|Loader\.(?:entries|inspect)\(/g, to: () => FEATURE('Extension'), kind: 'http' },
@@ -105,16 +106,19 @@ const RUNTIME = [
 ]
 
 // 导出成员清单：Transpiler 只给 export 名；const 对象的导出（如 Agents = { open, send }）抠它的方法名，
-// 函数导出（如 export function scan）记函数名。default 不列。关键字（if/for/return…）不是方法。
-const KEYWORDS = new Set(['if', 'for', 'while', 'return', 'switch', 'catch', 'try', 'else', 'do', 'get', 'set', 'async', 'await', 'new', 'typeof', 'in', 'of', 'const', 'let', 'var', 'function', 'delete', 'void', 'case', 'break', 'continue', 'throw', 'with', 'finally'])
+// 函数导出（如 export function scan）记函数名。default 不列。常量（全大写）与私有函数不进清单。
+// 对象边界用括号配对精确抠（旧版惰性正则会被嵌套闭包骗到，把内部对象的成员也算进来）。
 function membersOf(code, names) {
     const list = []
     for (const name of names) {
-        const found = code.match(new RegExp(`(?:const|let)\\s+${name}\\s*=\\s*\\{([\\s\\S]*?\\n\\})`))
-        if (found) {
-            const methods = [...found[1].matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*\(/g)].map(match => match[1]).filter(method => !KEYWORDS.has(method))
-            list.push(...methods)
-        } else if (!KEYWORDS.has(name)) list.push(name)
+        const body = sliceObject(code, name)
+        if (body) {
+            // 只列「方法简写」成员（name(...) {...}）；属性成员（name: 值）不是函数，不进清单——与改造前口径一致。
+            // 全是属性简写（如 History = { group }）时按「单个导出名」回退，保持旧口径。
+            const methods = topMembers(body).filter(item => item.body)
+            if (methods.length) list.push(...methods.map(item => item.name))
+            else list.push(name)
+        } else if (!KEYWORDS.has(name) && !CONSTANT.test(name)) list.push(name)
     }
     return [...new Set(list)]
 }
