@@ -31,6 +31,10 @@ agent mcp toggle NAME on
 agent mcp test NAME
 agent skills list
 agent skills toggle NAME off
+agent extensions list
+agent extensions toggle NAME on
+agent extensions reload NAME
+agent extensions call COMMAND --session SESSION_ID
 agent chat
 agent chat --session SESSION_ID
 agent ask "解释这个项目" --cwd "F:/projects/example"
@@ -57,7 +61,7 @@ agent sessions remove SESSION_ID
 
 新会话默认使用调用 CLI 的当前目录，以及服务端配置的默认模型。`--cwd` 是**服务端机器上的目录**；远程连接请明确指定远端路径。`--provider`、`--model`、`--reasoning` 也可配合已有会话使用。思考强度：`off / auto / low / medium / high / xhigh / max`。
 
-`ask` 在管道和重定向里仍只把最终回复写入 stdout，会话 ID 和诊断写入 stderr，适合脚本。交互终端会边生成边写出正文，工具进度写到 stderr，结束时补上还没出现过的正式回复。`--json` 切换为逐行 JSON 事件，最后一行 `type=result` 包含持久化会话。断线重连会输出 `type=snapshot`，消费者应以快照替换旧内容；事件 ID 会因后端落盘重置，不能用它去重。`health`、`tools`、`changes` 和设置类命令默认输出可读文本；`--json` 输出单份 JSON。MCP 的 JSON 不包含环境变量和请求头。`rollback`、`rollback-tool`、`redo` 默认连文件一起恢复，`--keep-files` 只动对话。`skills` 和 `mcp list` 的 `--cwd` 是服务端上的目录，省略时 `skills` 用本机当前目录。
+`ask` 在管道和重定向里仍只把最终回复写入 stdout，会话 ID 和诊断写入 stderr，适合脚本。交互终端会边生成边写出正文，工具进度写到 stderr，结束时补上还没出现过的正式回复。`--json` 切换为逐行 JSON 事件，最后一行 `type=result` 包含持久化会话。断线重连会输出 `type=snapshot`，消费者应以快照替换旧内容；事件 ID 会因后端落盘重置，不能用它去重。`health`、`tools`、`changes` 和设置类命令默认输出可读文本；`--json` 输出单份 JSON。MCP 的 JSON 不包含环境变量和请求头。`rollback`、`rollback-tool`、`redo` 默认连文件一起恢复，`--keep-files` 只动对话。`skills` 和 `mcp list` 的 `--cwd` 是服务端上的目录，省略时 `skills` 用本机当前目录。`extensions` 管理扩展：`list` 列出状态和每条扩展挂给 CLI 的命令；`toggle` / `reload` 与设置页同一个动作；`call COMMAND` 按扩展声明转发到 `/admin` 的动作，剩余参数整段进声明的 `input` 字段，`--arg 键=值` 追加进请求体。
 
 ## 交互界面
 
@@ -79,12 +83,15 @@ agent sessions remove SESSION_ID
 | 展开或收起工具、思考 | 点击该行，或聚焦后 Enter。连续工具先展开成列表 |
 | 复制这一条的内容和结果 | 聚焦后 c，或 Ctrl+Y |
 | 用量、速度、token 统计 | Ctrl+U，或 `/usage`，或点击底部用量 |
+| 扩展：开/关、重载 | `/extensions` 打开，Enter 开/关，r 重载 |
 | 停止当前任务，保存半段回复 | Esc / Ctrl+C |
 | 停止并退出 | Ctrl+Q |
 | 空闲时退出 | Ctrl+C 或 `/quit` |
 | 审批：允许一次 / 始终允许 / 拒绝 | y / a / n，确认卡固定在输入框上方 |
 
-`/help` 打开命令和按键说明，不写进对话，Esc 关闭。`/sessions` 打开可搜索的会话列表，`/open ID` 切换，`/new [标题]` 新建。`/model`、`/reasoning`、`/cwd` 不带参数时打开选择器，带参数时直接修改。`/changes` 看文件改动，`/rollback` 回退选中消息并询问是否恢复文件，`/fork` 从选中消息分支，`/copy` 复制，`/title` 重新生成标题，`/todos` 打开任务清单，`/usage` 打开用量统计。`/resume` 继续助手，`/refresh` 重新读取历史，`/rename 标题` 改标题。路径和标题包含空格时直接输入整段，不加引号。
+`/help` 打开命令和按键说明，不写进对话，Esc 关闭。`/sessions` 打开可搜索的会话列表，`/open ID` 切换，`/new [标题]` 新建。`/model`、`/reasoning`、`/cwd` 不带参数时打开选择器，带参数时直接修改。`/changes` 看文件改动，`/rollback` 回退选中消息并询问是否恢复文件，`/fork` 从选中消息分支，`/copy` 复制，`/title` 重新生成标题，`/todos` 打开任务清单，`/usage` 打开用量统计，`/extensions` 打开扩展：Enter 开/关，r 重载，选中的展开它挂给命令行的命令。`/resume` 继续助手，`/refresh` 重新读取历史，`/rename 标题` 改标题。路径和标题包含空格时直接输入整段，不加引号。
+
+正在运行的扩展可以把命令挂进 `/` 菜单：扩展在自己的 `manifest.json` 里声明 `cli.commands`（命令名、说明、转发到哪个 `/admin` 动作），`chat` 启动时按清单挂上，停用即消失。比如 monitor 扩展挂了 `/monitors` 和 `/monitor-stop 编号`。想挂新命令属于扩展作者的事，写法见 `extensions/` 下的扩展示例。
 
 ## 工具审批与停止
 

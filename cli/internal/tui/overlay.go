@@ -41,6 +41,7 @@ type sessionsMsg struct {
 type readyMsg struct {
 	tools      []api.Tool
 	config     api.Config
+	extensions api.ExtensionState // 扩展清单；加载失败时是空值，只少几个挂载命令
 	failed     string
 	configOnly bool
 }
@@ -85,9 +86,9 @@ func (m *model) openSessions() tea.Cmd {
 	m.renderConversation(true)
 	client, ctx := m.client, m.ctx
 	return func() tea.Msg {
-		var list []api.Session
-		err := client.Request(ctx, "GET", "/session/list", nil, &list)
-		return sessionsMsg{list: list, err: err}
+		var page api.SessionList
+		err := client.Request(ctx, "GET", "/session/list", nil, &page)
+		return sessionsMsg{list: page.Sessions, err: err}
 	}
 }
 
@@ -228,9 +229,11 @@ func (m *model) loadMeta() tea.Cmd {
 	return func() tea.Msg {
 		var tools []api.Tool
 		var config api.Config
-		_ = client.Request(ctx, "GET", "/tool/list", nil, &tools)
-		_ = client.Request(ctx, "GET", "/config/read", nil, &config)
-		return readyMsg{tools: tools, config: config}
+		var state api.ExtensionState
+		_ = client.Admin(ctx, "tool.list", nil, &tools)
+		_ = client.Admin(ctx, "config.read", nil, &config)
+		_ = client.Admin(ctx, "extension.list", nil, &state) // 扩展清单拿不到只少几个命令，不算失败
+		return readyMsg{tools: tools, config: config, extensions: state}
 	}
 }
 
@@ -241,7 +244,7 @@ func (m *model) fetchConfig(wrap func(api.Config) tea.Msg) tea.Cmd {
 	client, ctx := m.client, m.ctx
 	return func() tea.Msg {
 		var config api.Config
-		err := client.Request(ctx, "GET", "/config/read", nil, &config)
+		err := client.Admin(ctx, "config.read", nil, &config)
 		if err != nil {
 			return readyMsg{failed: err.Error(), configOnly: true}
 		}
@@ -400,6 +403,33 @@ func (m *model) overlayText() string {
 			}
 			b.WriteString(mark + " " + item.Text + "\n")
 		}
+	case "extensions":
+		b.WriteString("扩展\n\nEsc 关闭 · Enter 开/关 · r 重载\n\n")
+		if len(m.extensions.Extensions) == 0 {
+			b.WriteString("没有扩展。扩展放在项目的 extensions/ 或 ~/.agents/extensions/ 里。")
+			break
+		}
+		for i, item := range m.extensions.Extensions {
+			mark := "  "
+			if i == m.overlay.index {
+				mark = "▸ "
+			}
+			state := extensionStatus(item)
+			b.WriteString(mark + item.Title + "  " + muted.Render(state) + "\n")
+			// 选中的展开：说明和它给命令行挂的命令
+			if i == m.overlay.index {
+				if item.Description != "" {
+					b.WriteString("    " + muted.Render(oneLine(item.Description, max(20, m.width-8))) + "\n")
+				}
+				for _, command := range item.Cli.Commands {
+					label := "  /" + command.Name
+					if command.Usage != "" {
+						label += " " + command.Usage
+					}
+					b.WriteString("    " + accent.Render(label) + "  " + muted.Render(command.Hint) + "\n")
+				}
+			}
+		}
 	case "changes":
 		if len(m.overlay.changes) == 0 {
 			b.WriteString("没有文件改动")
@@ -523,6 +553,17 @@ func (m *model) overlayKey(key string) tea.Cmd {
 			return m.createSession("新对话")
 		}
 		return nil
+	case "r":
+		if m.overlay.kind == "extensions" {
+			if item := m.pickedExtension(); item != nil {
+				m.busy = true
+				return m.reloadExtension(item.Name)
+			}
+		}
+	case "t":
+		if m.overlay.kind == "extensions" {
+			return m.togglePickedExtension()
+		}
 	}
 	if m.overlay.kind == "sessions" || m.overlay.kind == "models" || m.overlay.kind == "cwd" {
 		if len([]rune(key)) == 1 {
@@ -547,6 +588,8 @@ func (m *model) clampOverlay() {
 		n = len(m.visibleDirs())
 	case "todos":
 		n = len(m.todos)
+	case "extensions":
+		n = len(m.extensions.Extensions)
 	}
 	if n == 0 {
 		m.overlay.index = 0
@@ -590,6 +633,8 @@ func (m *model) activateOverlay() tea.Cmd {
 			return m.patchSession("cwd", map[string]string{"cwd": item.path})
 		}
 		return m.loadDir(item.path)
+	case "extensions":
+		return m.togglePickedExtension()
 	case "rollback":
 		return m.commitRollback()
 	case "toolrollback":

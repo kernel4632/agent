@@ -5,9 +5,10 @@
 渲染细节在 internal/render，不写在这里。
 
 调用示例：
-  agent usage SESSION_ID
-  agent changes SESSION_ID --json
-  agent tools
+
+	agent usage SESSION_ID
+	agent changes SESSION_ID --json
+	agent tools
 */
 package command
 
@@ -68,7 +69,7 @@ func (o *options) tools() *cobra.Command {
 			return err
 		}
 		var tools []api.Tool
-		if err = client.Request(cmd.Context(), "GET", "/tool/list", nil, &tools); err != nil {
+		if err = client.Admin(cmd.Context(), "tool.list", nil, &tools); err != nil {
 			return err
 		}
 		return o.emit(cmd, tools, func(w io.Writer) error {
@@ -490,4 +491,162 @@ func briefInput(raw []byte) string {
 		}
 	}
 	return oneLine(string(raw), 80)
+}
+
+// extensions 是扩展的管理入口。CLI 不执行扩展代码；扩展想给命令行挂命令，
+// 在自己 manifest.json 的 cli.commands 里声明「斜杠命令 → /admin 动作」，
+// 这里的 list 能看到每条声明，call 按声明转发一次请求。
+// 交互界面里的挂载在 internal/tui/extension.go，和这里共用一份 api.Extension。
+func (o *options) extensions() *cobra.Command {
+	root := &cobra.Command{Use: "extensions", Short: "查看和管理扩展"}
+
+	list := &cobra.Command{Use: "list", Short: "列出扩展和它们给 CLI 挂的命令", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := o.client()
+		if err != nil {
+			return err
+		}
+		var state api.ExtensionState
+		if err = client.Admin(cmd.Context(), "extension.list", nil, &state); err != nil {
+			return err
+		}
+		return o.emit(cmd, state, func(w io.Writer) error {
+			if len(state.Extensions) == 0 {
+				fmt.Fprintln(w, "没有扩展。扩展放在项目的 extensions/ 或 ~/.agents/extensions/ 里。")
+				return nil
+			}
+			tw := table(w)
+			fmt.Fprintln(tw, "名称\t版本\t状态\t来源\t说明")
+			for _, item := range state.Extensions {
+				state := "未运行"
+				switch {
+				case item.Error != "":
+					state = item.Error
+				case !item.Enabled:
+					state = "已关闭"
+				case item.Running:
+					state = "运行中"
+				}
+				if item.Changed {
+					state += "（代码有更新，可 reload）"
+				}
+				source := "项目"
+				if item.Source == "user" {
+					source = "用户目录"
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", chat.Plain(item.Title), chat.Plain(item.Version), chat.Plain(state), source, chat.Plain(oneLine(item.Description, 50)))
+			}
+			if err := tw.Flush(); err != nil {
+				return err
+			}
+			var declared []string
+			for _, item := range state.Extensions {
+				for _, command := range item.Cli.Commands {
+					declared = append(declared, "/"+command.Name+"（"+item.Title+"）")
+				}
+			}
+			if len(declared) > 0 {
+				fmt.Fprintf(w, "\n挂到命令行的命令：%s\n", strings.Join(declared, "  "))
+			}
+			return nil
+		})
+	}}
+	root.AddCommand(list)
+
+	toggle := &cobra.Command{Use: "toggle NAME on|off", Short: "启用或停用一个扩展（关闭时依赖它的扩展一起停）", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
+		enabled, err := onOff(args[1])
+		if err != nil {
+			return err
+		}
+		client, err := o.client()
+		if err != nil {
+			return err
+		}
+		var state api.ExtensionState
+		if err = client.Admin(cmd.Context(), "extension.toggle", api.AdminArgs{"name": args[0], "enabled": enabled}, &state); err != nil {
+			return err
+		}
+		return o.emit(cmd, state, func(w io.Writer) error {
+			state := "已停用"
+			if enabled {
+				state = "已启用"
+			}
+			fmt.Fprintf(w, "%s %s\n", chat.Plain(args[0]), state)
+			return nil
+		})
+	}}
+	root.AddCommand(toggle)
+
+	root.AddCommand(&cobra.Command{Use: "reload NAME", Short: "重新读取扩展代码并重启它（依赖它的扩展一起）", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := o.client()
+		if err != nil {
+			return err
+		}
+		var state api.ExtensionState
+		if err = client.Admin(cmd.Context(), "extension.reload", api.AdminArgs{"name": args[0]}, &state); err != nil {
+			return err
+		}
+		return o.emit(cmd, state, func(w io.Writer) error {
+			fmt.Fprintf(w, "%s 已重载\n", chat.Plain(args[0]))
+			return nil
+		})
+	}})
+
+	// call 按声明转发：agent extensions call monitors --session ID
+	// 命令名后面的剩余参数整段进声明的 input 字段；--arg 键=值 追加进请求体。
+	var kv []string
+	call := &cobra.Command{
+		Use: "call COMMAND [参数...]", Short: "按扩展声明调用一个动作", Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			sessionID, _ := cmd.Flags().GetString("session")
+			client, err := o.client()
+			if err != nil {
+				return err
+			}
+			var state api.ExtensionState
+			if err = client.Admin(cmd.Context(), "extension.list", nil, &state); err != nil {
+				return err
+			}
+			command, owner := findExtensionCommand(state, name)
+			if command.Op == "" {
+				return fmt.Errorf("没有叫 %s 的扩展命令，agent extensions list 查看", name)
+			}
+			if !command.NoSession && sessionID == "" {
+				return fmt.Errorf("%s 需要会话：加 --session SESSION_ID", name)
+			}
+			body := api.ExtensionBody(command, sessionID, strings.Join(args[1:], " "))
+			for _, item := range kv {
+				key, value, _ := strings.Cut(item, "=")
+				body[key] = value   // --arg 写的覆盖声明里的同名固定值
+			}
+			var result any   // op 想返回什么就返回什么：对象、数组都能出
+			if err = client.Admin(cmd.Context(), command.Op, api.AdminArgs(body), &result); err != nil {
+				return err
+			}
+			return o.emit(cmd, result, func(w io.Writer) error {
+				encoded, err := json.MarshalIndent(result, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(w, "%s（%s）\n%s\n", name, chat.Plain(owner), string(encoded))
+				return nil
+			})
+		},
+	}
+	call.Flags().StringArrayVar(&kv, "arg", nil, "追加进请求体，格式 键=值")
+	call.Flags().String("session", "", "会话 ID，清单类命令（noSession）不用带")
+	root.AddCommand(call)
+	return root
+}
+
+// findExtensionCommand 在清单里找一条扩展命令；找不到时 op 为空。
+func findExtensionCommand(state api.ExtensionState, name string) (api.ExtensionCommand, string) {
+	for _, item := range state.Extensions {
+		for _, command := range item.Cli.Commands {
+			if command.Name == name {
+				return command, item.Name
+			}
+		}
+	}
+	return api.ExtensionCommand{}, ""
 }

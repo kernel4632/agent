@@ -161,10 +161,10 @@ test('NDJSON includes final persisted history; invalid input and conflicts fail'
 })
 
 test('current core automatic and manual compaction account usage once', async () => {
-    const config = await (await fetch(`${address}/config/read`)).json()
+    const config = await (await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.read' }) })).json()
     config.providers[0].stream = true
     config.providers[0].models[0].context = 1000
-    expect((await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })).ok).toBe(true)
+    expect((await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })).ok).toBe(true)
     const answer = await cli('ask', '长记录'.repeat(500), '--title', 'compact accounting', '--json')
     expect(answer.code).toBe(0)
     const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
@@ -187,10 +187,10 @@ test('current core automatic and manual compaction account usage once', async ()
 }, 30000)
 
 test('current core settles denied, invalid, and cancelled calls through real SSE', async () => {
-    const config = await (await fetch(`${address}/config/read`)).json()
+    const config = await (await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.read' }) })).json()
     config.providers[0].stream = false
     config.providers[0].models[0].context = 128000
-    expect((await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })).ok).toBe(true)
+    expect((await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })).ok).toBe(true)
     for (const [prompt, outputType] of [['[tool]', 'execution-denied'], ['[invalid]', 'error-text']]) {
         const answer = await cli('ask', prompt, '--title', 'tool settlement', '--json', '--permission', 'deny')
         expect(answer.code).toBe(0)
@@ -228,9 +228,9 @@ test('current core settles denied, invalid, and cancelled calls through real SSE
 }, 30000)
 
 test('real streaming sends deltas and resume does not add a user message', async () => {
-    const config = await (await fetch(`${address}/config/read`)).json()
+    const config = await (await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.read' }) })).json()
     config.providers[0].stream = true
-    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })
     const answer = await cli('ask', 'stream', '--title', 'stream', '--json')
     expect(answer.code).toBe(0)
     const events = answer.out.trim().split('\n').map(line => JSON.parse(line))
@@ -244,10 +244,10 @@ test('real streaming sends deltas and resume does not add a user message', async
 }, 30000)
 
 test('remembered approval crosses sessions and hard deny cannot be bypassed', async () => {
-    const config = await (await fetch(`${address}/config/read`)).json()
+    const config = await (await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.read' }) })).json()
     config.providers[0].stream = false
     config.permission = { '*': 'ask' }
-    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })
     const pending = await cli('ask', '[tool]', '--title', 'remember permission')
     expect(pending.code).toBe(1)
     const id = pending.err.match(/会话: (\S+)/)[1]
@@ -258,7 +258,7 @@ test('remembered approval crosses sessions and hard deny cannot be bypassed', as
     expect((await cli('ask', '[tool]', '--title', 'new remembered session')).code).toBe(0)
 
     config.permission = { '*': 'ask', read_file: 'deny' }
-    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })
     const denied = await cli('ask', '[tool]', '--title', 'hard deny', '--json', '--permission', 'allow')
     expect(denied.code).toBe(0)
     const events = denied.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
@@ -271,10 +271,10 @@ test('remembered approval crosses sessions and hard deny cannot be bypassed', as
 // 子智能体当前暂时下架，new_task 不会再装配；恢复子智能体时把 skip 去掉。
 // 测试和 CLI 解析代码保留，便于恢复后直接验证审批回到父会话。
 test.skip('nested task approval reaches the CLI and completes', async () => {
-    const config = await (await fetch(`${address}/config/read`)).json()
+    const config = await (await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.read' }) })).json()
     config.providers[0].stream = false
     config.permission = { '*': 'ask' }
-    await fetch(`${address}/config/set`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
+    await fetch(`${address}/admin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'config.set', config }) })
     const answer = await cli('ask', '[delegate]', '--title', 'nested approval', '--json', '--permission', 'allow')
     expect(answer.code).toBe(0)
     const events = answer.out.trim().split(String.fromCharCode(10)).map(line => JSON.parse(line))
@@ -283,4 +283,45 @@ test.skip('nested task approval reaches the CLI and completes', async () => {
     const delegated = events.find(event => event.type === 'tool-result' && event.toolName === 'new_task')
     expect(delegated.output.value.conclusion).toBe('CLI 中文回复')
     expect(events.at(-1).session.pending).toEqual([])
+}, 30000)
+
+test('extension list, toggle and declared command call go through the real admin bus', async () => {
+    // 清单：monitor 扩展跟项目一起被扫描，它声明的 CLI 命令原样透传
+    const listed = await cli('extensions', 'list')
+    expect(listed.code).toBe(0)
+    expect(listed.out).toContain('监控唤醒')
+    expect(listed.out).toContain('运行中')
+    expect(listed.out).toContain('/monitors')
+    expect(listed.out).not.toContain('"cli"')
+
+    // call：按声明转发到 monitor.list，无监控时返回空列表
+    const answer = await cli('ask', '你好', '--title', 'ext')
+    const id = answer.err.match(/会话: (\S+)/)[1]
+    const monitors = await cli('extensions', 'call', 'monitors', '--session', id, '--json')
+    expect(monitors.code).toBe(0)
+    expect(JSON.parse(monitors.out).monitors).toEqual([])
+
+    // call：input 字段承接剩余参数；停一个不存在的编号返回空数组
+    const stop = await cli('extensions', 'call', 'monitor-stop', 'zzzz', '--session', id)
+    expect(stop.code).toBe(0)
+
+    // 未声明的命令名要失败并给出查看方式
+    const missing = await cli('extensions', 'call', 'no-such-command', '--session', id)
+    expect(missing.code).toBe(1)
+    expect(missing.err).toContain('extensions list')
+
+    // 开关：关掉后清单标记停用、它挂的 op 也被拔掉；再打开恢复
+    const off = await cli('extensions', 'toggle', 'monitor', 'off')
+    expect(off.code).toBe(0)
+    expect(off.out).toContain('已停用')
+    const after = JSON.parse((await cli('extensions', 'list', '--json')).out)
+    expect(after.extensions.find(item => item.name === 'monitor').running).toBe(false)
+    const blocked = await cli('extensions', 'call', 'monitors', '--session', id)
+    expect(blocked.code).toBe(1)   // 扩展停了，op 不在总线上，服务端按 unknown op 拒绝
+    const on = await cli('extensions', 'toggle', 'monitor', 'on')
+    expect(on.code).toBe(0)
+    const restored = JSON.parse((await cli('extensions', 'list', '--json')).out)
+    expect(restored.extensions.find(item => item.name === 'monitor').running).toBe(true)
+    await waitIdle(id)
+    expect((await cli('sessions', 'remove', id)).code).toBe(0)
 }, 30000)

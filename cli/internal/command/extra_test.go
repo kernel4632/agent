@@ -15,7 +15,12 @@ func TestHealthToolsAndChangesAreHumanByDefault(t *testing.T) {
 		switch r.URL.Path {
 		case "/health":
 			fmt.Fprint(w, `{"ok":true,"version":"0.66.1","targetVersion":"0.66.1","sessions":2,"running":1}`)
-		case "/tool/list":
+		case "/admin": // tools 走管理总线：POST /admin，body 带 op
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["op"] != "tool.list" {
+				t.Errorf("unexpected op: %v", body["op"])
+			}
 			fmt.Fprint(w, `[{"name":"read_file","kind":"read","kindLabel":"读取","permission":"ask","ui":{"title":"读取文件","summary":"{path}"}}]`)
 		case "/session/changes/s":
 			fmt.Fprint(w, `[{"path":"main.go","before":"old","after":"old\nnew","added":false,"deleted":false}]`)

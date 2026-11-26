@@ -72,6 +72,8 @@ type model struct {
 	lastUsage                                                                         usageSnap
 	todos                                                                             []api.Todo
 	open, toolList                                                                    map[string]bool
+	extensions                                                                        api.ExtensionState
+	extCommands                                                                       map[string]api.ExtensionCommand
 	blocks                                                                            []block
 	selected                                                                          int
 	selectedID                                                                        string
@@ -188,7 +190,8 @@ func newModel(ctx context.Context, client *api.Client, session api.Session) *mod
 	view.FillHeight = true
 	m := &model{ctx: ctx, client: client, session: session, input: input, viewport: view,
 		updates: make(chan tea.Msg, 128), width: 80, height: 25, status: "就绪",
-		tools: map[string]api.Tool{}, open: map[string]bool{}, toolList: map[string]bool{}}
+		tools: map[string]api.Tool{}, open: map[string]bool{}, toolList: map[string]bool{},
+		extCommands: map[string]api.ExtensionCommand{}}
 	m.todos = parseTodos(session.Todos)
 	m.lastUsage = usageFromHistory(session.History)
 	m.renderConversation(true)
@@ -468,8 +471,42 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tools[tool.Name] = tool
 			}
 			m.config = msg.config
+			m.mountExtensions(msg.extensions) // 扩展命令挂进斜杠菜单；失败时挂载表为空
 		}
 		m.renderConversation(false)
+		return m, nil
+	case extensionMsg:
+		m.overlay.loading = false
+		if msg.err != nil {
+			m.overlay.err = msg.err.Error()
+		} else {
+			m.mountExtensions(msg.state) // 清单和挂载表一起刷新
+			m.overlay.err = ""
+		}
+		m.renderConversation(true)
+		return m, nil
+	case extensionToggleMsg:
+		m.overlay.loading = false
+		m.busy = false
+		if msg.err != nil {
+			m.overlay.err = msg.err.Error()
+		} else {
+			m.mountExtensions(msg.state)
+			m.overlay.index = 0
+			m.notice = msg.name + (map[bool]string{true: " 已启用", false: " 已停用"})[msg.enabled]
+		}
+		m.renderConversation(true)
+		return m, nil
+	case extensionReloadMsg:
+		m.overlay.loading = false
+		m.busy = false
+		if msg.err != nil {
+			m.overlay.err = msg.err.Error()
+		} else {
+			m.mountExtensions(msg.state)
+			m.notice = msg.name + " 已重载"
+		}
+		m.renderConversation(true)
 		return m, nil
 	case sessionsMsg:
 		m.overlay.loading = false

@@ -21,6 +21,10 @@ import (
 func (m *model) slash(text string) tea.Cmd {
 	name, argument, _ := strings.Cut(text, " ")
 	argument = strings.TrimSpace(argument)
+	// 扩展挂载的命令先查：/monitor-stop m1 这种按声明转发到 /admin
+	if command, ok := m.findExtCommand(name); ok {
+		return m.runExtensionCommand(command, argument)
+	}
 	switch name {
 	case "/help":
 		m.openHelp() // 说明盖住对话，Esc 关掉；不要追加到记录后面
@@ -36,6 +40,8 @@ func (m *model) slash(text string) tea.Cmd {
 	case "/todos":
 		m.openTodos()
 		return nil
+	case "/extensions":
+		return m.openExtensions()
 	case "/usage":
 		m.openStats()
 		return nil
@@ -80,13 +86,13 @@ func execute(ctx context.Context, client *api.Client, session api.Session, name,
 	var err error
 	switch name {
 	case "/sessions":
-		var list []api.Session
-		err = client.Request(ctx, "GET", "/session/list", nil, &list)
+		var page api.SessionList
+		err = client.Request(ctx, "GET", "/session/list", nil, &page)
 		if err != nil {
 			return api.Session{}, "", err
 		}
 		var lines []string
-		for _, item := range list {
+		for _, item := range page.Sessions {
 			lines = append(lines, item.ID+"  "+item.Title)
 		}
 		return api.Session{}, strings.Join(lines, "\n"), nil

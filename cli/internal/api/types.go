@@ -216,6 +216,48 @@ type Skill struct {
 	Scope       string `json:"scope"`
 }
 
+// ExtensionCommand 是扩展在 manifest.json 的 cli.commands 里声明的一条 CLI 命令：
+// CLI 不执行扩展代码，只按声明把一条斜杠命令接到 /admin 的一个 op 上。
+type ExtensionCommand struct {
+	Name      string         `json:"name"`                // 命令名，挂成 /name；也是 agent extensions call 的命令名
+	Hint      string         `json:"hint"`                // 菜单里的一句说明（中文说明也能筛到）
+	Usage     string         `json:"usage"`               // 参数提示，/name 后补全提示用
+	Op        string         `json:"op"`                  // 转发到 POST /admin 的动作名
+	Args      map[string]any `json:"args,omitempty"`      // 固定请求体，和 --arg 键值合并（声明里的优先级低，用户写的覆盖它）
+	Input     string         `json:"input,omitempty"`     // 有值时把剩余参数整段放进这个字段（如 monitor.stop 的 id）
+	NoSession bool           `json:"noSession,omitempty"` // true 时不自动带 sessionId（清单类动作）
+}
+
+type Extension struct {
+	Name        string   `json:"name"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Version     string   `json:"version"`
+	Source      string   `json:"source"`
+	Enabled     bool     `json:"enabled"`
+	Running     bool     `json:"running"`
+	Requires    []string `json:"requires"`
+	Dependents  []string `json:"dependents"`
+	HasFrontend bool     `json:"hasFrontend"`
+	Changed     bool     `json:"changed"`
+	Error       string   `json:"error"`
+	Cli         struct {
+		Commands []ExtensionCommand `json:"commands,omitempty"`
+	} `json:"cli"`
+}
+
+type ExtensionState struct {
+	Extensions []Extension `json:"extensions"`
+	Loaded     []string    `json:"loaded"`
+	Changed    []string    `json:"changed"`
+}
+
+// SessionList 是 /session/list 的响应：列表和分组一起返回（分组只是显示顺序）。
+type SessionList struct {
+	Sessions []Session `json:"sessions"`
+	Groups   []any     `json:"groups"`
+}
+
 type Directory struct {
 	Current string  `json:"current"`
 	Parent  *string `json:"parent"`

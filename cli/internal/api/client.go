@@ -58,6 +58,22 @@ func (c *Client) Request(ctx context.Context, method, path string, body, result 
 // Admin 调管理总线：设置页和能力页的动作全部走 POST /admin，body 里带 op。
 type AdminArgs map[string]any
 
+// ExtensionBody 按扩展声明拼一条命令的请求体：声明里的固定 args 打底，
+// 当前会话 ID 和整段输入参数按声明并入。脚本命令和 TUI 共用这一份拼装。
+func ExtensionBody(decl ExtensionCommand, sessionID, argument string) map[string]any {
+	body := map[string]any{}
+	for key, value := range decl.Args {
+		body[key] = value
+	}
+	if !decl.NoSession {
+		body["sessionId"] = sessionID
+	}
+	if argument != "" && decl.Input != "" {
+		body[decl.Input] = argument
+	}
+	return body
+}
+
 func (c *Client) Admin(ctx context.Context, op string, args AdminArgs, result any) error {
 	body := make(map[string]any, len(args)+1)
 	for key, value := range args {

@@ -48,7 +48,7 @@ func New() *cobra.Command {
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "输出 JSON；ask 输出 NDJSON 事件")
 	root.AddCommand(
 		o.health(), o.tools(), o.models(), o.sessions(), o.ask(), o.interactive(),
-		o.configCmd(), o.mcp(), o.skills(),
+		o.configCmd(), o.mcp(), o.skills(), o.extensions(),
 	)
 	return root
 }
@@ -132,10 +132,11 @@ func (o *options) sessions() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		var sessions []api.Session
-		if err = client.Request(cmd.Context(), "GET", "/session/list?search="+url.QueryEscape(search), nil, &sessions); err != nil {
+		var page api.SessionList
+		if err = client.Request(cmd.Context(), "GET", "/session/list?search="+url.QueryEscape(search), nil, &page); err != nil {
 			return err
 		}
+		sessions := page.Sessions
 		if o.json {
 			return jsonOut(cmd.OutOrStdout(), sessions)
 		}

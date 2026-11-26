@@ -35,11 +35,17 @@ var slashCommands = []slashCommand{
 	{"/copy", "复制选中的内容", "", true},
 	{"/title", "按对话重新生成标题", "", true},
 	{"/todos", "打开任务清单", "", true},
+	{"/extensions", "扩展：开关、重载、看挂了哪些命令", "", true},
 	{"/usage", "用量、速度和 token 统计", "", true},
 	{"/rename", "修改标题", "标题", false},
 	{"/resume", "继续被中断的助手", "", true},
 	{"/refresh", "重新读取历史", "", true},
 	{"/quit", "退出", "", true},
+}
+
+// allSlashCommands 内置命令加扩展挂载的命令；扩展命令排在后面。
+func (m *model) allSlashCommands() []slashCommand {
+	return append(slashCommands, m.extSlashCommands()...)
 }
 
 func (m *model) helpText() string {
@@ -53,7 +59,7 @@ func (m *model) helpText() string {
 	b.WriteByte('\n')
 	write("用命令名或中文说明筛选，例如 /用量")
 	b.WriteByte('\n')
-	for _, cmd := range slashCommands {
+	for _, cmd := range m.allSlashCommands() {
 		gap := 16 - lipgloss.Width(cmd.Name)
 		if gap < 2 {
 			gap = 2
@@ -104,10 +110,10 @@ func (m *model) slashMatches() []slashCommand {
 	}
 	query := strings.TrimPrefix(raw, "/")
 	if query == "" {
-		return slashCommands // 只打了 /，列出全部
+		return m.allSlashCommands() // 只打了 /，列出全部
 	}
 	var prefix, hinted []slashCommand
-	for _, cmd := range slashCommands {
+	for _, cmd := range m.allSlashCommands() {
 		name := strings.TrimPrefix(cmd.Name, "/")
 		switch {
 		case strings.HasPrefix(name, query):
@@ -128,7 +134,7 @@ func (m *model) slashHint() string {
 	if strings.TrimSpace(args) != "" {
 		return ""
 	}
-	for _, cmd := range slashCommands {
+	for _, cmd := range m.allSlashCommands() {
 		if cmd.Name == name && cmd.Usage != "" {
 			return "参数  " + cmd.Usage
 		}
