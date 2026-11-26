@@ -17,7 +17,7 @@ function use(model, extra = {}) {
 
 afterEach(async () => {
     try {
-        Agents.peek('main')?.agent.stop()
+        Agents.get('main')?.agent.stop()
         await Promise.race([Agents.done('main').catch(() => {}), Bun.sleep(200)])
     } finally {
         Agents.drop('main')
@@ -58,15 +58,15 @@ function session(response) {
 describe('Stream 尾巴', () => {
     test('相邻同类片段会合并；写入历史后尾巴清空', () => {
         Stream.clear('t')
-        Stream.feed('t', { type: 'request-start', model: 'm', start: 1, attempt: 1 })
-        Stream.feed('t', { type: 'text', text: '你' })
-        Stream.feed('t', { type: 'text', text: '好' })
-        Stream.feed('t', { type: 'reasoning', text: '想' })
-        Stream.feed('t', { type: 'reasoning', text: '想' })
-        Stream.feed('t', { type: 'tool-input', toolCallId: 'c1', delta: '{"x"' })
-        Stream.feed('t', { type: 'tool-input', toolCallId: 'c1', delta: ':1}' })
-        Stream.feed('t', { type: 'tool-output', toolCallId: 'c1', stream: 'stdout', data: 'a' })
-        Stream.feed('t', { type: 'tool-output', toolCallId: 'c1', stream: 'stdout', data: 'b' })
+        Stream.add('t', { type: 'request-start', model: 'm', start: 1, attempt: 1 })
+        Stream.add('t', { type: 'text', text: '你' })
+        Stream.add('t', { type: 'text', text: '好' })
+        Stream.add('t', { type: 'reasoning', text: '想' })
+        Stream.add('t', { type: 'reasoning', text: '想' })
+        Stream.add('t', { type: 'tool-input', toolCallId: 'c1', delta: '{"x"' })
+        Stream.add('t', { type: 'tool-input', toolCallId: 'c1', delta: ':1}' })
+        Stream.add('t', { type: 'tool-output', toolCallId: 'c1', stream: 'stdout', data: 'a' })
+        Stream.add('t', { type: 'tool-output', toolCallId: 'c1', stream: 'stdout', data: 'b' })
         expect(Stream.tail('t')).toEqual([
             { type: 'request-start', model: 'm', start: 1, attempt: 1 },
             { type: 'text', text: '你好' },
@@ -74,7 +74,7 @@ describe('Stream 尾巴', () => {
             { type: 'tool-input', toolCallId: 'c1', delta: '{"x":1}' },
             { type: 'tool-output', toolCallId: 'c1', stream: 'stdout', data: 'ab' },
         ])
-        Stream.feed('t', { type: 'message', message: { id: 'a', role: 'assistant', content: [] } })
+        Stream.add('t', { type: 'message', message: { id: 'a', role: 'assistant', content: [] } })
         expect(Stream.tail('t')).toEqual([])
         Stream.clear('t')
     })
@@ -82,10 +82,10 @@ describe('Stream 尾巴', () => {
     test('request-error 带 delay 时记下 retryUntil，新的 request-start 清掉它', () => {
         Stream.clear('t')
         const before = Date.now()
-        Stream.feed('t', { type: 'request-error', attempt: 1, error: { kind: 'server', message: '忙' }, retry: { delay: 1000 } })
-        expect(Stream.retry('t')).toBeGreaterThanOrEqual(before + 1000)
-        Stream.feed('t', { type: 'request-start', model: 'm', start: 2, attempt: 2 })
-        expect(Stream.retry('t')).toBeUndefined()
+        Stream.add('t', { type: 'request-error', attempt: 1, error: { kind: 'server', message: '忙' }, retry: { delay: 1000 } })
+        expect(Stream.retryDeadline('t')).toBeGreaterThanOrEqual(before + 1000)
+        Stream.add('t', { type: 'request-start', model: 'm', start: 2, attempt: 2 })
+        expect(Stream.retryDeadline('t')).toBeUndefined()
         Stream.clear('t')
     })
 })

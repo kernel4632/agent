@@ -57,7 +57,7 @@ describe('Loader', () => {
         const root = mkdtempSync(join(tmpdir(), 'ext-'))
         folder(root, 'ok', {}, { 'backend.js': 'export default ctx => { ctx.patch(ctx.Models, "list", original => (...args) => [...original(...args), { id: "ok" }]) }' })
         folder(root, 'bad', {}, { 'backend.js': 'export default () => { throw new Error("炸了") }' })
-        Loader.bind({ targets: { Models } })
+        Loader.hook({ targets: { Models } })
         const list = await Loader.start({ roots: [root] })
         const by = Object.fromEntries(list.map(item => [item.name, item]))
         expect(by.bad.error).toContain('炸了')

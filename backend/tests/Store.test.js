@@ -21,20 +21,20 @@ describe('Store', () => {
 
     test('历史按行追加，截断时整份重写；并发写入不会交错', async () => {
         dataDir()
-        await Store.append('main', { id: 'a', role: 'user', content: '一' })
-        await Store.append('main', { id: 'b', role: 'assistant', content: [{ type: 'text', text: '二' }] })
+        await Store.appendHistory('main', { id: 'a', role: 'user', content: '一' })
+        await Store.appendHistory('main', { id: 'b', role: 'assistant', content: [{ type: 'text', text: '二' }] })
         expect(await Store.history('main')).toEqual([
             { id: 'a', role: 'user', content: '一' },
             { id: 'b', role: 'assistant', content: [{ type: 'text', text: '二' }] },
         ])
         await Promise.all([
-            Store.append('main', { id: 'c', role: 'user', content: '三' }),
-            Store.append('main', { id: 'd', role: 'user', content: '四' }),
+            Store.appendHistory('main', { id: 'c', role: 'user', content: '三' }),
+            Store.appendHistory('main', { id: 'd', role: 'user', content: '四' }),
         ])
         const ids = (await Store.history('main')).map(message => message.id)
         expect(ids.slice(0, 2)).toEqual(['a', 'b'])
         expect(ids.slice(2).sort()).toEqual(['c', 'd'])
-        await Store.write('main', [{ id: 'a', role: 'user', content: '一' }])
+        await Store.rewriteHistory('main', [{ id: 'a', role: 'user', content: '一' }])
         expect(await Store.history('main')).toEqual([{ id: 'a', role: 'user', content: '一' }])
     })
 

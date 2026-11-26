@@ -16,7 +16,7 @@ function use(model, extra = {}) {
 
 afterEach(async () => {
     try {
-        Agents.peek('main')?.agent.stop()
+        Agents.get('main')?.agent.stop()
         await Promise.race([Agents.done('main').catch(() => {}), Bun.sleep(200)])
     } finally {
         Agents.drop('main')
@@ -37,7 +37,7 @@ describe('Agents', () => {
         await Agents.open('main')
         expect(Agents.snapshot('main').fault).toContain('未配置模型')
         await expect(Agents.send('main', { input: 'hi' })).rejects.toThrow('未配置模型')
-        expect(Agents.peek('main').agent.history).toEqual([])
+        expect(Agents.get('main').agent.history).toEqual([])
     })
 
     test('send 的事件顺序：先 run start，用户消息写入后才请求，结束有 message 和 run end', async () => {
@@ -51,7 +51,7 @@ describe('Agents', () => {
         const types = events.map(event => event.name === 'core' ? event.type : `run:${event.state}`)
         expect(types).toEqual(['run:start', 'message', 'request-start', 'request-end', 'message', 'step', 'run:end'])
         expect(events.filter(event => event.type === 'message').map(event => event.message.role)).toEqual(['user', 'assistant'])
-        const history = Agents.peek('main').agent.history
+        const history = Agents.get('main').agent.history
         expect(history.map(message => message.role)).toEqual(['user', 'assistant'])
         expect(events.find(event => event.type === 'message' && event.message.role === 'user').message.id).toBe(history[0].id)
     })
@@ -69,7 +69,7 @@ describe('Agents', () => {
         await Agents.done('main')
         await Agents.send('main', { input: 'again' })
         await Agents.done('main')
-        expect(Agents.peek('main').agent.history.filter(message => message.role === 'user')).toHaveLength(2)
+        expect(Agents.get('main').agent.history.filter(message => message.role === 'user')).toHaveLength(2)
     })
 
     test('stop 会结束正在跑的请求，推 run stopped，历史里留下用户消息', async () => {
@@ -85,7 +85,7 @@ describe('Agents', () => {
         expect(stopped.stopped).toBe(true)
         expect(stopped.wasRunning).toBe(true)
         expect(events.some(event => event.name === 'run' && event.state === 'stopped')).toBe(true)
-        expect(Agents.peek('main').agent.history.map(message => message.role)).toEqual(['user'])
+        expect(Agents.get('main').agent.history.map(message => message.role)).toEqual(['user'])
         release()
     })
 
@@ -94,17 +94,17 @@ describe('Agents', () => {
         use(model)
         await Agents.send('main', { input: '第一句' })
         await Agents.done('main')
-        const first = Agents.peek('main').agent.history[0].id
+        const first = Agents.get('main').agent.history[0].id
         await Agents.send('main', { input: '第二句' })
         await Agents.done('main')
-        expect(Agents.peek('main').agent.history.filter(message => message.role === 'user')).toHaveLength(2)
+        expect(Agents.get('main').agent.history.filter(message => message.role === 'user')).toHaveLength(2)
         await Agents.send('main')
         await Agents.done('main')
-        expect(Agents.peek('main').agent.history.at(-1).content).toEqual([{ type: 'text', text: '三' }])
+        expect(Agents.get('main').agent.history.at(-1).content).toEqual([{ type: 'text', text: '三' }])
         const { events, unsub } = collect()
         await Agents.cut('main', first)
         unsub()
-        expect(Agents.peek('main').agent.history).toEqual([])
+        expect(Agents.get('main').agent.history).toEqual([])
         expect(await Store.history('main')).toEqual([])
         expect(events.some(event => event.name === 'cut' && Array.isArray(event.history) && event.history.length === 0)).toBe(true)
     })
@@ -114,13 +114,13 @@ describe('Agents', () => {
         use(model)
         await Agents.send('main', { input: 'hi' })
         await Agents.done('main')
-        const before = Agents.peek('main').agent.history.map(message => message.id)
+        const before = Agents.get('main').agent.history.map(message => message.id)
         await Agents.compact('main')
         await Agents.done('main')
-        const compact = Agents.peek('main').agent.history.at(-1)
+        const compact = Agents.get('main').agent.history.at(-1)
         expect(compact.role).toBe('compact')
         expect(compact.content).toBe('这是总结')
-        const ids = Agents.peek('main').agent.history.map(message => message.id)
+        const ids = Agents.get('main').agent.history.map(message => message.id)
         expect(ids.slice(0, before.length)).toEqual(before)
         Agents.drop('main')
         const again = await Agents.open('main')
@@ -140,7 +140,7 @@ describe('Agents', () => {
         expect(types).toContain('tool-call')
         expect(types).toContain('tool-run')
         expect(types).toContain('tool-result')
-        const roles = Agents.peek('main').agent.history.map(message => message.role)
+        const roles = Agents.get('main').agent.history.map(message => message.role)
         expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant'])
         Agents.drop('main')
         expect((await Agents.open('main')).agent.history.map(message => message.role)).toEqual(roles)

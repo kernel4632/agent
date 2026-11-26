@@ -52,18 +52,18 @@ export interface StoreApi {
     meta(id: string): Promise<AgentMeta>
     touch(id: string, patch: Record<string, unknown>): Promise<AgentMeta>
     history(id: string): Promise<Array<Record<string, unknown>>>
-    append(id: string, message: Record<string, unknown>): Promise<void>
-    write(id: string, history: Array<Record<string, unknown>>): Promise<void>
+    appendHistory(id: string, message: Record<string, unknown>): Promise<void>
+    rewriteHistory(id: string, history: Array<Record<string, unknown>>): Promise<void>
     list(): Promise<string[]>
     remove(id: string): Promise<void>
 }
 
 /** Agents：打开、发送、停止、压缩、截断历史（方法签名见 features/Agents.js）。 */
 export interface AgentsApi {
-    bind(next: Record<string, unknown>): void
+    setup(next: Record<string, unknown>): void
     all(): AgentCurrent[]
     open(id: string): Promise<AgentCurrent>
-    peek(id: string): AgentCurrent | undefined
+    get(id: string): AgentCurrent | undefined
     done(id: string): Promise<unknown>
     running(id: string): boolean
     snapshot(id: string): Record<string, any>
@@ -94,7 +94,7 @@ export interface LoaderApi {
     bundle(name: string): Promise<string | null>
     reset(): void
     roots(): string[]
-    bind(next: Record<string, unknown>): void
+    hook(next: Record<string, unknown>): void
     scan(roots?: string[]): Promise<Array<Record<string, any>>>
 }
 
@@ -111,9 +111,9 @@ export interface ExtensionApi {
 export interface StreamApi {
     subscribe(id: string, send: (name: string, data: unknown) => void): () => void
     emit(id: string, name: string, data: unknown): void
-    feed(id: string, event: unknown): void
+    add(id: string, event: unknown): void
     tail(id: string): unknown[]
-    retry(id: string): number | undefined
+    retryDeadline(id: string): number | undefined
     clear(id: string): void
 }
 

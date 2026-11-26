@@ -15,7 +15,7 @@ export default ctx => {
     }
     ctx.op('mcp.list', async (/** @type {{ id?: string }} */ { id } = {}) => {
         const list = (await Store.config()).mcp ?? []
-        const current = id ? Agents.peek(id) : undefined
+        const current = id ? Agents.get(id) : undefined
         /** @type {Record<string, { enabled: boolean }>} */
         const states = {}
         if (current) {

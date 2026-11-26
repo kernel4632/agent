@@ -63,7 +63,7 @@ async function launch(id, work) {
 }
 
 export const Agents = {
-    bind(next) { extras = { ...extras, ...next } },
+    setup(next) { extras = { ...extras, ...next } },
     all() { return [...agents.values()] },
 
     async open(id) {
@@ -78,7 +78,7 @@ export const Agents = {
         return current
     },
 
-    peek(id) { return agents.get(id) },
+    get(id) { return agents.get(id) },
     done(id) { return jobs.get(id) ?? Promise.resolve() },
     running(id) { return jobs.has(id) || reserved.has(id) },
 
@@ -86,18 +86,18 @@ export const Agents = {
     snapshot(id) {
         const current = agents.get(id)
         if (!current) throw new Error(`Agent ${id} 尚未打开`)
-        return { history: current.agent.history, tail: Stream.tail(id), running: Agents.running(id), retryUntil: Stream.retry(id), model: current.model, effort: current.effort, models: current.models, ...(current.fault ? { fault: current.fault } : {}) }
+        return { history: current.agent.history, tail: Stream.tail(id), running: Agents.running(id), retryUntil: Stream.retryDeadline(id), model: current.model, effort: current.effort, models: current.models, ...(current.fault ? { fault: current.fault } : {}) }
     },
 
     callbacks(id) {
         return {
             onEvent(event) {
-                const written = event.type === 'message' ? Store.append(id, event.message) : undefined
+                const written = event.type === 'message' ? Store.appendHistory(id, event.message) : undefined
                 if (event.type === 'step') {
                     const current = agents.get(id)
                     if (current) void Store.touch(id, { ratios: current.agent.ratios, contextRatio: current.agent.contextRatio })
                 }
-                Stream.feed(id, event)
+                Stream.add(id, event)
                 return written
             },
         }
@@ -161,7 +161,7 @@ export const Agents = {
         if (index < 0) { const error = new Error(`找不到消息 ${messageId}`); error.status = 404; throw error }
         current.agent.history.splice(index)
         Stream.clear(id)
-        await Store.write(id, current.agent.history)
+        await Store.rewriteHistory(id, current.agent.history)
         Stream.emit(id, 'cut', { history: current.agent.history })
     },
 

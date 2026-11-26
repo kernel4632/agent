@@ -35,7 +35,7 @@ function secrets() {
 
 afterEach(async () => {
     try {
-        Agents.peek('main')?.agent.stop()
+        Agents.get('main')?.agent.stop()
         await Promise.race([Agents.done('main').catch(() => {}), Bun.sleep(200)])
     } finally {
         Agents.drop('main')
@@ -69,7 +69,7 @@ describe('真实请求', () => {
             await Agents.open('main')
             await Agents.send('main', { input: '只回复一个字：好' })
             const answer = await Promise.race([Agents.done('main'), Bun.sleep(90_000).then(() => { throw new Error('整轮超过 90 秒') })])
-            const history = Agents.peek('main').agent.history
+            const history = Agents.get('main').agent.history
             const texts = history.filter(item => item.role === 'assistant').flatMap(item => Array.isArray(item.content) ? item.content.filter(part => part.type === 'text').map(part => part.text) : [item.content]).join('')
             expect(starts).toBeLessThanOrEqual(3)
             expect(texts.length).toBeGreaterThan(0)

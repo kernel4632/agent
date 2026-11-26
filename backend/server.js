@@ -49,8 +49,8 @@ async function frontend(name) {
 }
 
 export function wire() {
-    Agents.bind({ tools: () => Extension.paths() })
-    Loader.bind({
+    Agents.setup({ tools: () => Extension.paths() })
+    Loader.hook({
         targets: { Agents, Stream, Store, Models, Extension, Loader },
         push: (id, event, data) => Stream.emit(id, event, data),
         tool: (path) => { for (const current of Agents.all()) if (!current.agent.tools.includes(path)) current.agent.tools = [...current.agent.tools, path] },

@@ -99,7 +99,7 @@ async function weave(entry) {
 
 export const Loader = {
     BASE,
-    bind(next) { context = { ...context, ...next } },
+    hook(next) { context = { ...context, ...next } },
     roots() { return [join(root, 'extensions'), join(homedir(), '.agents', 'extensions')] },
 
     async scan(roots = Loader.roots()) {

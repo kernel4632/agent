@@ -85,7 +85,7 @@ describe('内置扩展', () => {
         await Agents.done(id)
         const meta = await Store.meta(id)
         expect(meta.title).toBe('请帮我写一份出行计划')
-        const history = Agents.peek(id).agent.history
+        const history = Agents.get(id).agent.history
         const texts = history.filter(item => item.role === 'assistant').flatMap(item => Array.isArray(item.content) ? item.content.filter(part => part.type === 'text').map(part => part.text) : [item.content])
         expect(texts.join('')).toContain('先说一句')
         expect(texts.join('')).not.toContain('不该再来一轮')
@@ -110,7 +110,7 @@ describe('内置扩展', () => {
         await Extension.invoke('permission.answer', { requestId: asks[0].requestId, allow: true })
         await Agents.done(id)
         unsub()
-        const history = Agents.peek(id).agent.history
+        const history = Agents.get(id).agent.history
         const results = history.filter(item => item.role === 'tool')
         expect(results.length).toBeGreaterThan(0)
     })

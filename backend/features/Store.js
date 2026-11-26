@@ -93,16 +93,16 @@ export const Store = {
         return text.split('\n').filter(Boolean).map(line => JSON.parse(line))
     },
 
-    // 追加一条已写入 core 的消息。
-    append(id, message) {
+    // 往 history.jsonl 追加一条已写入 core 的消息。
+    appendHistory(id, message) {
         return enqueue(id, async () => {
             await Store.ensure(id)
             await appendFile(join(dir(id), 'history.jsonl'), JSON.stringify(message) + '\n')
         })
     },
 
-    // 整份重写历史（改写重发时截断）。
-    write(id, history) {
+    // 整份重写历史（只在截断时调用；与 appendHistory 共用同一条队列）。
+    rewriteHistory(id, history) {
         return enqueue(id, async () => {
             await Store.ensure(id)
             const text = history.map(message => JSON.stringify(message)).join('\n')

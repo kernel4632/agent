@@ -48,8 +48,8 @@ export const Stream = {
         for (const send of subs.get(id) ?? []) send(name, data)
     },
 
-    // 收到一条 core 事件：更新尾巴并广播。message 表示历史已推进，尾巴从零开始。
-    feed(id, event) {
+    // 收到一条 core 事件：加进尾巴并广播。message 表示历史已推进，尾巴从零开始。
+    add(id, event) {
         const tail = slot(id)
         if (event.type === 'message') {
             tail.events = []
@@ -63,7 +63,7 @@ export const Stream = {
     },
 
     tail(id) { return slot(id).events },
-    retry(id) { return slot(id).retryUntil },
+    retryDeadline(id) { return slot(id).retryUntil },
 
     // 截断历史或重启后清掉尾巴，避免把已落盘的片段再喂一遍。
     clear(id) { tails.delete(id) },
