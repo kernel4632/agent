@@ -1,8 +1,9 @@
 <!--
 对话流：直接对应 agent-core 的历史，不另造“回合”“步骤”。
-History.group 是导出的纯函数，把历史和实时状态排成要显示的条目；扩展 patch 它就能改整个显示结构。
+分组逻辑是纯函数，抽在 src/history.ts（单元测试直接导入它）；这里从组件表取组件渲染。
 规则：模型没说话的思考和工具调用收进同一个 Process；每次请求在 Process 里先放一条 RequestStatus；
 正文单独成段；工具结果按 toolCallId 挂到对应调用上；连续的重试报错合成一条 ErrorMessage。
+扩展 patch History.group（类型和实现都从本文件原样转出）就能改整个显示结构。
 调用示例：<component :is="Components.History" />
 -->
 <script lang="ts">

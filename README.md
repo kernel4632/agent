@@ -86,8 +86,7 @@ cd web && bun install && bun dev          # 127.0.0.1:5180，把 /api 代理到�
 
 ```sh
 cd backend && bun run test    # mock 测试 + 扩展后端的类型检查；真实请求需 RUN_REAL=1
-cd web && bun run check       # 本体 vue-tsc + 扩展前端的类型检查（checkJs + JSDoc）
-cd web && bun run build
+cd web && bun run check && bun test && bun run build   # 类型检查 + 前端纯逻辑单测 + 构建
 ```
 
 扩展代码是 JS，靠两份类型声明获得编辑器推导（编辑时也生效，不必等检查）：

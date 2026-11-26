@@ -199,7 +199,7 @@ extensions/<name>/         manifest.json、backend.js、可选 frontend/
 
 ```sh
 cd backend && bun run test   # mock 测试 + 扩展后端 checkJs（tsc -p tsconfig.extensions.json）
-cd web && bun run check && bun run build   # 本体 vue-tsc + 扩展前端 checkJs（extensions/tsconfig.json）
+cd web && bun run check && bun test && bun run build   # 本体 vue-tsc + 扩展前端 checkJs + 前端纯逻辑单测
 ```
 
 需要 Bun ≥ 1.4.4（测试夹具用了 `ReadableStream.from`）。新加接口或改行为时，在同一次提交里补测试。改 `App` / `Ctx` 的形状时同步改 `web/src/types.ts` / `backend/extension.d.ts`。

@@ -125,14 +125,5 @@ export interface UiKit {
 export interface SettingsNav { open(detail: string): void; back(): void }
 
 // ToolCall 内容区（app.toolViews 登记的组件）收到的 props.step，
-// 与 components/History.vue 导出的 Step 的 tool 分支一致，两处独立维护。
-export interface ToolStep {
-  kind: 'tool'
-  key: string
-  name: string
-  input: unknown
-  raw?: string
-  output?: any
-  log?: string
-  state: 'writing' | 'waiting' | 'running' | 'done' | 'failed' | 'denied' | 'cancelled'
-}
+// 就是 History.group 产出的 Step 的 tool 分支，实现在 src/history.ts。
+export type ToolStep = Extract<import('./history').Step, { kind: 'tool' }>
