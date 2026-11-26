@@ -1,8 +1,38 @@
 {
   "name": "任务清单",
   "description": "模型更新任务进度，右侧面板显示当前任务和完成情况",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "requires": [],
   "backend": "backend.js",
-  "frontend": "frontend/index.js"
+  "frontend": "frontend/index.js",
+  "cli": {
+    "topbar": [
+      {
+        "id": "todo",
+        "tool": "update_todo_list",
+        "items": "items",
+        "label": "任务",
+        "count": { "field": "status", "equals": "completed" },
+        "current": { "field": "status", "equals": "in_progress", "text": "text" }
+      }
+    ],
+    "commands": [
+      {
+        "name": "todos",
+        "hint": "打开任务清单",
+        "shortcut": "ctrl+t",
+        "tool": "update_todo_list",
+        "op": "todo.list",
+        "view": {
+          "kind": "checklist",
+          "title": "任务清单",
+          "empty": "还没有任务。模型更新清单后会显示在这里。",
+          "items": "items",
+          "text": "text",
+          "status": "status",
+          "progress": "进度"
+        }
+      }
+    ]
+  }
 }

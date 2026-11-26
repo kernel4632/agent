@@ -49,7 +49,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/settings/{sessionId}` 的 `cwd` 字段改，agent 可以用 `cwd` 工具自己改。
 3. **运行**：从发送消息开始，到结束或停止为止；过程通过 SSE 推送。
 4. **工具**：agent 改变外部世界的唯一方式，按类别放在 `tools/`。
-5. **扩展**：`extensions/` 里的可插拔能力（MCP、技能、监控唤醒、任务清单），通过 `ctx.patch` / `ctx.op` 挂进框架，还能把命令声明挂到 CLI 的 `/` 菜单（见「扩展」一节）。
+5. **扩展**：`extensions/` 里的可插拔能力（技能、监控唤醒、任务清单），通过 `ctx.patch` / `ctx.op` 挂进框架，还能在 `manifest.json` 的 `cli` 字段里声明 CLI 的命令、快捷键和顶栏状态条（见「扩展」一节）。
 
 ## 数据目录
 
@@ -257,29 +257,58 @@ description: 审查改动时用这个
 
 扩展放在 `<项目根>/extensions/<名字>/` 或 `~/.agents/extensions/<名字>/`，一个文件夹一个扩展，`manifest.json` 声明身份和入口；同名时用户目录覆盖项目目录。后端在启动时扫描并启动它们，`Admin.OPS` 之外的能力都由扩展自己 `ctx.patch` / `ctx.op` 挂进来，拔出时逐条恢复。
 
-管理走管理总线，不占冻结路由：`extension.list`、`extension.toggle { name, enabled }`、`extension.reload { name }`。`extension.list` 返回的每一项带 `cli` 字段——manifest 里 `cli.commands` 的原样透传，每条声明一个「斜杠命令 → /admin 动作」：
+管理走管理总线，不占冻结路由：`extension.list`、`extension.toggle { name, enabled }`、`extension.reload { name }`。`extension.list` 返回的每一项带 `cli` 字段——manifest 里 `cli` 段的原样透传，由 CLI 按声明把扩展嵌进交互界面和命令行：
 
 ```json
 {
   "cli": {
+    "topbar": [
+      {
+        "id": "todo",
+        "tool": "update_todo_list",
+        "items": "items",
+        "label": "任务",
+        "count": { "field": "status", "equals": "completed" },
+        "current": { "field": "status", "equals": "in_progress", "text": "text" }
+      }
+    ],
     "commands": [
-      { "name": "monitors", "hint": "查看本会话挂载的后台监控", "usage": "[会话 ID]", "op": "monitor.list" },
-      { "name": "monitor-stop", "hint": "停掉后台监控", "usage": "编号|all [会话 ID]", "op": "monitor.stop", "input": "id" }
+      {
+        "name": "monitors",
+        "hint": "查看本会话挂载的后台监控",
+        "usage": "[会话 ID]",
+        "op": "monitor.list",
+        "params": ["sessionId"]
+      },
+      {
+        "name": "monitor-stop",
+        "hint": "停掉后台监控",
+        "usage": "编号|all [会话 ID]",
+        "op": "monitor.stop",
+        "params": ["id", "sessionId"]
+      }
     ]
   }
 }
 ```
 
-| 字段 | 作用 |
+| `commands` 字段 | 作用 |
 | --- | --- |
-| `name` | 命令名。CLI 挂成 `/name`，`agent extensions call NAME` 也用它 |
-| `hint` / `usage` | 菜单里的一句说明 / 参数提示 |
+| `name` | 命令名。CLI 挂成 `/name`，`agent extensions call NAME` 也用它（不覆盖内置命令） |
+| `hint` / `usage` | 菜单说明 / 参数提示；无参数或 `[可选]` 开头时菜单回车直接执行 |
+| `shortcut` | 可选快捷键（如 `ctrl+t`），不覆盖内置快捷键，停用扩展后一起撤除 |
 | `op` | 转发到 `POST /admin` 的动作名，必须是扩展自己 `ctx.op()` 挂上的 |
-| `args` | 固定请求体；用户传的同名字段覆盖它 |
-| `input` | 剩余参数整段放进这个字段（如 `monitor-stop m1` 的 `id`） |
-| `noSession` | true 时请求体不带 `sessionId`（清单类动作） |
+| `tool` | 可选工具名：TUI 直接从本会话最近一次该工具的结果渲染 `view`（离线可用） |
+| `args` | 固定请求体；位置参数和 `--arg` 同名字段会覆盖它 |
+| `params` | 位置参数名列表（支持 `字段:bool` / `:int` / `:number`），按空白与引号依次映射 |
+| `input` | 未用 `params` 时，剩余参数整段放进这个字段（如 `skill-read` 的 `name`） |
+| `noSession` | true 时请求体不带 `sessionId`（全局或按目录动作） |
+| `cwd` | true 时附带当前会话目录（TUI 取会话 `cwd`，命令行取 `--cwd` 或当前目录） |
+| `view` | 可选结果视图（`checklist` / `list` / `detail`），供 TUI 浮层和命令行文本输出共用 |
 
-CLI（Go 客户端）不执行扩展代码，只按这份声明挂命令：`chat` 启动时把正在生效的扩展的命令并进 `/` 菜单，停用或重载后按新清单重建；`/extensions` 浮层和 `agent extensions list/toggle/reload/call` 做管理。声明里引用的 op 必须存在，`extension.list` 照实透传，执行时由 `/admin` 报错。
+`topbar` 声明顶部状态插槽（对标网页端 `app.topbar.add`）：`tool` 指定监听的工具名，`items` 为输出对象里的数组路径，`count` 统计完成数，`current` 取进行中的条目标题；无条目时自动隐藏，扩展停用或重载后整表重建并立即撤除。
+
+CLI（Go 客户端）不执行扩展代码，只按这份声明挂载：`chat` 启动时把正在生效的扩展的命令、快捷键和顶栏状态条并入界面，停用或重载后整表重建；`/extensions` 浮层和 `agent extensions list/toggle/reload/call` 做管理。声明里引用的 op 必须存在，`extension.list` 照实透传，执行时由 `/admin` 报错。
 
 ### 识别本机的 MCP 和技能
 

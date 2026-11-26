@@ -9,7 +9,6 @@ import store from '@agent/store.js'
 import Tool from '@agent/features/tool.js'
 import Skills from './skills.js'
 import SkillTool from './tool.js'
-import AgentCore from '@kernel4632/agent-core'
 
 export default ctx => {
     // --- patch Tool.build：注入技能工具 ---
@@ -19,7 +18,7 @@ export default ctx => {
         if (session) {
             const skillTool = await SkillTool.build({ cwd: session.cwd, skills: Skills })
             if (skillTool) {
-                result.tools = AgentCore.tool.merge(result.tools, AgentCore.tool.adopt([skillTool]))
+                result.tools = Tool.merge(result.tools, Tool.adopt([skillTool]))
             }
         }
         return result

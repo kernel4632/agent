@@ -1,13 +1,39 @@
 {
   "name": "监控唤醒",
   "description": "模型可登记后台条件，条件达成时自动注入通知并唤醒 agent 开辟新一轮回复",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "requires": [],
   "backend": "backend.js",
   "cli": {
     "commands": [
-      { "name": "monitors", "hint": "查看本会话挂载的后台监控", "usage": "[会话 ID]", "op": "monitor.list" },
-      { "name": "monitor-stop", "hint": "停掉后台监控", "usage": "编号|all [会话 ID]", "op": "monitor.stop" }
+      {
+        "name": "monitors",
+        "hint": "查看本会话挂载的后台监控",
+        "usage": "[会话 ID]",
+        "op": "monitor.list",
+        "params": ["sessionId"],
+        "view": {
+          "kind": "list",
+          "title": "后台监控",
+          "empty": "当前会话没有后台监控。",
+          "items": "monitors",
+          "fields": [
+            { "key": "id", "label": "编号" },
+            { "key": "status", "label": "状态" },
+            { "key": "rounds", "label": "轮次" },
+            { "key": "name", "label": "名称" },
+            { "key": "summary", "label": "条件" },
+            { "key": "objective", "label": "目标" }
+          ]
+        }
+      },
+      {
+        "name": "monitor-stop",
+        "hint": "停掉后台监控",
+        "usage": "编号|all [会话 ID]",
+        "op": "monitor.stop",
+        "params": ["id", "sessionId"]
+      }
     ]
   }
 }

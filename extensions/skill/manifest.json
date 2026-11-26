@@ -1,8 +1,55 @@
 {
   "name": "技能",
   "description": "读取 SKILL.md 操作说明，提供 skill 工具和技能设置页",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "requires": [],
   "backend": "backend.js",
-  "frontend": "frontend/index.js"
+  "frontend": "frontend/index.js",
+  "cli": {
+    "commands": [
+      {
+        "name": "skills",
+        "hint": "列出当前生效的技能",
+        "op": "skill.list",
+        "noSession": true,
+        "cwd": true,
+        "view": {
+          "kind": "list",
+          "title": "技能",
+          "empty": "没有技能",
+          "items": "skills",
+          "fields": [
+            { "key": "name", "label": "名称" },
+            { "key": "enabled", "label": "状态", "true": "启用", "false": "停用" },
+            { "key": "sourceLabel", "label": "来源" },
+            { "key": "description", "label": "说明" }
+          ]
+        }
+      },
+      {
+        "name": "skill-read",
+        "hint": "读取技能正文",
+        "usage": "技能名",
+        "op": "skill.read",
+        "noSession": true,
+        "cwd": true,
+        "input": "name",
+        "view": {
+          "kind": "detail",
+          "title": "技能正文",
+          "text": "body",
+          "meta": ["name", "sourceLabel", "description"]
+        }
+      },
+      {
+        "name": "skill-toggle",
+        "hint": "启用或停用技能",
+        "usage": "技能名 on|off",
+        "op": "skill.toggle",
+        "noSession": true,
+        "cwd": true,
+        "params": ["name", "enabled:bool"]
+      }
+    ]
+  }
 }

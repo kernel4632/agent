@@ -11,12 +11,13 @@
 
 import tool from './tool.js'
 import MonitorEngine from './engine.js'
+import store from '@agent/store.js'
 import Tool from '@agent/features/tool.js'
 export default ctx => {
     // --- 启动监控后台轮询调度器 ---
     MonitorEngine.start()
 
-    // --- patch Tool.build：向每条会话注入 monitor 工具 ---
+    // --- patch Tool.build：向每条会话注入带 sessionId / cwd 上下文的 monitor 工具 ---
     ctx.patch(Tool, 'build', original => async args => {
         const result = await original(args)
 
@@ -25,8 +26,17 @@ export default ctx => {
             await MonitorEngine.loadSession(args.sessionId)
         }
 
+        const bound = {
+            ...tool,
+            execute: (input, options = {}) => tool.execute(input, {
+                ...options,
+                sessionId: args.sessionId,
+                cwd: store.sessions[args.sessionId]?.cwd || process.cwd(),
+            }),
+        }
+
         // 将 monitor 工具并入会话工具集
-        result.tools = Tool.merge(result.tools, Tool.adopt([tool]))
+        result.tools = Tool.merge(result.tools, Tool.adopt([bound]))
         return result
     })
 
@@ -57,7 +67,12 @@ export default ctx => {
     ctx.op('monitor.list', ({ sessionId } = {}) => ({
         monitors: MonitorEngine.list({ sessionId, includeEnded: true }),
     }))
-    ctx.op('monitor.stop', ({ sessionId, id, all } = {}) => MonitorEngine.stopMonitor({ sessionId, id, all }))
+    ctx.op('monitor.stop', ({ sessionId, id, all } = {}) =>
+        MonitorEngine.stopMonitor({
+            sessionId,
+            id,
+            all: all === true || all === 'true' || id === 'all',
+        }))
 
     // --- 扩展拔出/停用时：清理调度器 ---
     ctx.onDispose(() => {

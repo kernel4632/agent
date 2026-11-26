@@ -311,8 +311,7 @@ const list = () => {
             hasFrontend: entry.hasFrontend,
             changed: changed.has(entry.name),
             error: entry.error || (!disabled.has(entry.name) && !loaded.has(entry.name) ? blocker(entry.name) : ''),
-            // cli 声明原样透传给 CLI（Go 客户端不执行扩展代码，按声明挂命令）：
-            // { commands?: [{ name, hint?, usage?, op?, args?, input?, noSession? }] }
+            // cli 声明原样透传给 CLI（Go 客户端不执行扩展代码，按声明挂载命令、快捷键、顶栏与视图）：
             cli: entry.config.cli || {},
         }))
     return {

@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import Path from '../utils/path.js'
 import store from '../store.js'
 import Chat from '../commands/chat.js'
+import Admin from '../commands/admin.js'
 import History from '../features/history.js'
 import Tool from '../features/tool.js'
 import Extension from '../features/extension.js'
@@ -26,6 +27,7 @@ const { default: FileCondition } = await import('../../extensions/monitor/condit
 const { default: TimerCondition } = await import('../../extensions/monitor/conditions/timer.js')
 const { default: CommandCondition } = await import('../../extensions/monitor/conditions/command.js')
 const { default: monitorBackend } = await import('../../extensions/monitor/backend.js')
+const { default: todoBackend } = await import('../../extensions/todo/backend.js')
 const homes = []
 const withHome = async callback => {
     const root = join(tmpdir(), `agent-mon-${crypto.randomUUID()}`)
@@ -191,8 +193,9 @@ describe('Monitor 工具与调度流转', () => {
 })
 
 describe('后端集成扩展 patch', () => {
-    test('backend.js 成功将 monitor 工具注入 Tool 并设置 never 审批', async () => {
+    test('backend.js 成功将 monitor 工具注入 Tool 并设置 never 审批，且暴露 monitor.list/stop op', async () => {
         const patchedFns = new Map()
+        const ops = {}
         const fakeCtx = {
             patch: (obj, key, wrapper) => {
                 const orig = obj[key]
@@ -200,7 +203,7 @@ describe('后端集成扩展 patch', () => {
                 obj[key] = wrapped
                 patchedFns.set(key, { obj, orig })
             },
-            op: () => {},
+            op: (name, fn) => { ops[name] = fn },
             onDispose: () => {},
         }
 
@@ -209,10 +212,77 @@ describe('后端集成扩展 patch', () => {
             expect(Tool.kind({ toolName: 'monitor' })).toBe('never')
             const list = await Tool.list()
             expect(list.some(t => t.name === 'monitor')).toBe(true)
+
+            await withHome(async () => {
+                const sessionId = 'op-session-1'
+                store.sessions[sessionId] = { id: sessionId, cwd: tmpdir(), running: false }
+                const built = await Tool.build({ sessionId, mcp: { acquire: async () => ({ tools: {}, revision: 0, release: () => {} }) } })
+                try {
+                    const execRes = await built.tools.handlers.monitor.execute({
+                        action: 'start',
+                        condition: { kind: 'timer', afterSeconds: 60 },
+                        objective: '通过 Tool.build 挂载执行',
+                    }, {})
+                    expect(execRes.monitorId).toBeTruthy()
+                } finally {
+                    built.release()
+                }
+                const { monitor: m2 } = await MonitorEngine.arm({ sessionId, condition: { kind: 'timer', afterSeconds: 60 }, objective: '第二项' })
+
+                const listed = (await ops['monitor.list']({ sessionId })).monitors
+                expect(listed).toHaveLength(2)
+                expect(await ops['monitor.stop']({ sessionId, id: listed[0].id })).toEqual([listed[0].id])
+                expect(await ops['monitor.stop']({ sessionId, id: 'all' })).toEqual([m2.id])
+            })
         } finally {
             for (const [key, { obj, orig }] of patchedFns) {
                 obj[key] = orig
             }
         }
+    })
+
+    test('todo backend 提供 todo.list op 并从会话历史读取最新清单', async () => {
+        await withHome(async () => {
+            const ops = {}
+            todoBackend({ patch: () => {}, op: (name, fn) => { ops[name] = fn }, onDispose: () => {} })
+            await expect(ops['todo.list']({})).rejects.toThrow(/sessionId/)
+
+            const created = await History.create({ title: 'todo-test', cwd: tmpdir(), provider: '', model: '', settings: { reasoning: 'auto' } })
+            await History.add({
+                sessionId: created.id,
+                message: {
+                    role: 'tool',
+                    content: [{
+                        type: 'tool-result',
+                        toolCallId: 'c1',
+                        toolName: 'update_todo_list',
+                        output: { type: 'json', value: { items: [{ text: '写测试', status: 'in_progress' }] } },
+                    }],
+                },
+            })
+            expect(await ops['todo.list']({ sessionId: created.id })).toEqual({
+                items: [{ text: '写测试', status: 'in_progress' }],
+            })
+        })
+    })
+
+    test('Extension.load 正常加载全部内置扩展并原样透传 cli 声明', async () => {
+        await withHome(async () => {
+            const state = await Extension.load({ ...Admin.OPS })
+            expect(state.loaded.sort()).toEqual(['monitor', 'skill', 'todo'])
+            for (const item of state.extensions) {
+                expect(item.error).toBe('')
+                expect(item.running).toBe(true)
+            }
+            const byName = Object.fromEntries(state.extensions.map(item => [item.name, item]))
+            expect(byName.monitor.cli.commands.find(c => c.name === 'monitor-stop').params).toEqual(['id', 'sessionId'])
+            expect(byName.skill.cli.commands.map(c => c.name)).toEqual(['skills', 'skill-read', 'skill-toggle'])
+            expect(byName.todo.cli.topbar).toHaveLength(1)
+            expect(byName.todo.cli.commands[0]).toMatchObject({ name: 'todos', shortcut: 'ctrl+t', op: 'todo.list' })
+            // 清理加载的扩展，避免影响同进程后续测试
+            await Extension.toggle({ name: 'monitor', enabled: false })
+            await Extension.toggle({ name: 'skill', enabled: false })
+            await Extension.toggle({ name: 'todo', enabled: false })
+        })
     })
 })

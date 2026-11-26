@@ -12,13 +12,23 @@
  */
 
 import { mkdir, readdir, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { basename, dirname, join, resolve } from 'node:path'
-import { writeFile } from 'atomically'
-import matter from 'gray-matter'
+import { fileURLToPath } from 'node:url'
 import fail from '@agent/utils/fail.js'
 import Path from '@agent/utils/path.js'
 import Fs from '@agent/utils/fs.js'
 import Text from '@agent/utils/text.js'
+
+// 优先用扩展自己的 node_modules；没单独安装依赖时回退到服务端依赖（Bun 1.4.4 测试下 onResolve 不拦截裸包名）
+const requireLocal = createRequire(import.meta.url)
+const requireServer = createRequire(fileURLToPath(import.meta.resolve('@agent/package.json')))
+const loadDep = name => {
+    try { return requireLocal(name) }
+    catch { return requireServer(name) }
+}
+const { writeFile } = loadDep('atomically')
+const matter = loadDep('gray-matter')
 
 const MAX_SKILLS = 200                 // 一个目录最多收这么多技能，防止有人把大仓库指进来
 const MAX_BYTES = 256 * 1024           // 一份 SKILL.md 的上限
