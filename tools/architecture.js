@@ -9,11 +9,11 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { build, KIND_COLOR } from './graph.js'
-import { buildFlow, renderFlow } from './flow.js'
+import { renderChains } from './flow.js'
 
 // ---------- 数据面 ----------
 const { nodes, edges, violations } = await build()
-const flow = buildFlow(nodes)
+const back = await renderChains()
 
 // 节点显示名：去掉前缀目录，保留区分度需要的部分。
 function label(path) {
@@ -100,8 +100,8 @@ const macro = render('TD', [
     'ext-backends',
 ])
 
-// ---------- 图二：backend 函数级流程（subgraph=文件、节点=函数、实线=运行时调用）----------
-const back = renderFlow(flow)
+// ---------- 图二：backend 四条运行链路（subgraph=链路、并排、主链顺连）----------
+const backDoc = back
 
 // ---------- 图三：web（状态层 + 组件 + 外部渲染库）----------
 const web = render('TD', ['web/src/'])
@@ -124,15 +124,14 @@ ${legend}
 ${macro}
 \`\`\`
 
-## 二、backend：函数级流程图
+## 二、backend：四条运行链路
 
-文件是分组框（subgraph），函数是节点。**实线 → 运行时调用**（路由 → 业务函数 → Store/Stream/Models…）；
-**粗线 ⇒ 交给 agent-core**（唯一循环，内部不可见）；
-斜体淡色 = 文件内非导出的辅助函数（不是公开接口，但在执行路径上，名字撞车的加 ′ 区分）。
-backend 同层文件之间没有静态 import（导入只往下走的铁律），跨文件调用全部发生在运行时——这张图按 \`Name.method(\` 调用点扫描还原。
+一个组 = 一条链路（发消息 / 连接与刷新 / 扩展加载 / 动作调用），组内从左到右就是执行顺序，**粗线 ⇒ 交给 agent-core**（唯一循环）。
+节点按文件着色（server 橙 / Agents 蓝 / Stream 青 / Store 藏蓝 / Extension 紫 / Loader 淡紫 / core 灰 / 浏览器 绿）。
+链路声明在 \`tools/flow.js\`，引用的函数与源码扫描比对——改名或删函数会直接报错，图不会悄悄过期。
 
 \`\`\`mermaid
-${back}
+${backDoc}
 \`\`\`
 
 ## 三、web

@@ -1,175 +1,206 @@
 /*
-图二的数据面 + 渲染：backend 函数级流程图。
-文件是 subgraph 分组框，函数是节点：路由 / 导出函数 / 文件内辅助函数（非导出、被流程调用，斜体淡色）。
-边来自运行时调用点：跨模块 Name.method(、文件内裸 helper(、交给 agent-core 的 agent.method(。
-静态 import 边不画——backend 同层不互相 import 是铁律，跨文件调用全部发生在运行时，这张图就是它的写照。
-agent-core 内部不可见，作为整体节点（粗线）。
+图二的数据面 + 渲染：backend 链路图。
+subgraph 不是文件而是「一条链路」（发消息 / 连接与刷新 / 扩展加载 / 动作调用），组间零连线，并排展示。
+节点按文件着色（八色），一眼看出执行顺序和文件归属。
+链路的步骤序列在这里声明，但引用的每个函数必须真实存在于对源码的扫描结果里——
+改名、删函数会让生成直接报错，图不可能悄悄过期。
 */
 
-import { matchBrace, matchParen, sliceObject, splitTop, topMembers, maskLiterals, KEYWORDS } from './slice.js'
+import { KEYWORDS } from './slice.js'
 
 const TRANSPILE = new Bun.Transpiler({ loader: 'js' })
 const CORE = '@kernel4632/agent-core'
-const ORDER = [
-    'backend/server.js', 'backend/features/Agents.js', 'backend/features/Stream.js', 'backend/features/Models.js',
-    'backend/features/Store.js', 'backend/features/Extension.js', 'backend/features/Loader.js', 'backend/features/Bundle.js',
+
+// 链路里出现的文件 → 颜色 class；色板沿文件级图的分区色。
+const FILE_STYLE = {
+    'backend/server.js': 'fserver',
+    'backend/features/Agents.js': 'fagents',
+    'backend/features/Stream.js': 'fstream',
+    'backend/features/Models.js': 'fmodels',
+    'backend/features/Store.js': 'fstore',
+    'backend/features/Extension.js': 'fextension',
+    'backend/features/Loader.js': 'floader',
+    [CORE]: 'fcore',
+    'web': 'fweb',
+}
+
+const STYLE = {
+    fserver: 'fill:#fff3e0,stroke:#e0a458,color:#8a5a1a',
+    fagents: 'fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c',
+    fstream: 'fill:#e0f2f1,stroke:#6db3a8,color:#1d5c50',
+    fmodels: 'fill:#f3e8fe,stroke:#b48ee0,color:#4a2c7c',
+    fstore: 'fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e',
+    fextension: 'fill:#f4edfb,stroke:#a98bc4,color:#5b3d80',
+    floader: 'fill:#ede7f6,stroke:#9575cd,color:#3e2c63',
+    fcore: 'fill:#eef1f5,stroke:#9aa7b8,color:#5a6572',
+    fweb: 'fill:#e9f7ee,stroke:#7cbf95,color:#2c5c3d',
+    froute: 'fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1,font-weight:bold',
+}
+
+/*
+链路表：每条 { title, steps: [{ id, label, file, core? }] }。
+steps 顺次相连成主链；分叉用 extra: [{ from, to }]（from/to 是步骤 id）。
+core 边用粗线（交给 agent-core 的循环）；「回调」语义也用粗线表达。
+*/
+
+const CHAINS = [
+    {
+        title: '① 发消息',
+        steps: [
+            { id: 'in', label: 'POST /api/agent/:id/send', file: 'backend/server.js' },
+            { id: 'send', label: 'Agents.send', file: 'backend/features/Agents.js' },
+            { id: 'idle', label: 'idle（409 锁）', file: 'backend/features/Agents.js' },
+            { id: 'open', label: 'Agents.open', file: 'backend/features/Agents.js' },
+            { id: 'launch', label: 'launch', file: 'backend/features/Agents.js' },
+            { id: 'run', label: 'Stream.emit(run)', file: 'backend/features/Stream.js' },
+            { id: 'core', label: 'agent-core 循环', file: CORE, core: true },
+            { id: 'cb', label: 'Agents.callbacks', file: 'backend/features/Agents.js' },
+            { id: 'save', label: 'Store.appendHistory', file: 'backend/features/Store.js' },
+            { id: 'add', label: 'Stream.add', file: 'backend/features/Stream.js' },
+            { id: 'sse', label: '浏览器（SSE）', file: 'web' },
+        ],
+    },
+    {
+        title: '② 连接与刷新',
+        steps: [
+            { id: 'in', label: 'GET /api/agent/:id/stream', file: 'backend/server.js' },
+            { id: 'open', label: 'Agents.open', file: 'backend/features/Agents.js' },
+            { id: 'sub', label: 'Stream.subscribe', file: 'backend/features/Stream.js' },
+            { id: 'snap', label: 'Agents.snapshot', file: 'backend/features/Agents.js' },
+            { id: 'sse', label: '浏览器（snapshot 首帧）', file: 'web' },
+        ],
+        floating: [
+            { id: 'core', label: 'agent-core 事件', file: CORE, core: true },
+            { id: 'add', label: 'Stream.add', file: 'backend/features/Stream.js' },
+            { id: 'emit', label: 'Stream.emit', file: 'backend/features/Stream.js' },
+            { id: 'sse2', label: '浏览器（core 事件）', file: 'web' },
+        ],
+        extra: [
+            { from: 'core', to: 'add' },
+            { from: 'add', to: 'emit' },
+            { from: 'emit', to: 'sse2' },
+        ],
+    },
+    {
+        title: '③ 扩展加载',
+        steps: [
+            { id: 'wire', label: 'wire()', file: 'backend/server.js' },
+            { id: 'hook', label: 'Loader.hook', file: 'backend/features/Loader.js' },
+            { id: 'start', label: 'Loader.start', file: 'backend/features/Loader.js' },
+            { id: 'scan', label: 'scan（扫描目录）', file: 'backend/features/Loader.js' },
+            { id: 'sort', label: 'sort（拓扑排序）', file: 'backend/features/Loader.js' },
+            { id: 'weave', label: 'weave（执行 backend.js）', file: 'backend/features/Loader.js' },
+            { id: 'scope', label: 'Extension.scope（ctx）', file: 'backend/features/Extension.js' },
+        ],
+    },
+    {
+        title: '④ 动作调用',
+        steps: [
+            { id: 'in', label: 'POST /api/op/:name', file: 'backend/server.js' },
+            { id: 'invoke', label: 'Extension.invoke', file: 'backend/features/Extension.js' },
+            { id: 'handler', label: '扩展 handler', file: 'backend/features/Extension.js' },
+            { id: 'store', label: 'Store.config', file: 'backend/features/Store.js' },
+            { id: 'out', label: 'json 响应', file: 'backend/server.js' },
+        ],
+    },
 ]
 
-const FLOW_STYLE = {
-    fbackend: 'fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c',
-    store: 'fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e',
-    fhelper: 'fill:#f4f6f9,stroke:#c3ccd8,color:#8593a6,font-style:italic',
-    froute: 'fill:#fff3e0,stroke:#e0a458,color:#8a5a1a',
-    fcore: 'fill:#eef1f5,stroke:#9aa7b8,color:#5a6572',
+/*
+校验：链路里声明的每个函数节点都要能在源码扫描结果里找到同名公开成员。
+node 名取 label 里的「最后一个 . 或空格 前的函数名」；文件必须存在。
+找不到就抛错——图不可能悄悄过期。
+*/
+
+// 从 label 提取被校验的函数名：'Store.appendHistory' → 'appendHistory'；'wire()' → 'wire'。
+function nameOf(step) {
+    const text = step.label.split('（')[0].replace(/\(\)$/, '').trim()
+    const hit = text.match(/(?:\.|^)\s*([A-Za-z_$][\w$]*)$/)
+    return hit ? hit[1] : ''
 }
 
-// 相对导入归一成仓库路径（backend 内部的 import 都带 .js 扩展名）。
-function resolveSpec(from, spec) {
-    const out = []
-    for (const part of [...from.split('/').slice(0, -1), ...spec.split('/')]) {
-        if (!part || part === '.') continue
-        if (part === '..') out.pop()
-        else out.push(part)
+async function scanExports() {
+    const found = new Map()        // path -> Set(公开成员名)
+    const files = [
+        'backend/server.js', 'backend/features/Agents.js', 'backend/features/Stream.js',
+        'backend/features/Models.js', 'backend/features/Store.js', 'backend/features/Extension.js',
+        'backend/features/Loader.js', 'backend/features/Bundle.js',
+    ]
+    for (const path of files) {
+        const code = await Bun.file(path).text()
+        const info = TRANSPILE.scan(code)
+        const names = new Set(info.exports.filter(name => name !== 'default'))
+        // const 对象的成员也是公开面（Agents.open 等）
+        for (const name of names) {
+            const hit = code.match(new RegExp(`(?:const|let)\\s+${name}\\s*=\\s*\\{`))
+            if (hit) {
+                const rest = code.slice(hit.index + hit[0].length)
+                let depth = 1, i = 0
+                while (i < rest.length && depth > 0) {
+                if (rest[i] === '{') depth++
+                else if (rest[i] === '}') depth--
+                i++
+                }
+                for (const m of rest.slice(0, i).matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*\(/g)) {
+                    if (!KEYWORDS.has(m[1])) names.add(m[1])
+                }
+            }
+        }
+        // 顶层函数声明（含私有，如 launch/sort/weave）也是链路可能经过的执行节点
+        for (const m of code.matchAll(/(?:^|\n)(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
+            if (!KEYWORDS.has(m[1])) names.add(m[1])
+        }
+        found.set(path, names)
     }
-    return out.join('/')
+    return found
 }
 
-// server.js 路由表：每条路由一个函数节点。键是字符串，要从原文读（掩码会把引号抠掉）。
-// 返回 { routes, restMask }：restMask 是 create 函数体去掉路由表后的掩码（路由体里的调用归路由节点，不归 create）。
-function routesOf(code, mask) {
-    const at = mask.indexOf('routes: {')
-    if (at === -1) return { routes: [], restMask: mask }
-    const open = mask.indexOf('{', at)
-    const close = matchBrace(mask, open)
-    const body = mask.slice(open + 1, close)
-    const routes = []
-    let count = 0
-    for (const seg of splitTop(body)) {
-        const part = body.slice(seg.start, seg.end)
-        const colon = part.indexOf(':')
-        const key = /'([^']+)'/.exec(code.slice(open + 1 + seg.start, open + 1 + seg.start + colon))?.[1]
-        if (!key) continue
-        const value = part.slice(colon + 1)
-        routes.push({ name: (/^\s*\{\s*POST:/.test(value) ? 'POST ' : 'GET ') + key, kind: 'route', body: maskLiterals(value), id: `0_r${count++}` })
-    }
-    return { routes, restMask: mask.slice(0, open + 1) + mask.slice(close) }
-}
-
-// 一个 backend 文件的函数表：导出对象成员、export function、文件内 helper、路由。
-function fileOf(nodes, path, index) {
-    const node = nodes.get(path)
-    if (!node) return null
-    const code = node.code
-    const mask = maskLiterals(code)
-    const imports = new Map()
-    for (const hit of code.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
-        for (const raw of hit[1].split(',')) {
-            const name = raw.trim().split(/\s+as\s+/).pop().trim()
-            if (name) imports.set(name, hit[2].startsWith('.') ? resolveSpec(path, hit[2]) : hit[2] === CORE ? CORE : null)
+function validate(chains, exports) {
+    const problems = []
+    for (const chain of chains) {
+        for (const step of [...chain.steps, ...(chain.floating ?? [])]) {
+            if (step.file === 'web' || step.file === CORE) continue        // 浏览器和 core 是端点，不校验
+            const name = nameOf(step)
+            if (!name) continue                                           // 路由等描述性节点
+            if (!exports.has(step.file)) { problems.push(`文件不存在：${step.file}（${step.label}）`); continue }
+            if (!exports.get(step.file).has(name)) problems.push(`${step.file} 里没有 ${name}（${step.label}）——链路声明过期了`)
         }
     }
-    const objectName = TRANSPILE.scan(code).exports.filter(name => name !== 'default').find(name => sliceObject(code, name)) ?? null
-    const members = objectName ? topMembers(sliceObject(code, objectName)).map(({ name, body }) => ({ name, body, kind: 'member' })) : []
-    // server.js 路由表：路由体里的调用归路由节点；create 的扫描体去掉路由区。
-    const routes = path === 'backend/server.js' ? routesOf(code, mask) : { routes: [], restMask: mask }
-    const fns = [], helpers = []
-    for (const decl of mask.matchAll(/(?:^|\n)(export\s+)?(?:async\s+)?function\s+(\w+)\s*\(/g)) {
-        const open = mask.indexOf('(', decl.index + decl[0].length - 1)
-        const brace = mask.indexOf('{', matchParen(mask, open))
-        const end = matchBrace(mask, brace)
-        let body = mask.slice(brace + 1, end)
-        if (path === 'backend/server.js' && decl[2] === 'create') {
-            const at = body.indexOf('routes: {')
-            if (at >= 0) body = body.slice(0, at)
-        }
-        const fn = { name: decl[2], kind: decl[1] ? 'fn' : 'helper', body: maskLiterals(body) }
-        ;(decl[1] ? fns : helpers).push(fn)
-    }
-    // 属性简写成员（如 Store.home,）与同名 helper 是同一个函数：并成公开节点；不同体的同名（Loader.scan）加撇号。
-    for (const member of members) {
-        const at = helpers.findIndex(fn => fn.name === member.name)
-        if (at >= 0 && !member.body) { member.body = helpers[at].body; helpers.splice(at, 1) }
-    }
-    for (const helper of helpers) if (members.some(member => member.name === helper.name)) helper.alias = true
-    const fnsAll = [...fns, ...members, ...helpers, ...routes.routes]
-    fnsAll.forEach(fn => { fn.id ??= `${index}_${fn.name}${fn.alias ? 'h' : ''}` })
-    // 裸调用解析表：helper 覆盖同名成员（词法绑定指向顶层函数声明）。
-    const bare = new Map()
-    for (const fn of [...fns, ...members]) bare.set(fn.name, fn)
-    for (const fn of helpers) bare.set(fn.name, fn)
-    return { path, index, objectName, imports, fns: fnsAll, bare, public: new Map([...fns, ...members].map(fn => [fn.name, fn])) }
+    return problems
 }
 
-// 跨模块调用的目标：自己（objectName）、import 映射的文件、或 agent-core。
-function moduleTarget(file, files, mod, method) {
-    let targetFile = null
-    if (mod === file.objectName) targetFile = file
-    else {
-        const spec = file.imports.get(mod)
-        if (spec === CORE) return { core: true }
-        if (!spec || !files.has(spec)) return null
-        targetFile = files.get(spec)
-    }
-    const fn = targetFile.public.get(method)
-    return fn ? { fn } : null
-}
-
-function callEdges(file, files, edges, seen) {
-    const add = (from, to, label) => {
-        const key = `${from}>${to}>${label ?? ''}`
-        if (from === to || seen.has(key)) return
-        seen.add(key)
-        edges.push({ from, to, label })
-    }
-    for (const fn of file.fns) {
-        for (const hit of fn.body.matchAll(/\b([A-Z]\w*)\.(\w+)\s*\(/g)) {
-            const target = moduleTarget(file, files, hit[1], hit[2])
-            if (target?.core) add(fn.id, 'core', hit[2])
-            else if (target?.fn) add(fn.id, target.fn.id)
-        }
-        for (const hit of fn.body.matchAll(/\bagent\.(\w+)\s*\(/g)) add(fn.id, 'core', hit[1])
-        for (const hit of fn.body.matchAll(/(?<![\w.$])([a-z]\w*)\s*\(/g)) {
-            if (KEYWORDS.has(hit[1])) continue
-            const target = file.bare.get(hit[1])
-            if (target) add(fn.id, target.id)
-        }
-    }
-}
-
-// 数据面：backend 八个文件的函数节点 + 运行时调用边。helper 只画被公开函数（含 helper→helper 传递）够到的。
-export function buildFlow(nodes) {
-    const files = ORDER.map((path, index) => fileOf(nodes, path, index)).filter(Boolean)
-    const byPath = new Map(files.map(file => [file.path, file]))
-    const edges = []
-    const seen = new Set()
-    for (const file of files) callEdges(file, byPath, edges, seen)
-    const helperIds = new Set(files.flatMap(file => file.fns.filter(fn => fn.kind === 'helper')).map(fn => fn.id))
-    const keep = new Set(files.flatMap(file => file.fns.filter(fn => fn.kind !== 'helper')).map(fn => fn.id))
-    for (let growing = true; growing;) {
-        growing = false
-        for (const edge of edges) if (keep.has(edge.from) && helperIds.has(edge.to) && !keep.has(edge.to)) { keep.add(edge.to); growing = true }
-    }
-    for (const file of files) file.fns = file.fns.filter(fn => fn.kind !== 'helper' || keep.has(fn.id))
-    return { files, edges: edges.filter(edge => keep.has(edge.from) && (edge.to === 'core' || keep.has(edge.to))) }
-}
-
-// 渲染：subgraph=文件、节点=函数、实线=运行时调用、粗线=交给 core。
-export function renderFlow(flow) {
-    const lines = ['graph TD']
-    const classOf = (file, fn) => fn.kind === 'route' ? 'froute' : fn.kind === 'helper' ? 'fhelper' : file.path.endsWith('Store.js') ? 'store' : 'fbackend'
-    for (const file of flow.files) {
-        lines.push(`    subgraph s${file.index}["${file.path}"]`)
-        for (const fn of file.fns) {
-            const label = fn.kind === 'route' ? fn.name : `${fn.name}${fn.alias ? '′' : ''}()`
-            lines.push(`        ${fn.id}["${label}"]:::${classOf(file, fn)}`)
+// 渲染：graph LR，一条链一个 subgraph（组间零连线，并排展示），主链顺次相连，extra 是分叉，core 粗线。
+export async function renderChains() {
+    const exports = await scanExports()
+    const problems = validate(CHAINS, exports)
+    if (problems.length) throw new Error(`链路声明与代码不符：\n${problems.join('\n')}\n请更新 tools/flow.js 里的链路表`)
+    const lines = ['graph LR']
+    for (const [index, chain] of CHAINS.entries()) {
+        const tag = `c${index}`
+        lines.push(`    subgraph ${tag}["${chain.title}"]`)
+        for (const step of [...chain.steps, ...(chain.floating ?? [])]) {
+            const style = /^(POST|GET) /.test(step.label) ? 'froute' : FILE_STYLE[step.file] ?? 'fcore'
+            lines.push(`        ${tag}_${step.id}["${step.label}"]:::${style}`)
         }
         lines.push('    end')
     }
-    lines.push('    core["<b>agent-core</b>（唯一循环，内部不可见）"]:::fcore')
-    for (const edge of flow.edges) {
-        const label = (edge.label ?? '').replace(/[|=.()]/g, '').trim()
-        lines.push(edge.to === 'core' ? `    ${edge.from} == ${label} ==> core` : `    ${edge.from} --> ${edge.to}`)
+    for (const [index, chain] of CHAINS.entries()) {
+        const tag = `c${index}`
+        const stepOf = id => chain.steps.find(step => step.id === id) ?? (chain.floating ?? []).find(step => step.id === id)
+        const link = (from, to, isCore, label) => {
+            const arrow = isCore ? (label ? `== ${label} ==>` : '==>') : '-->'
+            lines.push(`    ${tag}_${from} ${arrow} ${tag}_${to}`)
+        }
+        for (let i = 1; i < chain.steps.length; i++) link(chain.steps[i - 1].id, chain.steps[i].id, Boolean(chain.steps[i - 1].core))
+        const drawn = new Set()
+        for (let i = 1; i < chain.steps.length; i++) drawn.add(`${chain.steps[i - 1].id}>${chain.steps[i].id}`)
+        for (const edge of chain.extra ?? []) {
+            const from = stepOf(edge.from)
+            if (from && stepOf(edge.to) && !drawn.has(`${edge.from}>${edge.to}`)) {
+                drawn.add(`${edge.from}>${edge.to}`)
+                link(edge.from, edge.to, Boolean(from.core), edge.label)
+            }
+        }
     }
-    for (const [name, style] of Object.entries(FLOW_STYLE)) lines.push(`    classDef ${name} ${style}`)
+    for (const [name, style] of Object.entries(STYLE)) lines.push(`    classDef ${name} ${style}`)
     return lines.join('\n')
 }

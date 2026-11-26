@@ -93,274 +93,91 @@ graph TD
     classDef route fill:#fff3e0,stroke:#e0a458,color:#8a5a1a
 ```
 
-## 二、backend：函数级流程图
+## 二、backend：四条运行链路
 
-文件是分组框（subgraph），函数是节点。**实线 → 运行时调用**（路由 → 业务函数 → Store/Stream/Models…）；
-**粗线 ⇒ 交给 agent-core**（唯一循环，内部不可见）；
-斜体淡色 = 文件内非导出的辅助函数（不是公开接口，但在执行路径上，名字撞车的加 ′ 区分）。
-backend 同层文件之间没有静态 import（导入只往下走的铁律），跨文件调用全部发生在运行时——这张图按 `Name.method(` 调用点扫描还原。
+一个组 = 一条链路（发消息 / 连接与刷新 / 扩展加载 / 动作调用），组内从左到右就是执行顺序，**粗线 ⇒ 交给 agent-core**（唯一循环）。
+节点按文件着色（server 橙 / Agents 蓝 / Stream 青 / Store 藏蓝 / Extension 紫 / Loader 淡紫 / core 灰 / 浏览器 绿）。
+链路声明在 `tools/flow.js`，引用的函数与源码扫描比对——改名或删函数会直接报错，图不会悄悄过期。
 
 ```mermaid
-graph TD
-    subgraph s0["backend/server.js"]
-        0_wire["wire()"]:::fbackend
-        0_create["create()"]:::fbackend
-        0_json["json()"]:::fhelper
-        0_fail["fail()"]:::fhelper
-        0_read["read()"]:::fhelper
-        0_frame["frame()"]:::fhelper
-        0_stream["stream()"]:::fhelper
-        0_frontend["frontend()"]:::fhelper
-        0_r0["GET /api/agent/:id/stream"]:::froute
-        0_r1["POST /api/agent/:id/send"]:::froute
-        0_r2["POST /api/agent/:id/compact"]:::froute
-        0_r3["POST /api/agent/:id/stop"]:::froute
-        0_r4["POST /api/agent/:id/configure"]:::froute
-        0_r5["GET /api/extensions"]:::froute
-        0_r6["GET /api/extensions/inspect"]:::froute
-        0_r7["GET /api/extensions/:name/frontend.js"]:::froute
-        0_r8["POST /api/op/:name"]:::froute
+graph LR
+    subgraph c0["① 发消息"]
+        c0_in["POST /api/agent/:id/send"]:::froute
+        c0_send["Agents.send"]:::fagents
+        c0_idle["idle（409 锁）"]:::fagents
+        c0_open["Agents.open"]:::fagents
+        c0_launch["launch"]:::fagents
+        c0_run["Stream.emit(run)"]:::fstream
+        c0_core["agent-core 循环"]:::fcore
+        c0_cb["Agents.callbacks"]:::fagents
+        c0_save["Store.appendHistory"]:::fstore
+        c0_add["Stream.add"]:::fstream
+        c0_sse["浏览器（SSE）"]:::fweb
     end
-    subgraph s1["backend/features/Agents.js"]
-        1_setup["setup()"]:::fbackend
-        1_all["all()"]:::fbackend
-        1_open["open()"]:::fbackend
-        1_done["done()"]:::fbackend
-        1_running["running()"]:::fbackend
-        1_snapshot["snapshot()"]:::fbackend
-        1_callbacks["callbacks()"]:::fbackend
-        1_send["send()"]:::fbackend
-        1_compact["compact()"]:::fbackend
-        1_stop["stop()"]:::fbackend
-        1_configure["configure()"]:::fbackend
-        1_cut["cut()"]:::fbackend
-        1_drop["drop()"]:::fbackend
-        1_remove["remove()"]:::fbackend
-        1_busy["busy()"]:::fhelper
-        1_idle["idle()"]:::fhelper
-        1_options["options()"]:::fhelper
-        1_launch["launch()"]:::fhelper
+    subgraph c1["② 连接与刷新"]
+        c1_in["GET /api/agent/:id/stream"]:::froute
+        c1_open["Agents.open"]:::fagents
+        c1_sub["Stream.subscribe"]:::fstream
+        c1_snap["Agents.snapshot"]:::fagents
+        c1_sse["浏览器（snapshot 首帧）"]:::fweb
+        c1_core["agent-core 事件"]:::fcore
+        c1_add["Stream.add"]:::fstream
+        c1_emit["Stream.emit"]:::fstream
+        c1_sse2["浏览器（core 事件）"]:::fweb
     end
-    subgraph s2["backend/features/Stream.js"]
-        2_subscribe["subscribe()"]:::fbackend
-        2_emit["emit()"]:::fbackend
-        2_add["add()"]:::fbackend
-        2_tail["tail()"]:::fbackend
-        2_retryDeadline["retryDeadline()"]:::fbackend
-        2_clear["clear()"]:::fbackend
-        2_slot["slot()"]:::fhelper
-        2_merge["merge()"]:::fhelper
+    subgraph c2["③ 扩展加载"]
+        c2_wire["wire()"]:::fserver
+        c2_hook["Loader.hook"]:::floader
+        c2_start["Loader.start"]:::floader
+        c2_scan["scan（扫描目录）"]:::floader
+        c2_sort["sort（拓扑排序）"]:::floader
+        c2_weave["weave（执行 backend.js）"]:::floader
+        c2_scope["Extension.scope（ctx）"]:::fextension
     end
-    subgraph s3["backend/features/Models.js"]
-        3_list["list()"]:::fbackend
-        3_resolve["resolve()"]:::fbackend
+    subgraph c3["④ 动作调用"]
+        c3_in["POST /api/op/:name"]:::froute
+        c3_invoke["Extension.invoke"]:::fextension
+        c3_handler["扩展 handler"]:::fextension
+        c3_store["Store.config"]:::fstore
+        c3_out["json 响应"]:::fserver
     end
-    subgraph s4["backend/features/Store.js"]
-        4_config["config()"]:::store
-        4_configure["configure()"]:::store
-        4_ensure["ensure()"]:::store
-        4_meta["meta()"]:::store
-        4_touch["touch()"]:::store
-        4_history["history()"]:::store
-        4_appendHistory["appendHistory()"]:::store
-        4_rewriteHistory["rewriteHistory()"]:::store
-        4_list["list()"]:::store
-        4_remove["remove()"]:::store
-        4_home["home()"]:::fhelper
-        4_dir["dir()"]:::fhelper
-        4_enqueue["enqueue()"]:::fhelper
-        4_read["read()"]:::fhelper
-        4_write["write()"]:::fhelper
-    end
-    subgraph s5["backend/features/Extension.js"]
-        5_patch["patch()"]:::fbackend
-        5_scope["scope()"]:::fbackend
-        5_invoke["invoke()"]:::fbackend
-        5_paths["paths()"]:::fbackend
-        5_inspect["inspect()"]:::fbackend
-        5_revert["revert()"]:::fbackend
-        5_mark["mark()"]:::fhelper
-        5_restack["restack()"]:::fhelper
-        5_track["track()"]:::fhelper
-    end
-    subgraph s6["backend/features/Loader.js"]
-        6_hook["hook()"]:::fbackend
-        6_roots["roots()"]:::fbackend
-        6_scan["scan()"]:::fbackend
-        6_list["list()"]:::fbackend
-        6_entries["entries()"]:::fbackend
-        6_inspect["inspect()"]:::fbackend
-        6_start["start()"]:::fbackend
-        6_stop["stop()"]:::fbackend
-        6_bundle["bundle()"]:::fbackend
-        6_toggle["toggle()"]:::fbackend
-        6_reset["reset()"]:::fbackend
-        6_exists["exists()"]:::fhelper
-        6_scanh["scan′()"]:::fhelper
-        6_compatible["compatible()"]:::fhelper
-        6_sort["sort()"]:::fhelper
-        6_hooks["hooks()"]:::fhelper
-        6_weave["weave()"]:::fhelper
-    end
-    subgraph s7["backend/features/Bundle.js"]
-        7_forget["forget()"]:::fbackend
-        7_pack["pack()"]:::fbackend
-        7_mtime["mtime()"]:::fhelper
-        7_fallbackPlugin["fallbackPlugin()"]:::fhelper
-        7_vuePlugin["vuePlugin()"]:::fhelper
-        7_rewrite["rewrite()"]:::fhelper
-    end
-    core["<b>agent-core</b>（唯一循环，内部不可见）"]:::fcore
-    0_wire --> 1_setup
-    0_wire --> 5_paths
-    0_wire --> 6_hook
-    0_wire --> 2_emit
-    0_wire --> 1_all
-    0_create --> 0_wire
-    0_fail --> 0_json
-    0_stream --> 1_open
-    0_stream --> 2_subscribe
-    0_stream --> 1_snapshot
-    0_stream --> 0_frame
-    0_frontend --> 6_bundle
-    0_frontend --> 0_json
-    0_r0 --> 0_stream
-    0_r1 --> 1_send
-    0_r1 --> 0_read
-    0_r1 --> 0_json
-    0_r1 --> 0_fail
-    0_r2 --> 1_compact
-    0_r2 --> 0_json
-    0_r2 --> 0_fail
-    0_r3 --> 1_stop
-    0_r3 --> 0_json
-    0_r3 --> 0_fail
-    0_r4 --> 1_configure
-    0_r4 --> 0_json
-    0_r4 --> 0_read
-    0_r4 --> 0_fail
-    0_r5 --> 6_entries
-    0_r5 --> 0_json
-    0_r6 --> 6_inspect
-    0_r6 --> 0_json
-    0_r7 --> 0_frontend
-    0_r8 --> 5_invoke
-    0_r8 --> 0_json
-    0_r8 --> 0_read
-    0_r8 --> 0_fail
-    1_open --> 4_ensure
-    1_open --> 4_config
-    1_open --> 4_meta
-    1_open --> 4_history
-    1_open == create ==> core
-    1_open --> 1_options
-    1_snapshot --> 2_tail
-    1_snapshot --> 1_running
-    1_snapshot --> 2_retryDeadline
-    1_callbacks --> 4_appendHistory
-    1_callbacks --> 4_touch
-    1_callbacks --> 2_add
-    1_send --> 1_open
-    1_send --> 1_cut
-    1_send --> 1_callbacks
-    1_send == send ==> core
-    1_send --> 1_idle
-    1_send --> 1_launch
-    1_compact --> 1_callbacks
-    1_compact == compact ==> core
-    1_compact --> 1_idle
-    1_compact --> 1_launch
-    1_stop --> 1_open
-    1_stop --> 1_done
-    1_stop == stop ==> core
-    1_configure --> 1_open
-    1_configure --> 4_config
-    1_configure --> 4_touch
-    1_configure --> 3_list
-    1_configure --> 3_resolve
-    1_cut --> 1_open
-    1_cut --> 2_clear
-    1_cut --> 4_rewriteHistory
-    1_cut --> 2_emit
-    1_cut --> 1_idle
-    1_drop --> 2_clear
-    1_remove --> 1_drop
-    1_remove --> 4_remove
-    1_remove == stop ==> core
-    1_remove --> 1_busy
-    1_idle --> 1_busy
-    1_options --> 3_list
-    1_options --> 3_resolve
-    1_launch --> 1_open
-    1_launch --> 2_emit
-    2_add --> 2_emit
-    2_add --> 2_slot
-    2_add --> 2_merge
-    2_tail --> 2_slot
-    2_retryDeadline --> 2_slot
-    4_config --> 4_home
-    4_config --> 4_read
-    4_config --> 4_write
-    4_configure --> 4_write
-    4_configure --> 4_home
-    4_ensure --> 4_dir
-    4_meta --> 4_read
-    4_meta --> 4_dir
-    4_touch --> 4_ensure
-    4_touch --> 4_meta
-    4_touch --> 4_enqueue
-    4_touch --> 4_write
-    4_touch --> 4_dir
-    4_history --> 4_dir
-    4_appendHistory --> 4_ensure
-    4_appendHistory --> 4_enqueue
-    4_appendHistory --> 4_dir
-    4_rewriteHistory --> 4_ensure
-    4_rewriteHistory --> 4_enqueue
-    4_rewriteHistory --> 4_dir
-    4_list --> 4_home
-    4_remove --> 4_enqueue
-    4_remove --> 4_dir
-    4_dir --> 4_home
-    5_patch --> 5_restack
-    5_patch --> 5_track
-    5_scope --> 5_patch
-    5_scope --> 5_track
-    5_restack --> 5_mark
-    6_scan --> 6_scanh
-    6_entries --> 6_list
-    6_inspect --> 5_inspect
-    6_inspect --> 6_list
-    6_start --> 6_stop
-    6_start --> 4_config
-    6_start --> 6_scan
-    6_start --> 6_roots
-    6_start --> 5_revert
-    6_start --> 6_list
-    6_start --> 6_compatible
-    6_start --> 6_sort
-    6_start --> 6_weave
-    6_stop --> 5_revert
-    6_stop --> 7_forget
-    6_bundle --> 7_pack
-    6_toggle --> 4_config
-    6_toggle --> 4_configure
-    6_toggle --> 6_start
-    6_reset --> 5_revert
-    6_reset --> 7_forget
-    6_scanh --> 6_exists
-    6_weave --> 5_scope
-    6_weave --> 6_exists
-    6_weave --> 6_hooks
-    7_pack --> 7_mtime
-    7_pack --> 7_vuePlugin
-    7_pack --> 7_fallbackPlugin
-    7_pack --> 7_rewrite
-    classDef fbackend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
-    classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e
-    classDef fhelper fill:#f4f6f9,stroke:#c3ccd8,color:#8593a6,font-style:italic
-    classDef froute fill:#fff3e0,stroke:#e0a458,color:#8a5a1a
+    c0_in --> c0_send
+    c0_send --> c0_idle
+    c0_idle --> c0_open
+    c0_open --> c0_launch
+    c0_launch --> c0_run
+    c0_run --> c0_core
+    c0_core ==> c0_cb
+    c0_cb --> c0_save
+    c0_save --> c0_add
+    c0_add --> c0_sse
+    c1_in --> c1_open
+    c1_open --> c1_sub
+    c1_sub --> c1_snap
+    c1_snap --> c1_sse
+    c1_core ==> c1_add
+    c1_add --> c1_emit
+    c1_emit --> c1_sse2
+    c2_wire --> c2_hook
+    c2_hook --> c2_start
+    c2_start --> c2_scan
+    c2_scan --> c2_sort
+    c2_sort --> c2_weave
+    c2_weave --> c2_scope
+    c3_in --> c3_invoke
+    c3_invoke --> c3_handler
+    c3_handler --> c3_store
+    c3_store --> c3_out
+    classDef fserver fill:#fff3e0,stroke:#e0a458,color:#8a5a1a
+    classDef fagents fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
+    classDef fstream fill:#e0f2f1,stroke:#6db3a8,color:#1d5c50
+    classDef fmodels fill:#f3e8fe,stroke:#b48ee0,color:#4a2c7c
+    classDef fstore fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e
+    classDef fextension fill:#f4edfb,stroke:#a98bc4,color:#5b3d80
+    classDef floader fill:#ede7f6,stroke:#9575cd,color:#3e2c63
     classDef fcore fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
+    classDef fweb fill:#e9f7ee,stroke:#7cbf95,color:#2c5c3d
+    classDef froute fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1,font-weight:bold
 ```
 
 ## 三、web
