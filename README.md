@@ -104,7 +104,7 @@ cd backend && RUN_REAL=1 bun test tests/real.send.test.js
 
 ## 约定
 
-改代码前看 [`AGENTS.md`](AGENTS.md) 和 [`NOTES.md`](NOTES.md)。macOS 安装步骤见 [docs/MACOS.md](docs/MACOS.md)。
+改代码前看 [`AGENTS.md`](AGENTS.md) 和 [`NOTES.md`](NOTES.md)。架构总览看自动生成的 [`docs/architecture.md`](docs/architecture.md)（`bun tools/architecture.js` 重新生成，`--check` 做架构规则检查）。macOS 安装步骤见 [docs/MACOS.md](docs/MACOS.md)。
 
 ## 许可证
 

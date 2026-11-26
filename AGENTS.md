@@ -11,7 +11,7 @@ web/src/                   api.ts、Agent.ts、Extension.ts、App.vue、componen
 extensions/<name>/         manifest.json、backend.js、可选 frontend/index.js 和工具文件
 ```
 
-导入只往下走：`server.js → Agents / Stream / Loader → Extension / Models → Store → agent-core`。同层不互相 import。方法写成 `Name.verb`。
+导入只往下走：`server.js → Agents / Stream / Loader → Extension / Models → Store → agent-core`。同层不互相 import。方法写成 `Name.verb`。这张层级规矩由 `tools/architecture.js --check` 机器把关，图见 `docs/architecture.md`。
 
 ## 提交与版本
 
