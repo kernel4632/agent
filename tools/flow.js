@@ -270,7 +270,7 @@ const CHAINS = [
             { id: 'state', label: 'Agent.state（唯一真相源，响应式）', file: 'web/src/Agent.ts', core: true, desc: true },
             { id: 'group', label: 'History.group（纯函数：历史 → 显示条目）', file: 'web/src/components/History.vue', desc: true },
             { id: 'dispatch', label: 'History.vue 按 kind 分发', file: 'web/src/components/History.vue' },
-            { id: 'view', label: 'UserMessage / Process（含 RequestStatus、Thinking、ToolCall） / AssistantMessage / ErrorMessage（含「继续」→ Agent.continue）', file: 'web' },
+            { id: 'view', label: '按 kind 分发<br/>UserMessage · Process · AssistantMessage · ErrorMessage<br/>「继续」钮 → Agent.continue', file: 'web' },
         ],
         edges: [
             { from: 'sse', to: 'which' },
@@ -389,6 +389,23 @@ function validate(chains, exports) {
     return problems
 }
 
+// 标签整形：mermaid 节点宽度约 12 全角字符一行（中文 1、英文 0.5），超长截断。
+// 「主名（说明）」拆成两行；长行按显示宽度在空格 / 斜杠处软折。
+function foldLabel(label) {
+    const width = text => [...text].reduce((sum, ch) => sum + (ch.charCodeAt(0) > 0xff ? 1 : 0.5), 0)
+    const m = label.match(/^(.{2,16})（(.*)）$/)
+    if (m) return `${m[1]}<br/>${m[2]}`
+    if (width(label) <= 12) return label
+    const parts = []
+    let line = ''
+    for (const ch of label) {
+        line += ch
+        if (width(line) >= 11 && /[ /·]/.test(ch)) { parts.push(line.trim()); line = '' }
+    }
+    if (line.trim()) parts.push(line.trim())
+    return parts.join('<br/>')
+}
+
 // 渲染：graph LR，一条路由一个 subgraph（九组并排，组间零连线）。
 // 分支节点画菱形（check），错误路径红字斜体（bad），core 用粗线。
 // filter 为空画全部链路；传 'backend' 只画 backend 九条，'web' 只画 web 三条。
@@ -403,7 +420,7 @@ export async function renderChains(filter = '') {
         lines.push(`    subgraph ${tag}["${chain.title}"]`)
         for (const step of chain.nodes) {
             const style = step.route ? 'froute' : step.check ? 'fcheck' : step.bad ? 'fbad' : FILE_STYLE[step.file] ?? 'fcore'
-            const shape = step.check ? `{"${step.label}"}` : `["${step.label}"]`
+            const shape = step.check ? `{"${step.label}"}` : `["${foldLabel(step.label)}"]`
             lines.push(`        ${tag}_${step.id}${shape}:::${style}`)
         }
         lines.push('    end')

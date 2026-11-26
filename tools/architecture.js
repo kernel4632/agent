@@ -21,12 +21,22 @@ function label(path) {
     return short || path
 }
 
-// 节点内嵌的函数清单（导出非 default 的名字，最多 8 个，多了说明文件该拆了——本身就是信号）。
+// 节点内嵌的函数清单：导出非 default 的名字，最多 8 个，按显示宽度折行
+// （mermaid 节点宽度约 12 个全角字符；中文计 1、英文数字计 0.5）。
 function member(path) {
     const names = nodes.get(path)?.exports ?? []
     if (!names.length) return ''
-    const shown = names.slice(0, 8).map(name => `${name}()`).join('  ')
-    return names.length > 8 ? `${shown} +${names.length - 8}` : shown
+    const shown = names.slice(0, 8).map(name => `${name}()`)
+    if (names.length > 8) shown.push(`+${names.length - 8}`)
+    const width = text => [...text].reduce((sum, ch) => sum + (ch.charCodeAt(0) > 0xff ? 1 : 0.5), 0)
+    const rows = []
+    let line = ''
+    for (const one of shown) {
+        if (line && width(line + ' ' + one) > 22) { rows.push(line); line = one }
+        else line = line ? `${line} ${one}` : one
+    }
+    if (line) rows.push(line)
+    return rows.join('<br/>')
 }
 
 function nodeId(path) {
