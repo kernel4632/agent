@@ -124,10 +124,12 @@ ${legend}
 ${macro}
 \`\`\`
 
-## 二、backend：四条运行链路
+## 二、backend：九条 API 链路
 
-一个组 = 一条链路（发消息 / 连接与刷新 / 扩展加载 / 动作调用），组内从左到右就是执行顺序，**粗线 ⇒ 交给 agent-core**（唯一循环）。
-节点按文件着色（server 橙 / Agents 蓝 / Stream 青 / Store 藏蓝 / Extension 紫 / Loader 淡紫 / core 灰 / 浏览器 绿）。
+每条 HTTP 路由一个组（九组并排，组间零连线）。**菱形节点 = 条件分支**（边上标「是/否」）；
+**红字斜体 = 错误 / 拒绝路径**（409 / 400 / 404）；**粗线 ⇒ 交给 agent-core**（唯一循环）。
+节点按文件着色（server 橙 / Agents 蓝 / Stream 青 / Models 紫 / Store 藏蓝 / Extension 紫 / Loader 淡紫 / Bundle 沙金 / core 灰 / 浏览器 绿）。
+HTTP 信封（json / fail / read）所有路由等价使用，与运行路径无关，不画。
 链路声明在 \`tools/flow.js\`，引用的函数与源码扫描比对——改名或删函数会直接报错，图不会悄悄过期。
 
 \`\`\`mermaid

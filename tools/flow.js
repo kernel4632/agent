@@ -1,9 +1,10 @@
 /*
-图二的数据面 + 渲染：backend 链路图。
-subgraph 不是文件而是「一条链路」（发消息 / 连接与刷新 / 扩展加载 / 动作调用），组间零连线，并排展示。
-节点按文件着色（八色），一眼看出执行顺序和文件归属。
-链路的步骤序列在这里声明，但引用的每个函数必须真实存在于对源码的扫描结果里——
+图二的数据面 + 渲染：backend 全链路图。
+每条 HTTP 路由一个 subgraph（九组并排，组间零连线），组内是真实的分支结构：
+条件分支用菱形节点 + 分支条件标注，错误/拒绝路径用红字，core 回调的扇出如实画。
+链路的节点声明在这里，但引用的每个函数必须真实存在于源码扫描结果里——
 改名、删函数会让生成直接报错，图不可能悄悄过期。
+HTTP 信封（json/fail/read/frame）与运行路径无关，不画（每条路由等价地使用它们）。
 */
 
 import { KEYWORDS } from './slice.js'
@@ -20,6 +21,7 @@ const FILE_STYLE = {
     'backend/features/Store.js': 'fstore',
     'backend/features/Extension.js': 'fextension',
     'backend/features/Loader.js': 'floader',
+    'backend/features/Bundle.js': 'fbundle',
     [CORE]: 'fcore',
     'web': 'fweb',
 }
@@ -32,94 +34,230 @@ const STYLE = {
     fstore: 'fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e',
     fextension: 'fill:#f4edfb,stroke:#a98bc4,color:#5b3d80',
     floader: 'fill:#ede7f6,stroke:#9575cd,color:#3e2c63',
+    fbundle: 'fill:#fdf0e7,stroke:#d4a76a,color:#6b4a1f',
     fcore: 'fill:#eef1f5,stroke:#9aa7b8,color:#5a6572',
     fweb: 'fill:#e9f7ee,stroke:#7cbf95,color:#2c5c3d',
     froute: 'fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1,font-weight:bold',
+    fcheck: 'fill:#fff8e1,stroke:#e0c240,color:#7a6410',
+    fbad: 'fill:#fdecea,stroke:#e57373,color:#8f1f1f,font-style:italic',
 }
 
 /*
-链路表：每条 { title, steps: [{ id, label, file, core? }] }。
-steps 顺次相连成主链；分叉用 extra: [{ from, to }]（from/to 是步骤 id）。
-core 边用粗线（交给 agent-core 的循环）；「回调」语义也用粗线表达。
+链路表：{ title, nodes: [{ id, label, file, core?, route?, check? }], edges: [{ from, to, label?, core?, bad? }] }。
+- route 节点是 HTTP 入口；check 节点画成菱形（条件分支）；bad 边/节点是错误/拒绝路径
+- nodes 里不含 web/core 的都要过源码校验；edges 独立声明（不再隐式连主链，分支结构完全显式）
 */
 
 const CHAINS = [
     {
-        title: '① 发消息',
-        steps: [
-            { id: 'in', label: 'POST /api/agent/:id/send', file: 'backend/server.js' },
+        title: '① POST /send —— 发消息',
+        nodes: [
+            { id: 'in', label: 'POST /api/agent/:id/send', file: 'backend/server.js', route: true },
             { id: 'send', label: 'Agents.send', file: 'backend/features/Agents.js' },
-            { id: 'idle', label: 'idle（409 锁）', file: 'backend/features/Agents.js' },
+            { id: 'idle', label: '在运行中？', file: 'backend/features/Agents.js', check: true },
+            { id: 'lock', label: '409 正在运行', file: 'backend/features/Agents.js', bad: true },
+            { id: 'fault', label: '配置缺失？', file: 'backend/features/Agents.js', check: true },
+            { id: 'refuse', label: '400 说明原因', file: 'backend/features/Agents.js', bad: true },
+            { id: 'cut', label: '带 cut（改写重发）？', file: 'backend/features/Agents.js', check: true },
+            { id: 'docut', label: 'Agents.cut', file: 'backend/features/Agents.js' },
+            { id: 'rewrite', label: 'Store.rewriteHistory', file: 'backend/features/Store.js' },
             { id: 'open', label: 'Agents.open', file: 'backend/features/Agents.js' },
+            { id: 'read', label: 'Store.config / meta / history', file: 'backend/features/Store.js' },
             { id: 'launch', label: 'launch', file: 'backend/features/Agents.js' },
-            { id: 'run', label: 'Stream.emit(run)', file: 'backend/features/Stream.js' },
+            { id: 'run', label: 'Stream.emit(run start)', file: 'backend/features/Stream.js' },
             { id: 'core', label: 'agent-core 循环', file: CORE, core: true },
             { id: 'cb', label: 'Agents.callbacks', file: 'backend/features/Agents.js' },
-            { id: 'save', label: 'Store.appendHistory', file: 'backend/features/Store.js' },
+            { id: 'save', label: 'Store.appendHistory（message）', file: 'backend/features/Store.js' },
+            { id: 'touch', label: 'Store.touch（step）', file: 'backend/features/Store.js' },
             { id: 'add', label: 'Stream.add', file: 'backend/features/Stream.js' },
             { id: 'sse', label: '浏览器（SSE）', file: 'web' },
         ],
+        edges: [
+            { from: 'in', to: 'send' },
+            { from: 'send', to: 'idle' },
+            { from: 'idle', to: 'lock', label: '是', bad: true },
+            { from: 'idle', to: 'fault', label: '否' },
+            { from: 'fault', to: 'refuse', label: '是', bad: true },
+            { from: 'fault', to: 'cut', label: '否' },
+            { from: 'cut', to: 'docut', label: '是' },
+            { from: 'cut', to: 'open', label: '否' },
+            { from: 'docut', to: 'rewrite' },
+            { from: 'rewrite', to: 'open' },
+            { from: 'open', to: 'read' },
+            { from: 'read', to: 'launch' },
+            { from: 'launch', to: 'run' },
+            { from: 'run', to: 'core' },
+            { from: 'core', to: 'cb', core: true },
+            { from: 'cb', to: 'save', label: 'message' },
+            { from: 'cb', to: 'touch', label: 'step' },
+            { from: 'cb', to: 'add', label: '每事件' },
+            { from: 'add', to: 'sse' },
+        ],
     },
     {
-        title: '② 连接与刷新',
-        steps: [
-            { id: 'in', label: 'GET /api/agent/:id/stream', file: 'backend/server.js' },
+        title: '② GET /stream —— 连接与刷新',
+        nodes: [
+            { id: 'in', label: 'GET /api/agent/:id/stream', file: 'backend/server.js', route: true },
             { id: 'open', label: 'Agents.open', file: 'backend/features/Agents.js' },
             { id: 'sub', label: 'Stream.subscribe', file: 'backend/features/Stream.js' },
             { id: 'snap', label: 'Agents.snapshot', file: 'backend/features/Agents.js' },
+            { id: 'tail', label: 'Stream.tail（合并后的尾巴）', file: 'backend/features/Stream.js' },
+            { id: 'retry', label: 'Stream.retryDeadline', file: 'backend/features/Stream.js' },
             { id: 'sse', label: '浏览器（snapshot 首帧）', file: 'web' },
-        ],
-        floating: [
             { id: 'core', label: 'agent-core 事件', file: CORE, core: true },
             { id: 'add', label: 'Stream.add', file: 'backend/features/Stream.js' },
             { id: 'emit', label: 'Stream.emit', file: 'backend/features/Stream.js' },
             { id: 'sse2', label: '浏览器（core 事件）', file: 'web' },
         ],
-        extra: [
-            { from: 'core', to: 'add' },
+        edges: [
+            { from: 'in', to: 'open' },
+            { from: 'open', to: 'sub' },
+            { from: 'sub', to: 'snap' },
+            { from: 'snap', to: 'tail', label: '含尾巴' },
+            { from: 'snap', to: 'retry', label: '含重试' },
+            { from: 'tail', to: 'sse' },
+            { from: 'retry', to: 'sse' },
+            { from: 'core', to: 'add', core: true },
             { from: 'add', to: 'emit' },
             { from: 'emit', to: 'sse2' },
         ],
     },
     {
-        title: '③ 扩展加载',
-        steps: [
-            { id: 'wire', label: 'wire()', file: 'backend/server.js' },
-            { id: 'hook', label: 'Loader.hook', file: 'backend/features/Loader.js' },
-            { id: 'start', label: 'Loader.start', file: 'backend/features/Loader.js' },
-            { id: 'scan', label: 'scan（扫描目录）', file: 'backend/features/Loader.js' },
-            { id: 'sort', label: 'sort（拓扑排序）', file: 'backend/features/Loader.js' },
-            { id: 'weave', label: 'weave（执行 backend.js）', file: 'backend/features/Loader.js' },
-            { id: 'scope', label: 'Extension.scope（ctx）', file: 'backend/features/Extension.js' },
+        title: '③ POST /compact —— 手动压缩',
+        nodes: [
+            { id: 'in', label: 'POST /api/agent/:id/compact', file: 'backend/server.js', route: true },
+            { id: 'compact', label: 'Agents.compact', file: 'backend/features/Agents.js' },
+            { id: 'idle', label: '在运行中？', file: 'backend/features/Agents.js', check: true },
+            { id: 'lock', label: '409 正在运行', file: 'backend/features/Agents.js', bad: true },
+            { id: 'launch', label: 'launch', file: 'backend/features/Agents.js' },
+            { id: 'run', label: 'Stream.emit(run start)', file: 'backend/features/Stream.js' },
+            { id: 'core', label: 'agent-core（compact 循环）', file: CORE, core: true },
+            { id: 'cb', label: 'Agents.callbacks', file: 'backend/features/Agents.js' },
+            { id: 'save', label: 'Store.appendHistory（总结消息）', file: 'backend/features/Store.js' },
+            { id: 'end', label: 'run end（历史变短）', file: 'web' },
+        ],
+        edges: [
+            { from: 'in', to: 'compact' },
+            { from: 'compact', to: 'idle' },
+            { from: 'idle', to: 'lock', label: '是', bad: true },
+            { from: 'idle', to: 'launch', label: '否' },
+            { from: 'launch', to: 'run' },
+            { from: 'run', to: 'core' },
+            { from: 'core', to: 'cb', core: true },
+            { from: 'cb', to: 'save' },
+            { from: 'save', to: 'end' },
         ],
     },
     {
-        title: '④ 动作调用',
-        steps: [
-            { id: 'in', label: 'POST /api/op/:name', file: 'backend/server.js' },
+        title: '④ POST /stop —— 停止',
+        nodes: [
+            { id: 'in', label: 'POST /api/agent/:id/stop', file: 'backend/server.js', route: true },
+            { id: 'stop', label: 'Agents.stop', file: 'backend/features/Agents.js' },
+            { id: 'core', label: 'agent-core（中止信号）', file: CORE, core: true },
+            { id: 'wait', label: 'Agents.done（等任务收尾）', file: 'backend/features/Agents.js' },
+            { id: 'run', label: 'run stopped', file: 'web' },
+        ],
+        edges: [
+            { from: 'in', to: 'stop' },
+            { from: 'stop', to: 'core', core: true },
+            { from: 'core', to: 'wait', core: true },
+            { from: 'wait', to: 'run' },
+        ],
+    },
+    {
+        title: '⑤ POST /configure —— 换模型 / 思考强度',
+        nodes: [
+            { id: 'in', label: 'POST /api/agent/:id/configure', file: 'backend/server.js', route: true },
+            { id: 'configure', label: 'Agents.configure', file: 'backend/features/Agents.js' },
+            { id: 'touch', label: 'Store.touch（写 meta）', file: 'backend/features/Store.js' },
+            { id: 'resolve', label: 'Models.resolve', file: 'backend/features/Models.js' },
+            { id: 'hot', label: '热替换 agent.config', file: 'backend/features/Agents.js', desc: true },
+            { id: 'out', label: '返回新 model / effort', file: 'backend/server.js' },
+        ],
+        edges: [
+            { from: 'in', to: 'configure' },
+            { from: 'configure', to: 'touch' },
+            { from: 'touch', to: 'resolve' },
+            { from: 'resolve', to: 'hot' },
+            { from: 'hot', to: 'out' },
+        ],
+    },
+    {
+        title: '⑥ GET /extensions —— 前端入口列表',
+        nodes: [
+            { id: 'in', label: 'GET /api/extensions', file: 'backend/server.js', route: true },
+            { id: 'entries', label: 'Loader.entries', file: 'backend/features/Loader.js' },
+            { id: 'out', label: '已加载扩展的 frontend.js 地址', file: 'web' },
+        ],
+        edges: [
+            { from: 'in', to: 'entries' },
+            { from: 'entries', to: 'out' },
+        ],
+    },
+    {
+        title: '⑦ GET /extensions/inspect —— 加载状态',
+        nodes: [
+            { id: 'in', label: 'GET /api/extensions/inspect', file: 'backend/server.js', route: true },
+            { id: 'inspect', label: 'Loader.inspect', file: 'backend/features/Loader.js' },
+            { id: 'chain', label: 'Extension.inspect（patch 链 / 动作表）', file: 'backend/features/Extension.js' },
+            { id: 'out', label: '加载状态 + 冲突可见', file: 'web' },
+        ],
+        edges: [
+            { from: 'in', to: 'inspect' },
+            { from: 'inspect', to: 'chain' },
+            { from: 'chain', to: 'out' },
+        ],
+    },
+    {
+        title: '⑧ GET /extensions/:name/frontend.js —— 扩展前端',
+        nodes: [
+            { id: 'in', label: 'GET /api/extensions/:name/frontend.js', file: 'backend/server.js', route: true },
+            { id: 'frontend', label: 'frontend()', file: 'backend/server.js' },
+            { id: 'bundle', label: 'Loader.bundle', file: 'backend/features/Loader.js' },
+            { id: 'pack', label: 'Bundle.pack（mtime 缓存，改 .vue 重打）', file: 'backend/features/Bundle.js' },
+            { id: 'out', label: 'ESM 前端包（vue 外部化）', file: 'web' },
+        ],
+        edges: [
+            { from: 'in', to: 'frontend' },
+            { from: 'frontend', to: 'bundle' },
+            { from: 'bundle', to: 'pack' },
+            { from: 'pack', to: 'out' },
+        ],
+    },
+    {
+        title: '⑨ POST /op/:name —— 扩展动作',
+        nodes: [
+            { id: 'in', label: 'POST /api/op/:name', file: 'backend/server.js', route: true },
             { id: 'invoke', label: 'Extension.invoke', file: 'backend/features/Extension.js' },
+            { id: 'miss', label: '404 没有这个动作', file: 'backend/features/Extension.js', bad: true },
             { id: 'handler', label: '扩展 handler', file: 'backend/features/Extension.js' },
-            { id: 'store', label: 'Store.config', file: 'backend/features/Store.js' },
+            { id: 'data', label: '各自动的（Store / Agents / Loader …）', file: 'backend/features/Store.js' },
             { id: 'out', label: 'json 响应', file: 'backend/server.js' },
+        ],
+        edges: [
+            { from: 'in', to: 'invoke' },
+            { from: 'invoke', to: 'miss', label: '未登记', bad: true },
+            { from: 'invoke', to: 'handler', label: '已登记' },
+            { from: 'handler', to: 'data' },
+            { from: 'data', to: 'out' },
         ],
     },
 ]
 
 /*
-校验：链路里声明的每个函数节点都要能在源码扫描结果里找到同名公开成员。
-node 名取 label 里的「最后一个 . 或空格 前的函数名」；文件必须存在。
-找不到就抛错——图不可能悄悄过期。
+校验：链路里声明的每个函数节点都要能在源码扫描里找到。
+nameOf 从 label 提取「最后一个 . 或空格 前的函数名」；描述性节点（如 409）跳过。
 */
 
-// 从 label 提取被校验的函数名：'Store.appendHistory' → 'appendHistory'；'wire()' → 'wire'。
+// 'Store.appendHistory（message）' → 'appendHistory'；'wire()' → 'wire'；'在运行中？' → ''（跳过）
 function nameOf(step) {
-    const text = step.label.split('（')[0].replace(/\(\)$/, '').trim()
-    const hit = text.match(/(?:\.|^)\s*([A-Za-z_$][\w$]*)$/)
+    const text = step.label.split('（')[0].split('（')[0].split('?')[0].replace(/\(.*$/, '').trim()
+    const hit = text.match(/(?:\.|^)\s*([A-Za-z_$][\w$]*)\s*$/)
     return hit ? hit[1] : ''
 }
 
 async function scanExports() {
-    const found = new Map()        // path -> Set(公开成员名)
+    const found = new Map()        // path -> Set(公开成员 + 顶层函数名)
     const files = [
         'backend/server.js', 'backend/features/Agents.js', 'backend/features/Stream.js',
         'backend/features/Models.js', 'backend/features/Store.js', 'backend/features/Extension.js',
@@ -136,9 +274,9 @@ async function scanExports() {
                 const rest = code.slice(hit.index + hit[0].length)
                 let depth = 1, i = 0
                 while (i < rest.length && depth > 0) {
-                if (rest[i] === '{') depth++
-                else if (rest[i] === '}') depth--
-                i++
+                    if (rest[i] === '{') depth++
+                    else if (rest[i] === '}') depth--
+                    i++
                 }
                 for (const m of rest.slice(0, i).matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*\(/g)) {
                     if (!KEYWORDS.has(m[1])) names.add(m[1])
@@ -157,10 +295,11 @@ async function scanExports() {
 function validate(chains, exports) {
     const problems = []
     for (const chain of chains) {
-        for (const step of [...chain.steps, ...(chain.floating ?? [])]) {
+        for (const step of chain.nodes) {
             if (step.file === 'web' || step.file === CORE) continue        // 浏览器和 core 是端点，不校验
+            if (step.desc || step.check || step.bad || step.route) continue // 描述 / 分支问句 / 错误终点 / HTTP 地址
             const name = nameOf(step)
-            if (!name) continue                                           // 路由等描述性节点
+            if (!name) continue                                           // 路由地址等
             if (!exports.has(step.file)) { problems.push(`文件不存在：${step.file}（${step.label}）`); continue }
             if (!exports.get(step.file).has(name)) problems.push(`${step.file} 里没有 ${name}（${step.label}）——链路声明过期了`)
         }
@@ -168,7 +307,8 @@ function validate(chains, exports) {
     return problems
 }
 
-// 渲染：graph LR，一条链一个 subgraph（组间零连线，并排展示），主链顺次相连，extra 是分叉，core 粗线。
+// 渲染：graph LR，一条路由一个 subgraph（九组并排，组间零连线）。
+// 分支节点画菱形（check），错误路径红字斜体（bad），core 用粗线。
 export async function renderChains() {
     const exports = await scanExports()
     const problems = validate(CHAINS, exports)
@@ -177,28 +317,21 @@ export async function renderChains() {
     for (const [index, chain] of CHAINS.entries()) {
         const tag = `c${index}`
         lines.push(`    subgraph ${tag}["${chain.title}"]`)
-        for (const step of [...chain.steps, ...(chain.floating ?? [])]) {
-            const style = /^(POST|GET) /.test(step.label) ? 'froute' : FILE_STYLE[step.file] ?? 'fcore'
-            lines.push(`        ${tag}_${step.id}["${step.label}"]:::${style}`)
+        for (const step of chain.nodes) {
+            const style = step.route ? 'froute' : step.check ? 'fcheck' : step.bad ? 'fbad' : FILE_STYLE[step.file] ?? 'fcore'
+            const shape = step.check ? `{"${step.label}"}` : `["${step.label}"]`
+            lines.push(`        ${tag}_${step.id}${shape}:::${style}`)
         }
         lines.push('    end')
     }
     for (const [index, chain] of CHAINS.entries()) {
         const tag = `c${index}`
-        const stepOf = id => chain.steps.find(step => step.id === id) ?? (chain.floating ?? []).find(step => step.id === id)
-        const link = (from, to, isCore, label) => {
-            const arrow = isCore ? (label ? `== ${label} ==>` : '==>') : '-->'
-            lines.push(`    ${tag}_${from} ${arrow} ${tag}_${to}`)
-        }
-        for (let i = 1; i < chain.steps.length; i++) link(chain.steps[i - 1].id, chain.steps[i].id, Boolean(chain.steps[i - 1].core))
-        const drawn = new Set()
-        for (let i = 1; i < chain.steps.length; i++) drawn.add(`${chain.steps[i - 1].id}>${chain.steps[i].id}`)
-        for (const edge of chain.extra ?? []) {
-            const from = stepOf(edge.from)
-            if (from && stepOf(edge.to) && !drawn.has(`${edge.from}>${edge.to}`)) {
-                drawn.add(`${edge.from}>${edge.to}`)
-                link(edge.from, edge.to, Boolean(from.core), edge.label)
-            }
+        for (const edge of chain.edges) {
+            const label = (edge.label ?? '').replace(/[|=.]/g, '').trim()
+            // GitHub 渲染器不认竖线标签：实线 A -- 文字 --> B；粗线 A == 文字 ==> B（bad 语义写进标签文字）
+            const text = edge.bad && label ? `${label} ✗` : label
+            if (edge.core) lines.push(`    ${tag}_${edge.from} ${text ? `== ${text} ==>` : '==>'} ${tag}_${edge.to}`)
+            else lines.push(`    ${tag}_${edge.from} ${text ? `-- ${text} -->` : '-->'} ${tag}_${edge.to}`)
         }
     }
     for (const [name, style] of Object.entries(STYLE)) lines.push(`    classDef ${name} ${style}`)
