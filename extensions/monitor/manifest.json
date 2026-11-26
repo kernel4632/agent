@@ -1,7 +1,13 @@
 {
   "name": "监控唤醒",
   "description": "模型可登记后台条件，条件达成时自动注入通知并唤醒 agent 开辟新一轮回复",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "requires": [],
-  "backend": "backend.js"
+  "backend": "backend.js",
+  "cli": {
+    "commands": [
+      { "name": "monitors", "hint": "查看本会话挂载的后台监控", "usage": "[会话 ID]", "op": "monitor.list" },
+      { "name": "monitor-stop", "hint": "停掉后台监控", "usage": "编号|all [会话 ID]", "op": "monitor.stop" }
+    ]
+  }
 }

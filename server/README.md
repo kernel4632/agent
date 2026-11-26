@@ -49,7 +49,7 @@ Agent 循环来自 `@kernel4632/agent-core`（[仓库](https://github.com/kernel
 2. **当前目录**：只是会话的一个属性，没有边界。用户可以通过 `PATCH /session/settings/{sessionId}` 的 `cwd` 字段改，agent 可以用 `cwd` 工具自己改。
 3. **运行**：从发送消息开始，到结束或停止为止；过程通过 SSE 推送。
 4. **工具**：agent 改变外部世界的唯一方式，按类别放在 `tools/`。
-5. **扩展**：MCP、技能、子智能体、自动标题都是基座能力。
+5. **扩展**：`extensions/` 里的可插拔能力（MCP、技能、监控唤醒、任务清单），通过 `ctx.patch` / `ctx.op` 挂进框架，还能把命令声明挂到 CLI 的 `/` 菜单（见「扩展」一节）。
 
 ## 数据目录
 
@@ -252,6 +252,34 @@ description: 审查改动时用这个
 模型平时只看到技能清单，正文在调用 `skill` 工具时才读取。格式不对的文件直接跳过；一个技能都没有时 `skill` 工具不出现。
 
 技能清单由三处合并：本应用全局目录、会话当前目录的项目目录、设置页里启用的外部技能目录。同名时按“外部目录 → 本应用全局 → 项目目录”覆盖；单独禁用的技能不会出现在清单里。
+
+### 扩展
+
+扩展放在 `<项目根>/extensions/<名字>/` 或 `~/.agents/extensions/<名字>/`，一个文件夹一个扩展，`manifest.json` 声明身份和入口；同名时用户目录覆盖项目目录。后端在启动时扫描并启动它们，`Admin.OPS` 之外的能力都由扩展自己 `ctx.patch` / `ctx.op` 挂进来，拔出时逐条恢复。
+
+管理走管理总线，不占冻结路由：`extension.list`、`extension.toggle { name, enabled }`、`extension.reload { name }`。`extension.list` 返回的每一项带 `cli` 字段——manifest 里 `cli.commands` 的原样透传，每条声明一个「斜杠命令 → /admin 动作」：
+
+```json
+{
+  "cli": {
+    "commands": [
+      { "name": "monitors", "hint": "查看本会话挂载的后台监控", "usage": "[会话 ID]", "op": "monitor.list" },
+      { "name": "monitor-stop", "hint": "停掉后台监控", "usage": "编号|all [会话 ID]", "op": "monitor.stop", "input": "id" }
+    ]
+  }
+}
+```
+
+| 字段 | 作用 |
+| --- | --- |
+| `name` | 命令名。CLI 挂成 `/name`，`agent extensions call NAME` 也用它 |
+| `hint` / `usage` | 菜单里的一句说明 / 参数提示 |
+| `op` | 转发到 `POST /admin` 的动作名，必须是扩展自己 `ctx.op()` 挂上的 |
+| `args` | 固定请求体；用户传的同名字段覆盖它 |
+| `input` | 剩余参数整段放进这个字段（如 `monitor-stop m1` 的 `id`） |
+| `noSession` | true 时请求体不带 `sessionId`（清单类动作） |
+
+CLI（Go 客户端）不执行扩展代码，只按这份声明挂命令：`chat` 启动时把正在生效的扩展的命令并进 `/` 菜单，停用或重载后按新清单重建；`/extensions` 浮层和 `agent extensions list/toggle/reload/call` 做管理。声明里引用的 op 必须存在，`extension.list` 照实透传，执行时由 `/admin` 报错。
 
 ### 识别本机的 MCP 和技能
 
