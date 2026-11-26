@@ -124,14 +124,11 @@ const macro = render('TD', ['external:vue', 'external:@hugeicons', 'external:mar
     { title: 'extensions —— 内置九个（后端）', entries: ['ext-backends'] },
 ])
 
-// ---------- 图二：backend 四条运行链路（subgraph=链路、并排、主链顺连）----------
-const backDoc = back
+// ---------- 图二：backend 九条 API 链路 ----------
+const backDoc = await renderChains('backend')
 
-// ---------- 图三：web（状态层 / 展示层两个 subgraph；demo、dev 工具、类型声明不画；vue 零信息量不画）----------
-const webDoc = render('TD', ['external:markstream-vue', 'external:highlight.js'], [
-    { title: '状态层 —— Agent.ts（历史与实时状态）· api.ts（唯一请求出口）· Extension.ts（组件表与扩展加载）· main.ts（装配）', entries: ['web/src/Agent.ts', 'web/src/api.ts', 'web/src/Extension.ts', 'web/src/main.ts'] },
-    { title: '展示层 —— App.vue + 13 个组件（全部从组件表取，可被扩展替换）', entries: ['web/src/App.vue', 'web/src/components/'] },
-])
+// ---------- 图三：web 三条事件链路（发送 / SSE→状态→界面 / 连接生命周期）----------
+const webDoc = await renderChains('web')
 
 // ---------- 图四：extensions（宿主接口 / 扩展两组；manifest 的 requires-after-topology 边直连扩展节点）----------
 const extDoc = render('TD', [], [
@@ -170,11 +167,13 @@ HTTP 信封（json / fail / read）所有路由等价使用，与运行路径无
 ${backDoc}
 \`\`\`
 
-## 三、web：状态层 → 展示层
+## 三、web：三条事件链路
 
-状态层四件套经唯一出口 \`api.ts\` 连后端；展示层全部从 \`Extension.ts\` 的组件表取（\`App.vue\` 也只是表项之一），
-扩展可替换任何组件——**展示层 → 组件表 → 状态层 → api → 后端**是唯一的依赖方向，箭头逆流即是违规。
-demo / dev 工具 / 类型声明不是运行时代码，不画。
+前端的运行单位是**事件流**：事件进来 → \`Agent.state\`（唯一真相源）变 → 界面响应式重渲染。
+组件之间的 import 关系不是架构，故不画；响应式传播是 Vue 的事，图中只画一次「state → 界面」。
+- **W① 发送**：敲字/回车后的分支（停止 / 继续 / 发送），不乐观渲染——用户消息等 core 收下才出现
+- **W② SSE → 界面（核心）**：snapshot 整份重放、core 事件分四类入 state、\`History.group\` 纯函数派生、按 kind 分发组件
+- **W③ 连接生命周期**：断线 1 秒重连，重新 snapshot 保证不丢帧不重帧
 
 \`\`\`mermaid
 ${webDoc}

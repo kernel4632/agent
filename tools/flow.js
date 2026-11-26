@@ -24,6 +24,12 @@ const FILE_STYLE = {
     'backend/features/Bundle.js': 'fbundle',
     [CORE]: 'fcore',
     'web': 'fweb',
+    'web/src/api.ts': 'fweb',
+    'web/src/Agent.ts': 'fagents',
+    'web/src/Extension.ts': 'fextension',
+    'web/src/main.ts': 'fserver',
+    'web/src/components/Composer.vue': 'fstream',
+    'web/src/components/History.vue': 'fstore',
 }
 
 const STYLE = {
@@ -225,21 +231,84 @@ const CHAINS = [
         ],
     },
     {
-        title: '⑨ POST /op/:name —— 扩展动作',
+        title: 'W① 发送 —— 用户敲字之后',
         nodes: [
-            { id: 'in', label: 'POST /api/op/:name', file: 'backend/server.js', route: true },
-            { id: 'invoke', label: 'Extension.invoke', file: 'backend/features/Extension.js' },
-            { id: 'miss', label: '404 没有这个动作', file: 'backend/features/Extension.js', bad: true },
-            { id: 'handler', label: '扩展 handler', file: 'backend/features/Extension.js' },
-            { id: 'data', label: '各自动的（Store / Agents / Loader …）', file: 'backend/features/Store.js' },
-            { id: 'out', label: 'json 响应', file: 'backend/server.js' },
+            { id: 'user', label: '用户输入 / 回车', file: 'web' },
+            { id: 'submit', label: 'Composer.submit', file: 'web/src/components/Composer.vue' },
+            { id: 'running', label: 'running 中？', file: 'web/src/components/Composer.vue', check: true },
+            { id: 'stopbtn', label: '变「停止」钮（不动）', file: 'web', desc: true },
+            { id: 'action', label: 'action 是哪种？', file: 'web/src/components/Composer.vue', check: true },
+            { id: 'stop', label: 'Agent.stop', file: 'web/src/Agent.ts' },
+            { id: 'cont', label: 'Agent.continue', file: 'web/src/Agent.ts' },
+            { id: 'pack', label: 'pack（文本 + 附件）', file: 'web/src/Agent.ts', desc: true },
+            { id: 'send', label: 'api.send（POST /send）', file: 'web/src/api.ts' },
+            { id: 'fault', label: '网络/409 → state.fault', file: 'web/src/Agent.ts', bad: true },
         ],
         edges: [
-            { from: 'in', to: 'invoke' },
-            { from: 'invoke', to: 'miss', label: '未登记', bad: true },
-            { from: 'invoke', to: 'handler', label: '已登记' },
-            { from: 'handler', to: 'data' },
-            { from: 'data', to: 'out' },
+            { from: 'user', to: 'submit' },
+            { from: 'submit', to: 'running' },
+            { from: 'running', to: 'stopbtn', label: '是', bad: true },
+            { from: 'running', to: 'action', label: '否' },
+            { from: 'action', to: 'stop', label: 'stop' },
+            { from: 'action', to: 'cont', label: 'continue' },
+            { from: 'action', to: 'pack', label: 'send' },
+            { from: 'pack', to: 'send' },
+            { from: 'send', to: 'fault', label: '失败', bad: true },
+        ],
+    },
+    {
+        title: 'W② SSE 帧 → 状态 → 界面（核心链路）',
+        nodes: [
+            { id: 'sse', label: 'api.connect 收到 SSE 帧', file: 'web/src/api.ts' },
+            { id: 'which', label: '帧类型？', file: 'web/src/api.ts', check: true },
+            { id: 'apply', label: 'Agent.apply（snapshot：整份历史 + 尾巴重放）', file: 'web/src/Agent.ts' },
+            { id: 'receive', label: 'Agent.receive（core 事件分发）', file: 'web/src/Agent.ts' },
+            { id: 'msg', label: 'message → history.push（消息出现）', file: 'web/src/Agent.ts', desc: true },
+            { id: 'live', label: 'request-start → live 请求条出现', file: 'web/src/Agent.ts', desc: true },
+            { id: 'parts', label: 'text/reasoning/tool-* → live.parts 增量', file: 'web/src/Agent.ts', desc: true },
+            { id: 'retry', label: 'request-error → retry 倒计时', file: 'web/src/Agent.ts', desc: true },
+            { id: 'state', label: 'Agent.state（唯一真相源，响应式）', file: 'web/src/Agent.ts', core: true, desc: true },
+            { id: 'group', label: 'History.group（纯函数：历史 → 显示条目）', file: 'web/src/components/History.vue', desc: true },
+            { id: 'dispatch', label: 'History.vue 按 kind 分发', file: 'web/src/components/History.vue' },
+            { id: 'view', label: 'UserMessage / Process（含 RequestStatus、Thinking、ToolCall） / AssistantMessage / ErrorMessage（含「继续」→ Agent.continue）', file: 'web' },
+        ],
+        edges: [
+            { from: 'sse', to: 'which' },
+            { from: 'which', to: 'apply', label: 'snapshot' },
+            { from: 'which', to: 'receive', label: 'core' },
+            { from: 'apply', to: 'state' },
+            { from: 'receive', to: 'msg' },
+            { from: 'receive', to: 'live' },
+            { from: 'receive', to: 'parts' },
+            { from: 'receive', to: 'retry' },
+            { from: 'msg', to: 'state' },
+            { from: 'live', to: 'state' },
+            { from: 'parts', to: 'state' },
+            { from: 'retry', to: 'state' },
+            { from: 'state', to: 'group', core: true },
+            { from: 'group', to: 'dispatch' },
+            { from: 'dispatch', to: 'view' },
+        ],
+    },
+    {
+        title: 'W③ 连接生命周期',
+        nodes: [
+            { id: 'main', label: 'main.ts（装配）', file: 'web/src/main.ts', desc: true },
+            { id: 'shell', label: 'shell 扩展接管路由', file: 'web', desc: true },
+            { id: 'connect', label: 'Agent.connect(id)', file: 'web/src/Agent.ts' },
+            { id: 'api', label: 'api.connect（GET SSE）', file: 'web/src/api.ts' },
+            { id: 'down', label: '连接断开？', file: 'web/src/api.ts', check: true },
+            { id: 'wait', label: '1 秒后重连', file: 'web/src/api.ts', desc: true },
+            { id: 'resnap', label: '重新 snapshot（历史重放 + 尾巴补帧，不丢不重）', file: 'web/src/Agent.ts', desc: true },
+        ],
+        edges: [
+            { from: 'main', to: 'shell' },
+            { from: 'shell', to: 'connect' },
+            { from: 'connect', to: 'api' },
+            { from: 'api', to: 'down' },
+            { from: 'down', to: 'wait', label: '是' },
+            { from: 'wait', to: 'resnap' },
+            { from: 'resnap', to: 'api', label: '重连' },
         ],
     },
 ]
@@ -262,12 +331,18 @@ async function scanExports() {
         'backend/server.js', 'backend/features/Agents.js', 'backend/features/Stream.js',
         'backend/features/Models.js', 'backend/features/Store.js', 'backend/features/Extension.js',
         'backend/features/Loader.js', 'backend/features/Bundle.js',
+        'web/src/api.ts', 'web/src/Agent.ts', 'web/src/Extension.ts', 'web/src/main.ts',
+        'web/src/components/Composer.vue', 'web/src/components/History.vue',
     ]
     for (const path of files) {
-        const code = await Bun.file(path).text()
-        const info = TRANSPILE.scan(code)
+        const raw = await Bun.file(path).text()
+        // .vue 只取 <script> 块（HTML 注释会炸 Transpiler）
+        const code = path.endsWith('.vue') ? [...raw.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n') : raw
+        const isTs = path.endsWith('.ts') || path.endsWith('.vue')
+        const info = new Bun.Transpiler({ loader: isTs ? 'ts' : 'js' }).scan(code)
         const names = new Set(info.exports.filter(name => name !== 'default'))
-        // const 对象的成员也是公开面（Agents.open 等）
+        // const 对象的成员也是公开面（Agents.open、api.send 等）：
+        // 方法简写 name(...) {...} 与属性箭头 name: (...) => {...} 两种形式都抓。
         for (const name of names) {
             const hit = code.match(new RegExp(`(?:const|let)\\s+${name}\\s*=\\s*\\{`))
             if (hit) {
@@ -278,14 +353,21 @@ async function scanExports() {
                     else if (rest[i] === '}') depth--
                     i++
                 }
-                for (const m of rest.slice(0, i).matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*\(/g)) {
-                    if (!KEYWORDS.has(m[1])) names.add(m[1])
-                }
+                const body = rest.slice(0, i)
+                for (const m of body.matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*\(/g)) names.add(m[1])      // 方法简写 name(...)
+                for (const m of body.matchAll(/(?:^|\n)\s*(?:async\s+)?(\w+)\s*:\s*(?:async\s*)?[\w(]/g)) names.add(m[1])  // 属性箭头 name: x => / name: async
             }
         }
-        // 顶层函数声明（含私有，如 launch/sort/weave）也是链路可能经过的执行节点
+        // 顶层函数声明（含私有，如 launch/sort/weave、前端组件 <script setup> 里的 submit）也是链路节点
         for (const m of code.matchAll(/(?:^|\n)(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
             if (!KEYWORDS.has(m[1])) names.add(m[1])
+        }
+        // .vue 的 <script setup> 里定义的函数（function submit / async function load 等）也是节点
+        if (path.endsWith('.vue')) {
+            const setup = [...code.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).join('\n')
+            for (const m of setup.matchAll(/(?:^|\n)(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
+                if (!KEYWORDS.has(m[1])) names.add(m[1])
+            }
         }
         found.set(path, names)
     }
@@ -309,12 +391,14 @@ function validate(chains, exports) {
 
 // 渲染：graph LR，一条路由一个 subgraph（九组并排，组间零连线）。
 // 分支节点画菱形（check），错误路径红字斜体（bad），core 用粗线。
-export async function renderChains() {
+// filter 为空画全部链路；传 'backend' 只画 backend 九条，'web' 只画 web 三条。
+export async function renderChains(filter = '') {
     const exports = await scanExports()
-    const problems = validate(CHAINS, exports)
+    const picked = CHAINS.filter(chain => !filter ? true : filter === 'backend' ? !chain.title.startsWith('W') : chain.title.startsWith('W'))
+    const problems = validate(picked, exports)
     if (problems.length) throw new Error(`链路声明与代码不符：\n${problems.join('\n')}\n请更新 tools/flow.js 里的链路表`)
     const lines = ['graph LR']
-    for (const [index, chain] of CHAINS.entries()) {
+    for (const [index, chain] of picked.entries()) {
         const tag = `c${index}`
         lines.push(`    subgraph ${tag}["${chain.title}"]`)
         for (const step of chain.nodes) {
@@ -324,11 +408,10 @@ export async function renderChains() {
         }
         lines.push('    end')
     }
-    for (const [index, chain] of CHAINS.entries()) {
+    for (const [index, chain] of picked.entries()) {
         const tag = `c${index}`
         for (const edge of chain.edges) {
             const label = (edge.label ?? '').replace(/[|=.]/g, '').trim()
-            // GitHub 渲染器不认竖线标签：实线 A -- 文字 --> B；粗线 A == 文字 ==> B（bad 语义写进标签文字）
             const text = edge.bad && label ? `${label} ✗` : label
             if (edge.core) lines.push(`    ${tag}_${edge.from} ${text ? `== ${text} ==>` : '==>'} ${tag}_${edge.to}`)
             else lines.push(`    ${tag}_${edge.from} ${text ? `-- ${text} -->` : '-->'} ${tag}_${edge.to}`)
