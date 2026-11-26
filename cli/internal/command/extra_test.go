@@ -68,7 +68,14 @@ func TestMCPListHidesCredentialsAndRollbackSendsFilesFlag(t *testing.T) {
 	var rollback map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/mcp/list":
+		case r.URL.Path == "/admin":
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if body["op"] != "mcp.list" {
+				t.Errorf("unexpected op: %v", body["op"])
+			}
 			fmt.Fprint(w, `{"servers":[{"name":"demo","enabled":true,"definition":{"command":"bun","args":["serve.js"],"env":{"TOKEN":"SECRET"}}}],"detected":{"servers":[{"id":"cursor::demo","name":"demo","app":"Cursor","configured":true}]}}`)
 		case r.URL.Path == "/session/rollback/s":
 			if err := json.NewDecoder(r.Body).Decode(&rollback); err != nil {
@@ -168,5 +175,70 @@ func TestWriteAnswerDoesNotRepeatStreamedText(t *testing.T) {
 	}
 	if buf.String() != "流式答复\n" {
 		t.Fatal(buf.String())
+	}
+}
+
+func TestExtensionsListToggleReloadAndCall(t *testing.T) {
+	var calls []map[string]any
+	extJSON := `{"extensions":[{"name":"monitor","title":"监控唤醒","version":"1.1.1","source":"project","enabled":true,"running":true,"changed":true,"description":"后台监控","cli":{"commands":[{"name":"monitors","hint":"看监控","usage":"[会话 ID]","op":"monitor.list","params":["sessionId"],"view":{"kind":"list","title":"后台监控","empty":"无","items":"monitors","fields":[{"key":"id","label":"编号"},{"key":"status","label":"状态"}]}},{"name":"monitor-stop","hint":"停监控","usage":"编号|all [会话 ID]","op":"monitor.stop","params":["id","sessionId"]}]}}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			w.WriteHeader(404)
+			return
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		calls = append(calls, body)
+		switch body["op"] {
+		case "extension.list", "extension.toggle", "extension.reload":
+			fmt.Fprint(w, extJSON)
+		case "monitor.list":
+			fmt.Fprint(w, `{"monitors":[{"id":"m1","status":"armed"}]}`)
+		case "monitor.stop":
+			fmt.Fprint(w, `["m1"]`)
+		default:
+			w.WriteHeader(400)
+			fmt.Fprintf(w, `{"error":"unknown op: %v"}`, body["op"])
+		}
+	}))
+	defer server.Close()
+
+	run := func(args ...string) (string, error) {
+		cmd := New()
+		var out, errBuf bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
+		cmd.SetArgs(append([]string{"--server", server.URL}, args...))
+		err := cmd.Execute()
+		return out.String(), err
+	}
+
+	out, err := run("extensions", "list")
+	if err != nil || !strings.Contains(out, "监控唤醒") || !strings.Contains(out, "代码有更新") || !strings.Contains(out, "/monitors") {
+		t.Fatalf("list out=%q err=%v", out, err)
+	}
+	if _, err := run("extensions", "toggle", "monitor", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run("extensions", "reload", "monitor"); err != nil {
+		t.Fatal(err)
+	}
+	out, err = run("extensions", "call", "monitors", "--session", "s1")
+	if err != nil || !strings.Contains(out, "后台监控") || !strings.Contains(out, "m1") || strings.Contains(out, `"monitors"`) {
+		t.Fatalf("human list view failed: out=%q err=%v", out, err)
+	}
+	if _, err := run("extensions", "call", "monitor-stop", "m1", "--session", "s1", "--arg", "all=false"); err != nil {
+		t.Fatal(err)
+	}
+	last := calls[len(calls)-1]
+	if last["op"] != "monitor.stop" || last["id"] != "m1" || last["sessionId"] != "s1" || last["all"] != false {
+		t.Fatalf("monitor-stop payload = %#v", last)
+	}
+	if _, err := run("extensions", "call", "monitors"); err == nil {
+		t.Fatal("expected missing session error")
+	}
+	if _, err := run("extensions", "call", "monitors", "--session", "s1", "--arg", "badarg"); err == nil {
+		t.Fatal("expected invalid --arg error")
 	}
 }

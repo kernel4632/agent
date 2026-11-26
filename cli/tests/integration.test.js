@@ -59,6 +59,12 @@ beforeAll(async () => {
             if (prompt?.includes('[delegate]') && !usedTool) {
                 message = { role: 'assistant', content: null, tool_calls: [{ id: `delegate-${sequence}`, type: 'function', function: { name: 'new_task', arguments: JSON.stringify({ description: 'Read fixture', prompt: '[tool] Read the fixture file and report.' }) } }] }
             }
+            if (prompt?.includes('[monitor]') && !usedTool) {
+                message = { role: 'assistant', content: null, tool_calls: [{ id: `mon-${sequence}`, type: 'function', function: { name: 'monitor', arguments: JSON.stringify({ action: 'start', condition: { kind: 'timer', afterSeconds: 300 }, objective: '集成测试监控' }) } }] }
+            }
+            if (prompt?.includes('[todo]') && !usedTool) {
+                message = { role: 'assistant', content: null, tool_calls: [{ id: `todo-${sequence}`, type: 'function', function: { name: 'update_todo_list', arguments: JSON.stringify({ todos: '- [x] 完成一步\n- [-] 进行中' }) } }] }
+            }
             if (body.stream) {
                 const chunks = [
                     { choices: [{ index: 0, delta: { role: 'assistant', reasoning_content: compact ? '摘要思考' : '先分析需求。' } }] },
@@ -285,43 +291,78 @@ test.skip('nested task approval reaches the CLI and completes', async () => {
     expect(events.at(-1).session.pending).toEqual([])
 }, 30000)
 
-test('extension list, toggle and declared command call go through the real admin bus', async () => {
-    // 清单：monitor 扩展跟项目一起被扫描，它声明的 CLI 命令原样透传
+test('extension list, toggle, reload and declared command call go through the real admin bus', async () => {
+    // 全部内置扩展（monitor / skill / todo）都能正常加载并透传 cli 声明
     const listed = await cli('extensions', 'list')
     expect(listed.code).toBe(0)
     expect(listed.out).toContain('监控唤醒')
+    expect(listed.out).toContain('技能')
+    expect(listed.out).toContain('任务清单')
     expect(listed.out).toContain('运行中')
     expect(listed.out).toContain('/monitors')
+    expect(listed.out).toContain('/skills')
+    expect(listed.out).toContain('/todos [ctrl+t]')
     expect(listed.out).not.toContain('"cli"')
 
-    // call：按声明转发到 monitor.list，无监控时返回空列表
-    const answer = await cli('ask', '你好', '--title', 'ext')
-    const id = answer.err.match(/会话: (\S+)/)[1]
+    const stateJson = JSON.parse((await cli('extensions', 'list', '--json')).out)
+    for (const name of ['monitor', 'skill', 'todo']) {
+        const ext = stateJson.extensions.find(item => item.name === name)
+        expect(ext?.running, name).toBe(true)
+        expect(ext?.error, name).toBe('')
+    }
+
+    // 真实挂载一个 monitor，再通过 extensions call monitor-stop 停掉它（验证 params/id 与 --arg）
+    const armed = await cli('ask', '[monitor]', '--title', 'ext-monitor')
+    expect(armed.code).toBe(0)
+    const id = armed.err.match(/会话: (\S+)/)[1]
     const monitors = await cli('extensions', 'call', 'monitors', '--session', id, '--json')
     expect(monitors.code).toBe(0)
-    expect(JSON.parse(monitors.out).monitors).toEqual([])
+    const active = JSON.parse(monitors.out).monitors
+    expect(active).toHaveLength(1)
+    expect(active[0].status).toBe('armed')
 
-    // call：input 字段承接剩余参数；停一个不存在的编号返回空数组
-    const stop = await cli('extensions', 'call', 'monitor-stop', 'zzzz', '--session', id)
-    expect(stop.code).toBe(0)
+    const stopOne = await cli('extensions', 'call', 'monitor-stop', active[0].id, '--session', id, '--json')
+    expect(stopOne.code).toBe(0)
+    expect(JSON.parse(stopOne.out)).toEqual([active[0].id])
+    const afterStop = JSON.parse((await cli('extensions', 'call', 'monitors', '--session', id, '--json')).out)
+    expect(afterStop.monitors[0].status).toBe('stopped')
+
+    // todo 扩展通过声明式挂载提供 todos 与 checklist 可读视图
+    const todoAsk = await cli('ask', '[todo]', '--title', 'ext-todo')
+    expect(todoAsk.code).toBe(0)
+    const todoId = todoAsk.err.match(/会话: (\S+)/)[1]
+    const todosHuman = await cli('extensions', 'call', 'todos', '--session', todoId)
+    expect(todosHuman.code).toBe(0)
+    expect(todosHuman.out).toContain('✓ 完成一步')
+    expect(todosHuman.out).toContain('▸ 进行中')
+
+    // skill 扩展通过声明式挂载提供 skills（noSession + cwd）
+    const skills = await cli('extensions', 'call', 'skills')
+    expect(skills.code).toBe(0)
+    expect(skills.out).toContain('技能')
 
     // 未声明的命令名要失败并给出查看方式
     const missing = await cli('extensions', 'call', 'no-such-command', '--session', id)
     expect(missing.code).toBe(1)
     expect(missing.err).toContain('extensions list')
 
-    // 开关：关掉后清单标记停用、它挂的 op 也被拔掉；再打开恢复
+    // 开关与重载：关掉后清单标记停用、它挂的 op 也被拔掉；再打开并 reload 恢复
     const off = await cli('extensions', 'toggle', 'monitor', 'off')
     expect(off.code).toBe(0)
     expect(off.out).toContain('已停用')
     const after = JSON.parse((await cli('extensions', 'list', '--json')).out)
     expect(after.extensions.find(item => item.name === 'monitor').running).toBe(false)
     const blocked = await cli('extensions', 'call', 'monitors', '--session', id)
-    expect(blocked.code).toBe(1)   // 扩展停了，op 不在总线上，服务端按 unknown op 拒绝
+    expect(blocked.code).toBe(1)
     const on = await cli('extensions', 'toggle', 'monitor', 'on')
     expect(on.code).toBe(0)
+    const reloaded = await cli('extensions', 'reload', 'monitor')
+    expect(reloaded.code).toBe(0)
+    expect(reloaded.out).toContain('已重载')
     const restored = JSON.parse((await cli('extensions', 'list', '--json')).out)
     expect(restored.extensions.find(item => item.name === 'monitor').running).toBe(true)
     await waitIdle(id)
+    await waitIdle(todoId)
     expect((await cli('sessions', 'remove', id)).code).toBe(0)
+    expect((await cli('sessions', 'remove', todoId)).code).toBe(0)
 }, 30000)

@@ -1,13 +1,12 @@
 /*
-扩展挂载：把扩展在 manifest.json 里声明的 cli.commands 挂进交互界面。
+扩展挂载：把扩展在 manifest.json 里声明的 cli（commands / shortcut / topbar / view）挂进交互界面。
 
 CLI 是编译好的 Go 客户端，不执行扩展代码；挂载方式是声明式的——
-扩展声明「斜杠命令 → /admin 动作」，界面按清单把命令并进斜杠菜单。
-形态和网页端一致：网页把扩展前端注册进面板/顶栏再按拥有者整体撤除，
-这里把扩展命令注册进挂载表，重挂时整表重建，停用的扩展自然消失。
+对标网页端 `app.topbar.add()` / `app.panels.add()` / 注册表与按拥有者整体撤除：
+这里把扩展命令、快捷键和顶栏状态条放进挂载表，重挂时整表重建，停用或重载后立即消失。
 
 数据流：Init 时随 loadMeta 拉一次清单；/extensions 浮层里开关或重载后，
-拿到新清单整表重建。执行命令走 /admin，结果回给 commandMsg 显示。
+拿到新清单整表重建。执行命令优先按 tool 从本地工具输出渲染，或转发 POST /admin。
 
 调用示例：
 
@@ -18,11 +17,11 @@ package tui
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kernel4632/agent/cli/internal/api"
+	"github.com/kernel4632/agent/cli/internal/render"
 )
 
 type extensionMsg struct {
@@ -43,18 +42,50 @@ type extensionReloadMsg struct {
 	err   error
 }
 
-// --- 挂载表：命令名 → 声明；整表重建，不做增量增删 ---
+type extResultMsg struct {
+	owner   string
+	command api.ExtensionCommand
+	data    any
+	err     error
+}
+
+type extTopbarBinding struct {
+	extName string
+	spec    api.ExtensionTopbar
+}
+
+// --- 挂载表：命令、快捷键和顶栏状态条整表重建，不做增量增删 ---
 
 func (m *model) mountExtensions(state api.ExtensionState) {
 	m.extensions = state
 	m.extCommands = map[string]api.ExtensionCommand{}
+	m.extOwners = map[string]string{}
+	m.extShortcuts = map[string]api.ExtensionCommand{}
+	m.extTopbars = nil
+	runningOwners := map[string]bool{}
 	for _, item := range state.Extensions {
 		if !item.Running {
-			continue // 没在生效的扩展不挂命令；清单本身仍能在 /extensions 里看到
+			continue // 没在生效的扩展不挂任何东西；清单本身仍能在 /extensions 里看到
+		}
+		runningOwners[item.Name] = true
+		for _, bar := range item.Cli.Topbar {
+			if bar.Tool != "" {
+				m.extTopbars = append(m.extTopbars, extTopbarBinding{extName: item.Name, spec: bar})
+			}
 		}
 		for _, command := range item.Cli.Commands {
+			if command.Name == "" || isBuiltinSlash("/"+command.Name) {
+				continue // 内置斜杠命令不可被扩展覆盖
+			}
 			m.extCommands[command.Name] = command
+			m.extOwners[command.Name] = item.Name
+			if shortcut := strings.ToLower(strings.TrimSpace(command.Shortcut)); shortcut != "" && !isBuiltinGlobalKey(shortcut) {
+				m.extShortcuts[shortcut] = command
+			}
 		}
+	}
+	if m.overlay.kind == "ext" && m.overlay.extName != "" && !runningOwners[m.overlay.extName] {
+		m.closeOverlay()
 	}
 }
 
@@ -66,14 +97,36 @@ func (m *model) extSlashCommands() []slashCommand {
 			continue
 		}
 		for _, command := range item.Cli.Commands {
+			if command.Name == "" || isBuiltinSlash("/"+command.Name) {
+				continue
+			}
 			hint := command.Hint
 			if hint == "" {
 				hint = item.Title
 			}
-			list = append(list, slashCommand{Name: "/" + command.Name, Hint: hint, Usage: command.Usage, RunBare: false})
+			if command.Shortcut != "" {
+				hint += " [" + command.Shortcut + "]"
+			}
+			usage := strings.TrimSpace(command.Usage)
+			runBare := usage == "" || strings.HasPrefix(usage, "[")
+			list = append(list, slashCommand{Name: "/" + command.Name, Hint: hint, Usage: command.Usage, RunBare: runBare})
 		}
 	}
 	return list
+}
+
+// extTopbarLines 渲染所有扩展挂载的顶栏状态行（无匹配工具输出时不占空间）。
+func (m *model) extTopbarLines() []string {
+	var lines []string
+	for _, binding := range m.extTopbars {
+		if m.overlay.kind == "ext" && m.overlay.extName == binding.extName {
+			continue
+		}
+		if text := render.FormatExtensionTopbar(binding.spec, m.toolOutputs[binding.spec.Tool]); text != "" {
+			lines = append(lines, text)
+		}
+	}
+	return lines
 }
 
 // findExtCommand 按输入的 /name 找一条扩展命令声明。
@@ -82,29 +135,80 @@ func (m *model) findExtCommand(name string) (api.ExtensionCommand, bool) {
 	return command, ok
 }
 
-// --- 执行：结果像 /sessions 一样写进 panel，不进对话记录 ---
+// --- 执行：有 view 声明进通用扩展浮层，其余像 /sessions 一样写进 panel ---
 
 func (m *model) runExtensionCommand(command api.ExtensionCommand, argument string) tea.Cmd {
-	client, ctx := m.client, m.ctx
-	sessionID := m.session.ID
-	return func() tea.Msg {
-		var result any   // op 想返回什么就返回什么，照实显示
-		body := api.ExtensionBody(command, sessionID, argument)
-		err := client.Admin(ctx, command.Op, api.AdminArgs(body), &result)
-		if err != nil {
-			return commandMsg{text: err.Error()}
+	owner := m.extOwners[command.Name]
+	// 若声明了 tool 且当前已有本地结果（或无 op 可调），直接从会话工具输出渲染，不依赖往返请求。
+	if command.Tool != "" && (len(m.toolOutputs[command.Tool]) > 0 || command.Op == "" || m.client == nil) {
+		var decoded any
+		if raw := m.toolOutputs[command.Tool]; len(raw) > 0 {
+			decoded = json.RawMessage(raw)
 		}
-		return commandMsg{text: extensionResultText(result)}
+		if command.View != nil {
+			m.openExtOverlay(owner, command, decoded)
+			return nil
+		}
+		m.panel = render.FormatExtensionView(nil, decoded)
+		m.renderConversation(true)
+		return nil
+	}
+	if m.client == nil {
+		m.notice = "没有连接"
+		m.renderConversation(false)
+		return nil
+	}
+	body, err := api.ExtensionBody(command, m.session.ID, m.session.Cwd, argument)
+	if err != nil {
+		m.notice = err.Error()
+		m.renderConversation(false)
+		return nil
+	}
+	if !command.NoSession {
+		sid, _ := body["sessionId"].(string)
+		if strings.TrimSpace(sid) == "" {
+			m.notice = "没有当前会话"
+			m.renderConversation(false)
+			return nil
+		}
+	}
+	if usage := strings.TrimSpace(command.Usage); usage != "" && !strings.HasPrefix(usage, "[") && strings.TrimSpace(argument) == "" {
+		m.notice = "用法: /" + command.Name + " " + usage
+		m.renderConversation(false)
+		return nil
+	}
+	if command.Op == "" {
+		m.notice = "/" + command.Name + " 未声明服务端动作"
+		m.renderConversation(false)
+		return nil
+	}
+
+	client, ctx := m.client, m.ctx
+	m.busy = true
+	m.notice = "处理中…"
+	return func() tea.Msg {
+		var result any // op 想返回什么就返回什么，照实显示或交给 view 渲染
+		err := client.Admin(ctx, command.Op, api.AdminArgs(body), &result)
+		if command.View != nil {
+			return extResultMsg{owner: owner, command: command, data: result, err: err}
+		}
+		if err != nil {
+			return commandMsg{err: err}
+		}
+		return commandMsg{text: render.FormatExtensionView(nil, result)}
 	}
 }
 
-// extensionResultText 把 /admin 的返回值拼成可读文本：JSON 缩进两格，和 agent extensions call 的一致。
-func extensionResultText(result any) string {
-	encoded, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("%v", result)
+func (m *model) openExtOverlay(owner string, command api.ExtensionCommand, data any) {
+	m.overlay = overlayState{
+		kind:    "ext",
+		extName: owner,
+		extCmd:  command.Name,
+		extText: render.FormatExtensionView(command.View, data),
 	}
-	return string(encoded)
+	m.focus = focusOverlay
+	m.input.Blur()
+	m.renderConversation(true)
 }
 
 // --- 清单与开关：/extensions 浮层和它背后的三个网络动作 ---
@@ -164,28 +268,11 @@ func (m *model) pickedExtension() *api.Extension {
 // togglePickedExtension 开/关选中的扩展。关掉被依赖的扩展会连带停掉依赖方，服务端处理。
 func (m *model) togglePickedExtension() tea.Cmd {
 	item := m.pickedExtension()
-	if item == nil {
+	if item == nil || m.client == nil {
 		return nil
 	}
 	m.busy = true
 	return m.toggleExtension(item.Name, !item.Enabled)
-}
-
-// extensionStatus 一行状态：错误优先，然后是关闭/更新/运行。
-func extensionStatus(item api.Extension) string {
-	state := "未运行"
-	switch {
-	case item.Error != "":
-		state = item.Error
-	case !item.Enabled:
-		state = "已关闭"
-	case item.Running:
-		state = "运行中"
-	}
-	if item.Changed && item.Enabled {
-		state += " · 有更新"
-	}
-	return state
 }
 
 // extensionPanelText 扩展清单的纯文本（panel 用），给无法打开浮层时的回显。
@@ -199,7 +286,7 @@ func extensionPanelText(state api.ExtensionState) string {
 		if item.Version != "" {
 			line += " " + item.Version
 		}
-		b.WriteString(line + "  " + extensionStatus(item) + "\n")
+		b.WriteString(line + "  " + render.ExtensionStatus(item, false) + "\n")
 		for _, command := range item.Cli.Commands {
 			mark := " "
 			if item.Running {

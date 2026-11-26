@@ -27,6 +27,9 @@ type overlayState struct {
 	dir                   *api.Directory
 	messageID, toolCallID string
 	restoreFiles          bool
+	extName               string
+	extCmd                string
+	extText               string
 }
 
 type modelChoice struct {
@@ -67,7 +70,7 @@ func (m *model) closeOverlay() {
 }
 
 func (m *model) readingOverlay() bool {
-	return m.overlay.kind == "stats" || m.overlay.kind == "help" // 这两页没有可选项，方向键只滚动
+	return m.overlay.kind == "stats" || m.overlay.kind == "help" || m.overlay.kind == "ext" // 这些页只读滚动，不逐行选
 }
 
 func (m *model) openSessions() tea.Cmd {
@@ -124,13 +127,6 @@ func (m *model) openReasoning() tea.Cmd {
 	}
 	m.renderConversation(true)
 	return nil
-}
-
-func (m *model) openTodos() {
-	m.overlay = overlayState{kind: "todos"}
-	m.focus = focusOverlay
-	m.input.Blur()
-	m.renderConversation(true)
 }
 
 func (m *model) openHelp() {
@@ -380,29 +376,8 @@ func (m *model) overlayText() string {
 			}
 			b.WriteString(mark + level + "\n")
 		}
-	case "todos":
-		b.WriteString("任务清单\n\n")
-		if len(m.todos) == 0 {
-			b.WriteString("还没有任务。模型更新清单后会显示在这里。")
-			break
-		}
-		done := 0
-		for _, item := range m.todos {
-			if item.Status == "completed" {
-				done++
-			}
-		}
-		b.WriteString("进度 " + itoa(done) + "/" + itoa(len(m.todos)) + "\n\n")
-		for _, item := range m.todos {
-			mark := "·"
-			switch item.Status {
-			case "completed":
-				mark = "✓"
-			case "in_progress":
-				mark = "▸"
-			}
-			b.WriteString(mark + " " + item.Text + "\n")
-		}
+	case "ext":
+		b.WriteString(m.overlay.extText)
 	case "extensions":
 		b.WriteString("扩展\n\nEsc 关闭 · Enter 开/关 · r 重载\n\n")
 		if len(m.extensions.Extensions) == 0 {
@@ -414,9 +389,9 @@ func (m *model) overlayText() string {
 			if i == m.overlay.index {
 				mark = "▸ "
 			}
-			state := extensionStatus(item)
+			state := render.ExtensionStatus(item, false)
 			b.WriteString(mark + item.Title + "  " + muted.Render(state) + "\n")
-			// 选中的展开：说明和它给命令行挂的命令
+			// 选中的展开：说明和它给命令行挂的命令 / 顶栏状态条
 			if i == m.overlay.index {
 				if item.Description != "" {
 					b.WriteString("    " + muted.Render(oneLine(item.Description, max(20, m.width-8))) + "\n")
@@ -426,7 +401,17 @@ func (m *model) overlayText() string {
 					if command.Usage != "" {
 						label += " " + command.Usage
 					}
+					if command.Shortcut != "" {
+						label += " [" + command.Shortcut + "]"
+					}
 					b.WriteString("    " + accent.Render(label) + "  " + muted.Render(command.Hint) + "\n")
+				}
+				for _, bar := range item.Cli.Topbar {
+					label := bar.Label
+					if label == "" {
+						label = bar.ID
+					}
+					b.WriteString("    " + muted.Render("  顶栏状态: "+label+" ("+bar.Tool+")") + "\n")
 				}
 			}
 		}
@@ -537,7 +522,7 @@ func (m *model) overlayKey(key string) tea.Cmd {
 			return nil
 		}
 	case "backspace":
-		if m.overlay.filter != "" && m.overlay.kind != "rollback" && m.overlay.kind != "toolrollback" && m.overlay.kind != "reasoning" && m.overlay.kind != "todos" && m.overlay.kind != "changes" {
+		if m.overlay.filter != "" && m.overlay.kind != "rollback" && m.overlay.kind != "toolrollback" && m.overlay.kind != "reasoning" && m.overlay.kind != "changes" && m.overlay.kind != "ext" {
 			runes := []rune(m.overlay.filter)
 			m.overlay.filter = string(runes[:len(runes)-1])
 			m.overlay.index = 0
@@ -554,7 +539,7 @@ func (m *model) overlayKey(key string) tea.Cmd {
 		}
 		return nil
 	case "r":
-		if m.overlay.kind == "extensions" {
+		if m.overlay.kind == "extensions" && m.client != nil {
 			if item := m.pickedExtension(); item != nil {
 				m.busy = true
 				return m.reloadExtension(item.Name)
@@ -586,8 +571,6 @@ func (m *model) clampOverlay() {
 		n = len(reasoningLevels)
 	case "cwd":
 		n = len(m.visibleDirs())
-	case "todos":
-		n = len(m.todos)
 	case "extensions":
 		n = len(m.extensions.Extensions)
 	}
@@ -929,6 +912,15 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
+func isBuiltinGlobalKey(key string) bool {
+	switch key {
+	case "ctrl+p", "ctrl+m", "ctrl+g", "ctrl+w", "ctrl+u", "ctrl+y", "ctrl+r", "ctrl+c", "ctrl+q", "tab", "esc":
+		return true
+	default:
+		return false
+	}
+}
+
 func (m *model) globalKey(key string) (tea.Cmd, bool) {
 	switch key {
 	case "ctrl+p":
@@ -939,9 +931,6 @@ func (m *model) globalKey(key string) (tea.Cmd, bool) {
 		return m.openChanges(), true
 	case "ctrl+w":
 		return m.openCwd(), true
-	case "ctrl+t":
-		m.openTodos()
-		return nil, true
 	case "ctrl+u":
 		m.openStats()
 		return nil, true
@@ -962,6 +951,9 @@ func (m *model) globalKey(key string) (tea.Cmd, bool) {
 		}
 		return nil, true
 	default:
+		if command, ok := m.extShortcuts[strings.ToLower(key)]; ok {
+			return m.runExtensionCommand(command, ""), true
+		}
 		return nil, false
 	}
 }

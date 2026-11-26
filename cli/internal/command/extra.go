@@ -1,14 +1,14 @@
 /*
 额外命令：把服务器已经提供、但 CLI 还没露出的接口接上命令行。
-包括用量统计、改动列表、回退、MCP / 技能 / 工具目录、目录浏览和会话压缩。
+包括健康检查、工具目录、模型配置检查、MCP、扩展管理、改动列表与回退。
 这些命令只做“取参数 → 请求 → 渲染”，业务判断都在服务器；
 渲染细节在 internal/render，不写在这里。
 
 调用示例：
 
-	agent usage SESSION_ID
-	agent changes SESSION_ID --json
 	agent tools
+	agent changes SESSION_ID --json
+	agent extensions list
 */
 package command
 
@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -136,12 +135,8 @@ func (o *options) mcp() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		path := "/mcp/list"
-		if cwd != "" {
-			path += "?cwd=" + url.QueryEscape(cwd)
-		}
 		var catalog api.MCPCatalog
-		if err = client.Request(cmd.Context(), "GET", path, nil, &catalog); err != nil {
+		if err = client.Admin(cmd.Context(), "mcp.list", api.AdminArgs{"cwd": cwd}, &catalog); err != nil {
 			return err
 		}
 		safe := struct {
@@ -238,78 +233,6 @@ func (o *options) mcp() *cobra.Command {
 			})
 		},
 	})
-	return root
-}
-
-func (o *options) skills() *cobra.Command {
-	root := &cobra.Command{Use: "skills", Short: "查看和开关技能"}
-	var cwd string
-	list := &cobra.Command{Use: "list", Short: "列出当前生效的技能", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		client, err := o.client()
-		if err != nil {
-			return err
-		}
-		target, err := serverCwd(cwd)
-		if err != nil {
-			return err
-		}
-		var catalog struct {
-			Skills []api.Skill `json:"skills"`
-		}
-		if err = client.Admin(cmd.Context(), "skill.list", api.AdminArgs{"cwd": target}, &catalog); err != nil {
-			return err
-		}
-		return o.emit(cmd, catalog.Skills, func(w io.Writer) error {
-			if len(catalog.Skills) == 0 {
-				fmt.Fprintln(w, "没有技能")
-				return nil
-			}
-			tw := table(w)
-			fmt.Fprintln(tw, "名称\t状态\t来源\t说明")
-			for _, skill := range catalog.Skills {
-				state := "停用"
-				if skill.Enabled {
-					state = "启用"
-				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", chat.Plain(skill.Name), state, chat.Plain(skill.SourceLabel), chat.Plain(oneLine(skill.Description, 60)))
-			}
-			return tw.Flush()
-		})
-	}}
-	list.Flags().StringVar(&cwd, "cwd", "", "服务端上的项目目录，默认本机当前目录")
-	root.AddCommand(list)
-	toggle := &cobra.Command{
-		Use: "toggle NAME on|off", Short: "把技能从模型清单里拿掉或放回来", Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			enabled, err := onOff(args[1])
-			if err != nil {
-				return err
-			}
-			client, err := o.client()
-			if err != nil {
-				return err
-			}
-			target, err := serverCwd(cwd)
-			if err != nil {
-				return err
-			}
-			var result any
-			body := map[string]any{"name": args[0], "enabled": enabled, "cwd": target}
-			if err = client.Admin(cmd.Context(), "skill.toggle", api.AdminArgs(body), &result); err != nil {
-				return err
-			}
-			return o.emit(cmd, result, func(w io.Writer) error {
-				state := "已停用"
-				if enabled {
-					state = "已启用"
-				}
-				fmt.Fprintf(w, "%s %s\n", chat.Plain(args[0]), state)
-				return nil
-			})
-		},
-	}
-	toggle.Flags().StringVar(&cwd, "cwd", "", "服务端上的项目目录，默认本机当前目录")
-	root.AddCommand(toggle)
 	return root
 }
 
@@ -451,14 +374,7 @@ func mcpWhere(server api.MCPServer) string {
 }
 
 func onOff(value string) (bool, error) {
-	switch strings.ToLower(value) {
-	case "on", "true", "enable", "enabled", "1":
-		return true, nil
-	case "off", "false", "disable", "disabled", "0":
-		return false, nil
-	default:
-		return false, fmt.Errorf("必须是 on 或 off")
-	}
+	return api.ParseBoolArg(value)
 }
 
 func serverCwd(flag string) (string, error) {
@@ -517,23 +433,11 @@ func (o *options) extensions() *cobra.Command {
 			tw := table(w)
 			fmt.Fprintln(tw, "名称\t版本\t状态\t来源\t说明")
 			for _, item := range state.Extensions {
-				state := "未运行"
-				switch {
-				case item.Error != "":
-					state = item.Error
-				case !item.Enabled:
-					state = "已关闭"
-				case item.Running:
-					state = "运行中"
-				}
-				if item.Changed {
-					state += "（代码有更新，可 reload）"
-				}
 				source := "项目"
 				if item.Source == "user" {
 					source = "用户目录"
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", chat.Plain(item.Title), chat.Plain(item.Version), chat.Plain(state), source, chat.Plain(oneLine(item.Description, 50)))
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", chat.Plain(item.Title), chat.Plain(item.Version), chat.Plain(render.ExtensionStatus(item, true)), source, chat.Plain(oneLine(item.Description, 50)))
 			}
 			if err := tw.Flush(); err != nil {
 				return err
@@ -541,7 +445,11 @@ func (o *options) extensions() *cobra.Command {
 			var declared []string
 			for _, item := range state.Extensions {
 				for _, command := range item.Cli.Commands {
-					declared = append(declared, "/"+command.Name+"（"+item.Title+"）")
+					label := "/" + command.Name
+					if command.Shortcut != "" {
+						label += " [" + command.Shortcut + "]"
+					}
+					declared = append(declared, label+"（"+item.Title+"）")
 				}
 			}
 			if len(declared) > 0 {
@@ -566,11 +474,11 @@ func (o *options) extensions() *cobra.Command {
 			return err
 		}
 		return o.emit(cmd, state, func(w io.Writer) error {
-			state := "已停用"
+			label := "已停用"
 			if enabled {
-				state = "已启用"
+				label = "已启用"
 			}
-			fmt.Fprintf(w, "%s %s\n", chat.Plain(args[0]), state)
+			fmt.Fprintf(w, "%s %s\n", chat.Plain(args[0]), label)
 			return nil
 		})
 	}}
@@ -592,13 +500,23 @@ func (o *options) extensions() *cobra.Command {
 	}})
 
 	// call 按声明转发：agent extensions call monitors --session ID
-	// 命令名后面的剩余参数整段进声明的 input 字段；--arg 键=值 追加进请求体。
+	// 位置参数按 params 映射（或整段进 input）；--arg 键=值 覆盖请求体。
 	var kv []string
+	var cwdFlag string
 	call := &cobra.Command{
 		Use: "call COMMAND [参数...]", Short: "按扩展声明调用一个动作", Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			sessionID, _ := cmd.Flags().GetString("session")
+			overrides := map[string]any{}
+			for _, item := range kv {
+				key, value, ok := strings.Cut(item, "=")
+				key = strings.TrimSpace(key)
+				if !ok || key == "" {
+					return fmt.Errorf("--arg 须为 键=值 格式: %q", item)
+				}
+				overrides[key] = api.ParseScalarArg(value)
+			}
 			client, err := o.client()
 			if err != nil {
 				return err
@@ -608,45 +526,96 @@ func (o *options) extensions() *cobra.Command {
 				return err
 			}
 			command, owner := findExtensionCommand(state, name)
-			if command.Op == "" {
+			if owner.Name == "" {
 				return fmt.Errorf("没有叫 %s 的扩展命令，agent extensions list 查看", name)
 			}
-			if !command.NoSession && sessionID == "" {
-				return fmt.Errorf("%s 需要会话：加 --session SESSION_ID", name)
+			if !owner.Running {
+				return fmt.Errorf("扩展 %s 当前未运行（agent extensions toggle %s on 可启用）", owner.Name, owner.Name)
 			}
-			body := api.ExtensionBody(command, sessionID, strings.Join(args[1:], " "))
-			for _, item := range kv {
-				key, value, _ := strings.Cut(item, "=")
-				body[key] = value   // --arg 写的覆盖声明里的同名固定值
+			if command.Op == "" {
+				return fmt.Errorf("扩展命令 %s 未声明 /admin op，仅能在交互界面中使用", name)
 			}
-			var result any   // op 想返回什么就返回什么：对象、数组都能出
+			targetCwd := ""
+			if command.Cwd {
+				targetCwd, err = serverCwd(cwdFlag)
+				if err != nil {
+					return err
+				}
+			}
+			body, err := api.ExtensionBody(command, sessionID, targetCwd, joinCommandArgs(args[1:]))
+			if err != nil {
+				return err
+			}
+			for key, value := range overrides {
+				body[key] = value
+			}
+			if !command.NoSession {
+				sid, _ := body["sessionId"].(string)
+				if strings.TrimSpace(sid) == "" {
+					return fmt.Errorf("%s 需要会话：加 --session SESSION_ID", name)
+				}
+			}
+			if len(overrides) == 0 {
+				if err := checkRequiredExtensionArgs(command, body); err != nil {
+					return fmt.Errorf("用法: agent extensions call %s %s", name, command.Usage)
+				}
+			}
+			var result any
 			if err = client.Admin(cmd.Context(), command.Op, api.AdminArgs(body), &result); err != nil {
 				return err
 			}
 			return o.emit(cmd, result, func(w io.Writer) error {
-				encoded, err := json.MarshalIndent(result, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(w, "%s（%s）\n%s\n", name, chat.Plain(owner), string(encoded))
+				fmt.Fprintln(w, render.FormatExtensionView(command.View, result))
 				return nil
 			})
 		},
 	}
 	call.Flags().StringArrayVar(&kv, "arg", nil, "追加进请求体，格式 键=值")
-	call.Flags().String("session", "", "会话 ID，清单类命令（noSession）不用带")
+	call.Flags().String("session", "", "会话 ID，不需要会话的命令（noSession）可省略")
+	call.Flags().StringVar(&cwdFlag, "cwd", "", "服务端目录（声明了 cwd 的命令默认用当前目录）")
 	root.AddCommand(call)
 	return root
 }
 
-// findExtensionCommand 在清单里找一条扩展命令；找不到时 op 为空。
-func findExtensionCommand(state api.ExtensionState, name string) (api.ExtensionCommand, string) {
+// joinCommandArgs 保留带空格的参数边界：包含空白时加引号再交给 SplitArgs，防止带空格的技能名或标题被拆碎。
+func joinCommandArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		if strings.ContainsAny(arg, " \t\n") && !strings.Contains(arg, `"`) {
+			quoted[i] = `"` + arg + `"`
+		} else {
+			quoted[i] = arg
+		}
+	}
+	return strings.Join(quoted, " ")
+}
+
+func checkRequiredExtensionArgs(command api.ExtensionCommand, body map[string]any) error {
+	usage := strings.TrimSpace(command.Usage)
+	if usage == "" || strings.HasPrefix(usage, "[") {
+		return nil
+	}
+	if len(command.Params) > 0 {
+		first, _, _ := strings.Cut(command.Params[0], ":")
+		if body[first] == nil || body[first] == "" {
+			return fmt.Errorf("missing %s", first)
+		}
+		return nil
+	}
+	if command.Input != "" && (body[command.Input] == nil || body[command.Input] == "") {
+		return fmt.Errorf("missing %s", command.Input)
+	}
+	return nil
+}
+
+// findExtensionCommand 在清单里找一条扩展命令及所属扩展。
+func findExtensionCommand(state api.ExtensionState, name string) (api.ExtensionCommand, api.Extension) {
 	for _, item := range state.Extensions {
 		for _, command := range item.Cli.Commands {
 			if command.Name == name {
-				return command, item.Name
+				return command, item
 			}
 		}
 	}
-	return api.ExtensionCommand{}, ""
+	return api.ExtensionCommand{}, api.Extension{}
 }

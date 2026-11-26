@@ -49,9 +49,7 @@ func (m *model) renderConversation(bottom bool) {
 
 func (m *model) chrome() int {
 	n := 1 + 1 + len(m.composerLines()) + 1 // header, rule, input, footer
-	if m.taskLine() != "" {
-		n++
-	}
+	n += len(m.extTopbarLines())
 	if m.activityLine() != "" {
 		n++
 	}
@@ -126,27 +124,6 @@ func (m *model) header() string {
 		b.WriteString(muted.Render(cwd))
 	}
 	return b.String()
-}
-
-func (m *model) taskLine() string {
-	if m.overlay.kind == "todos" || len(m.todos) == 0 {
-		return ""
-	}
-	done := 0
-	current := ""
-	for _, item := range m.todos {
-		if item.Status == "completed" {
-			done++
-		}
-		if item.Status == "in_progress" && current == "" {
-			current = item.Text
-		}
-	}
-	text := "任务 " + itoa(done) + "/" + itoa(len(m.todos))
-	if current != "" {
-		text += " · " + current
-	}
-	return text
 }
 
 func (m *model) statsLine() string {
@@ -318,8 +295,8 @@ func (m *model) View() tea.View {
 	m.syncPlaceholder()
 
 	top := []string{m.header()}
-	if task := m.taskLine(); task != "" {
-		top = append(top, muted.Render(m.line(task)))
+	for _, bar := range m.extTopbarLines() {
+		top = append(top, muted.Render(m.line(bar)))
 	}
 	var below []string
 	if activity := m.activityLine(); activity != "" {

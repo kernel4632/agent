@@ -12,18 +12,28 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kernel4632/agent/cli/internal/api"
 )
 
+func isBuiltinSlash(name string) bool {
+	for _, cmd := range slashCommands {
+		if cmd.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *model) slash(text string) tea.Cmd {
 	name, argument, _ := strings.Cut(text, " ")
 	argument = strings.TrimSpace(argument)
-	// 扩展挂载的命令先查：/monitor-stop m1 这种按声明转发到 /admin
-	if command, ok := m.findExtCommand(name); ok {
-		return m.runExtensionCommand(command, argument)
+	if !isBuiltinSlash(name) {
+		// 非内置命令再查扩展挂载表：扩展不能覆盖内置斜杠命令
+		if command, ok := m.findExtCommand(name); ok {
+			return m.runExtensionCommand(command, argument)
+		}
 	}
 	switch name {
 	case "/help":
@@ -37,9 +47,6 @@ func (m *model) slash(text string) tea.Cmd {
 		return m.openSessions()
 	case "/changes":
 		return m.openChanges()
-	case "/todos":
-		m.openTodos()
-		return nil
 	case "/extensions":
 		return m.openExtensions()
 	case "/usage":
@@ -111,7 +118,7 @@ func execute(ctx context.Context, client *api.Client, session api.Session, name,
 		err = client.Request(ctx, "POST", "/session/create", map[string]string{"title": argument, "cwd": session.Cwd, "provider": session.Provider, "model": session.Model}, &created)
 		id = created.ID
 	case "/model":
-		fields, parseErr := modelArguments(argument)
+		fields, parseErr := api.SplitArgs(argument)
 		if parseErr != nil || len(fields) != 2 || fields[0] == "" || fields[1] == "" {
 			return fail("用法: /model PROVIDER MODEL（可用 agent models 列出）")
 		}
@@ -145,40 +152,4 @@ func execute(ctx context.Context, client *api.Client, session api.Session, name,
 	}
 	saved, err := client.Session(ctx, id)
 	return saved, "", err
-}
-
-// modelArguments 只按“单词 + 可选的单/双引号”切分，不经过 shell：
-// 模型名里的 /、反斜杠和 Windows 路径都原样保留；引号只为包含空格。
-func modelArguments(argument string) ([]string, error) {
-	var fields []string
-	var word strings.Builder
-	var quote rune
-	started := false
-	for _, ch := range argument {
-		if quote != 0 {
-			if ch == quote {
-				quote = 0 // 结束当前引号
-			} else {
-				word.WriteRune(ch) // 引号内的空格原样保留
-			}
-		} else if ch == '"' || ch == '\'' {
-			quote, started = ch, true // 进入引号；空引号也算一个参数
-		} else if unicode.IsSpace(ch) {
-			if started {
-				fields = append(fields, word.String()) // 空白结束一个参数
-				word.Reset()
-				started = false
-			}
-		} else {
-			word.WriteRune(ch) // 普通字符原样写入
-			started = true
-		}
-	}
-	if quote != 0 {
-		return nil, fmt.Errorf("名称引号未闭合")
-	}
-	if started {
-		fields = append(fields, word.String())
-	}
-	return fields, nil
 }

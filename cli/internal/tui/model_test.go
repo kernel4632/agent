@@ -256,3 +256,146 @@ func TestComingBackRepaintsAndReadsTheSession(t *testing.T) {
 		t.Fatalf("history was not shown:\n%s", m.View().Content)
 	}
 }
+
+func TestExtensionMountCommandShortcutTopbarAndUnload(t *testing.T) {
+	var received []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin" {
+			w.WriteHeader(404)
+			return
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		received = append(received, body)
+		switch body["op"] {
+		case "monitor.list":
+			fmt.Fprint(w, `{"monitors":[{"id":"m1","status":"armed","rounds":"0/5","name":"构建","summary":"定时 10s","objective":"验证"}]}`)
+		case "monitor.stop":
+			fmt.Fprint(w, `["m1"]`)
+		default:
+			w.WriteHeader(400)
+			fmt.Fprint(w, `{"error":"bad op"}`)
+		}
+	}))
+	defer server.Close()
+	client, _ := api.New(server.URL)
+
+	todoRaw := json.RawMessage(`{"type":"json","value":{"items":[{"text":"第一项","status":"completed"},{"text":"修扩展","status":"in_progress"}]}}`)
+	todoHist, _ := json.Marshal([]api.Part{{Type: "tool-result", ToolName: "update_todo_list", ToolCallID: "t1", Output: todoRaw}})
+	m := newModel(context.Background(), client, api.Session{
+		ID: "s1", Cwd: "/work",
+		History: []api.Message{{Role: "tool", MessageID: "m1", Content: todoHist}},
+	})
+	m.Update(tea.WindowSizeMsg{Width: 90, Height: 28})
+
+	state := api.ExtensionState{
+		Extensions: []api.Extension{
+			{
+				Name: "monitor", Title: "监控唤醒", Enabled: true, Running: true,
+				Cli: api.ExtensionCli{Commands: []api.ExtensionCommand{
+					{Name: "monitors", Hint: "查看后台监控", Usage: "[会话 ID]", Op: "monitor.list", Params: []string{"sessionId"},
+						View: &api.ExtensionView{Kind: "list", Title: "后台监控", Items: "monitors", Fields: []api.ExtensionViewField{{Key: "id", Label: "编号"}, {Key: "status", Label: "状态"}}}},
+					{Name: "monitor-stop", Hint: "停掉后台监控", Usage: "编号|all [会话 ID]", Op: "monitor.stop", Params: []string{"id", "sessionId"}},
+					{Name: "help", Hint: "冲突命令", Op: "bad.help"},
+				}},
+			},
+			{
+				Name: "todo", Title: "任务清单", Enabled: true, Running: true,
+				Cli: api.ExtensionCli{
+					Topbar: []api.ExtensionTopbar{{
+						ID: "todo", Tool: "update_todo_list", Items: "items", Label: "任务",
+						Count:   &api.ExtensionTopbarCount{Field: "status", Equals: "completed"},
+						Current: &api.ExtensionTopbarCurrent{Field: "status", Equals: "in_progress", Text: "text"},
+					}},
+					Commands: []api.ExtensionCommand{{
+						Name: "todos", Hint: "打开任务清单", Shortcut: "ctrl+t", Tool: "update_todo_list",
+						View: &api.ExtensionView{Kind: "checklist", Title: "任务清单", Progress: "进度", Items: "items", Text: "text", Status: "status"},
+					}},
+				},
+			},
+		},
+	}
+
+	m.mountExtensions(state)
+	// 冲突的内置命令名不准劫持 /help
+	if _, hijacked := m.findExtCommand("/help"); hijacked {
+		t.Fatal("extension hijacked built-in /help")
+	}
+	// allSlashCommands 不污染包级 slashCommands
+	_ = m.allSlashCommands()
+	for _, cmd := range slashCommands {
+		if cmd.Name == "/monitors" {
+			t.Fatal("package-level slashCommands mutated")
+		}
+	}
+
+	// 顶栏自动出现扩展挂载的任务状态条
+	if !strings.Contains(m.View().Content, "任务 1/2 · 修扩展") {
+		t.Fatalf("extension topbar missing:\n%s", m.View().Content)
+	}
+	// 中文 hint 搜索能匹配挂载命令，且无必选参数的 /monitors 回车直接执行
+	m.input.Focus()
+	m.input.SetValue("/后台监控")
+	if !strings.Contains(m.View().Content, "/monitors") {
+		t.Fatalf("chinese hint missed extension command:\n%s", m.View().Content)
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("/monitors should execute directly on Enter")
+	}
+	m.Update(cmd())
+	if m.overlay.kind != "ext" || !strings.Contains(m.View().Content, "后台监控") || !strings.Contains(m.View().Content, "m1") {
+		t.Fatalf("monitor overlay failed: kind=%q\n%s", m.overlay.kind, m.View().Content)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	// 必须参数命令 /monitor-stop 回车先补全，带参数提交则按 params 发出 id
+	m.input.SetValue("/monitor-stop")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.input.Value() != "/monitor-stop " {
+		t.Fatalf("required arg command did not complete: %q", m.input.Value())
+	}
+	m.input.SetValue("/monitor-stop m1")
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.Update(cmd())
+	if last := received[len(received)-1]; last["op"] != "monitor.stop" || last["id"] != "m1" || last["sessionId"] != "s1" {
+		t.Fatalf("unexpected monitor.stop request: %#v", last)
+	}
+
+	// Ctrl+T 触发 todo 扩展的 checklist 浮层，此时顶栏状态自动让位隐藏
+	m.Update(press('t', tea.ModCtrl))
+	if m.overlay.kind != "ext" || !strings.Contains(m.View().Content, "进度 1/2") || !strings.Contains(m.View().Content, "▸ 修扩展") {
+		t.Fatalf("ctrl+t overlay failed: kind=%q\n%s", m.overlay.kind, m.View().Content)
+	}
+	if strings.Contains(m.View().Content, "任务 1/2 · 修扩展") {
+		t.Fatal("topbar did not hide while its own overlay is open")
+	}
+
+	// 停用 todo 后整表重建：浮层关闭、顶栏状态消失、/todos 和 Ctrl+T 撤除
+	state.Extensions[1].Running = false
+	state.Extensions[1].Enabled = false
+	m.mountExtensions(state)
+	if m.overlay.kind != "" || len(m.extTopbarLines()) != 0 {
+		t.Fatalf("disabled extension left overlay=%q topbars=%d", m.overlay.kind, len(m.extTopbarLines()))
+	}
+	if _, ok := m.findExtCommand("/todos"); ok {
+		t.Fatal("/todos survived extension disable")
+	}
+	if _, handled := m.globalKey("ctrl+t"); handled {
+		t.Fatal("ctrl+t survived extension disable")
+	}
+
+	// 空 client 时执行扩展命令不崩溃、不卡 busy，错误走 notice 不覆写 panel
+	m.panel = "keep-panel"
+	offline := newModel(context.Background(), nil, api.Session{ID: "s1"})
+	offline.panel = "keep-panel"
+	offline.mountExtensions(api.ExtensionState{Extensions: state.Extensions[:1]})
+	if c := offline.runExtensionCommand(state.Extensions[0].Cli.Commands[0], ""); c != nil || offline.busy || offline.panel != "keep-panel" || offline.notice == "" {
+		t.Fatalf("offline runExtensionCommand misbehaved: busy=%v panel=%q notice=%q", offline.busy, offline.panel, offline.notice)
+	}
+	// 切换会话（adopt）清空旧会话工具缓存
+	m.adopt(api.Session{ID: "s2"})
+	if len(m.toolOutputs) != 0 {
+		t.Fatalf("stale toolOutputs leaked across session switch: %#v", m.toolOutputs)
+	}
+}

@@ -44,28 +44,43 @@ func Apply(template string, input json.RawMessage) string {
 }
 
 func at(value any, path string) string {
+	current, ok := lookup(value, path)
+	if !ok {
+		return ""
+	}
+	return formatScalar(current)
+}
+
+func lookup(value any, path string) (any, bool) {
+	if strings.TrimSpace(path) == "" {
+		return value, value != nil
+	}
 	current := value
 	for _, key := range strings.Split(path, ".") {
 		if key == "" {
-			return ""
+			return nil, false
 		}
 		switch node := current.(type) {
 		case map[string]any:
 			next, ok := node[key]
 			if !ok {
-				return ""
+				return nil, false
 			}
 			current = next
 		case []any:
 			index, err := strconv.Atoi(key)
 			if err != nil || index < 0 || index >= len(node) {
-				return ""
+				return nil, false
 			}
 			current = node[index]
 		default:
-			return ""
+			return nil, false
 		}
 	}
+	return current, true
+}
+
+func formatScalar(current any) string {
 	switch item := current.(type) {
 	case nil:
 		return ""
@@ -76,6 +91,10 @@ func at(value any, path string) string {
 			return strconv.FormatInt(int64(item), 10)
 		}
 		return strconv.FormatFloat(item, 'f', -1, 64)
+	case int:
+		return strconv.Itoa(item)
+	case int64:
+		return strconv.FormatInt(item, 10)
 	case bool:
 		return strconv.FormatBool(item)
 	default:

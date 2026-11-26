@@ -562,28 +562,16 @@ func messageID(message api.Message) string {
 	return message.Role
 }
 
-func parseTodos(raw json.RawMessage) []api.Todo {
-	var items []api.Todo
-	if json.Unmarshal(raw, &items) == nil {
-		return items
+// syncToolOutputs 从会话历史按时间顺序缓存每个工具最近一次结果，供扩展 topbar 和工具视图读取。
+func (m *model) syncToolOutputs(history []api.Message) {
+	m.toolOutputs = map[string]json.RawMessage{}
+	for _, message := range history {
+		for _, part := range contentParts(message.Content) {
+			if (part.Type == "tool-result" || message.Role == "tool") && part.ToolName != "" && len(part.Output) > 0 {
+				m.toolOutputs[part.ToolName] = part.Output
+			}
+		}
 	}
-	return nil
-}
-
-func todosFromOutput(raw json.RawMessage) []api.Todo {
-	var wrapped struct {
-		Items []api.Todo `json:"items"`
-		Value struct {
-			Items []api.Todo `json:"items"`
-		} `json:"value"`
-	}
-	if json.Unmarshal(raw, &wrapped) != nil {
-		return nil
-	}
-	if len(wrapped.Value.Items) > 0 {
-		return wrapped.Value.Items
-	}
-	return wrapped.Items
 }
 
 func parseUsage(raw json.RawMessage) usageSnap {

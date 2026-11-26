@@ -34,7 +34,6 @@ var slashCommands = []slashCommand{
 	{"/fork", "从选中的消息分支出去", "", true},
 	{"/copy", "复制选中的内容", "", true},
 	{"/title", "按对话重新生成标题", "", true},
-	{"/todos", "打开任务清单", "", true},
 	{"/extensions", "扩展：开关、重载、看挂了哪些命令", "", true},
 	{"/usage", "用量、速度和 token 统计", "", true},
 	{"/rename", "修改标题", "标题", false},
@@ -43,9 +42,12 @@ var slashCommands = []slashCommand{
 	{"/quit", "退出", "", true},
 }
 
-// allSlashCommands 内置命令加扩展挂载的命令；扩展命令排在后面。
+// allSlashCommands 内置命令加扩展挂载的命令；返回新切片，不改动内置切片底层数组。
 func (m *model) allSlashCommands() []slashCommand {
-	return append(slashCommands, m.extSlashCommands()...)
+	ext := m.extSlashCommands()
+	out := make([]slashCommand, 0, len(slashCommands)+len(ext))
+	out = append(out, slashCommands...)
+	return append(out, ext...)
 }
 
 func (m *model) helpText() string {
@@ -78,12 +80,28 @@ func (m *model) helpText() string {
 		}
 	}
 	b.WriteByte('\n')
+	shortcuts := "Ctrl+P 会话 · Ctrl+M 模型 · Ctrl+W 目录 · Ctrl+G 改动 · Ctrl+U 用量 · Ctrl+Y 复制"
+	for _, item := range m.extensions.Extensions {
+		if !item.Running {
+			continue
+		}
+		for _, command := range item.Cli.Commands {
+			if command.Shortcut == "" {
+				continue
+			}
+			label := command.Hint
+			if label == "" {
+				label = "/" + command.Name
+			}
+			shortcuts += " · " + command.Shortcut + " " + label
+		}
+	}
 	for _, line := range []string{
 		"方向键选择，Tab 补全，Enter 执行不需要参数的命令",
 		"Enter 发送；Tab 在输入和消息之间切换；Alt+Enter / Ctrl+J 换行",
 		"滚轮、PgUp / PgDn 滚动记录；输入只有一行且没有选项时 ↑↓ 也能滚动",
 		"提问若写成 1) 2) 3)，会变成选项：方向键移动，数字键选中，Enter 确认",
-		"Ctrl+P 会话 · Ctrl+M 模型 · Ctrl+W 目录 · Ctrl+G 改动 · Ctrl+T 任务 · Ctrl+U 用量 · Ctrl+Y 复制",
+		shortcuts,
 		"连续的工具收成一行，回答留在对话里；点击该行或 Enter 再展开",
 		"Ctrl+R 显示或收起思考；Esc / Ctrl+C 停止；Ctrl+Q 停止并退出",
 		"消息上：c 复制，x 回退，f 分支，r 只恢复这一次工具改的文件，u 撤销回退",

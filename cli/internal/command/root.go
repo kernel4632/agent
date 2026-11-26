@@ -48,7 +48,7 @@ func New() *cobra.Command {
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "输出 JSON；ask 输出 NDJSON 事件")
 	root.AddCommand(
 		o.health(), o.tools(), o.models(), o.sessions(), o.ask(), o.interactive(),
-		o.configCmd(), o.mcp(), o.skills(), o.extensions(),
+		o.configCmd(), o.mcp(), o.extensions(),
 	)
 	return root
 }

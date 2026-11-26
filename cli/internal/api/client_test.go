@@ -70,3 +70,60 @@ func TestSSELongMultilineAndHeartbeat(t *testing.T) {
 		t.Fatal("malformed JSON must fail")
 	}
 }
+
+func TestSplitArgsAndScalars(t *testing.T) {
+	fields, err := SplitArgs(`"first arg" 'second\path' plain`)
+	if err != nil || len(fields) != 3 || fields[0] != "first arg" || fields[1] != `second\path` || fields[2] != "plain" {
+		t.Fatalf("SplitArgs failed: %#v err=%v", fields, err)
+	}
+	if _, err := SplitArgs(`"unclosed`); err == nil {
+		t.Fatal("expected unclosed quote error")
+	}
+	if got := ParseScalarArg("true"); got != true {
+		t.Fatalf("bool true got %#v", got)
+	}
+	if got := ParseScalarArg("false"); got != false {
+		t.Fatalf("bool false got %#v", got)
+	}
+	if got := ParseScalarArg("001"); got != "001" {
+		t.Fatalf("leading zero string corrupted: %#v", got)
+	}
+	if got := ParseScalarArg("42"); got != int64(42) {
+		t.Fatalf("int got %#v", got)
+	}
+}
+
+func TestExtensionBodyParamsAndErrors(t *testing.T) {
+	decl := ExtensionCommand{
+		Name:   "skill-toggle",
+		Usage:  "技能名 on|off",
+		Op:     "skill.toggle",
+		Cwd:    true,
+		Args:   map[string]any{"source": "cli"},
+		Params: []string{"name", "enabled:bool"},
+	}
+	body, err := ExtensionBody(decl, "sess-1", "/work", `"my skill" off`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body["name"] != "my skill" || body["enabled"] != false || body["cwd"] != "/work" || body["sessionId"] != "sess-1" || body["source"] != "cli" {
+		t.Fatalf("unexpected body: %#v", body)
+	}
+	if _, err := ExtensionBody(decl, "sess-1", "/work", `one maybe`); err == nil {
+		t.Fatal("expected invalid bool error")
+	}
+	if _, err := ExtensionBody(decl, "sess-1", "/work", `a on extra`); err == nil {
+		t.Fatal("expected too many args error")
+	}
+	noArgs := ExtensionCommand{Name: "skills", Op: "skill.list", NoSession: true}
+	if _, err := ExtensionBody(noArgs, "", "", "unexpected"); err == nil {
+		t.Fatal("expected error for unexpected args")
+	}
+	body, err = ExtensionBody(ExtensionCommand{Name: "skill-read", Op: "skill.read", NoSession: true, Input: "name"}, "s", "", "review code")
+	if err != nil || body["name"] != "review code" {
+		t.Fatalf("input mapping failed: %#v err=%v", body, err)
+	}
+	if _, ok := body["sessionId"]; ok {
+		t.Fatal("noSession command leaked sessionId")
+	}
+}

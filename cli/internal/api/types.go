@@ -15,7 +15,6 @@ type Session struct {
 	Settings    Settings              `json:"settings"`
 	CreatedAt   int64                 `json:"createdAt"`
 	UpdatedAt   int64                 `json:"updatedAt"`
-	Todos       json.RawMessage       `json:"todos,omitempty"`
 	Undoable    int                   `json:"undoable"`
 	ToolTimings map[string]ToolTiming `json:"toolTimings,omitempty"`
 }
@@ -152,11 +151,6 @@ type Tool struct {
 	} `json:"ui"`
 }
 
-type Todo struct {
-	Text   string `json:"text"`
-	Status string `json:"status"`
-}
-
 type FileChange struct {
 	Path    string `json:"path"`
 	Before  string `json:"before"`
@@ -216,34 +210,85 @@ type Skill struct {
 	Scope       string `json:"scope"`
 }
 
+// ExtensionViewField 描述列表视图里的一列字段。
+type ExtensionViewField struct {
+	Key   string `json:"key"`
+	Label string `json:"label,omitempty"`
+	True  string `json:"true,omitempty"`
+	False string `json:"false,omitempty"`
+}
+
+// ExtensionView 描述扩展命令结果的可读渲染方式（checklist / list / detail），
+// 供 TUI 浮层和 agent extensions call 文本输出共用。
+type ExtensionView struct {
+	Kind     string               `json:"kind"`
+	Title    string               `json:"title,omitempty"`
+	Empty    string               `json:"empty,omitempty"`
+	Items    string               `json:"items,omitempty"`
+	Text     string               `json:"text,omitempty"`
+	Status   string               `json:"status,omitempty"`
+	Progress string               `json:"progress,omitempty"`
+	Meta     []string             `json:"meta,omitempty"`
+	Fields   []ExtensionViewField `json:"fields,omitempty"`
+}
+
+type ExtensionTopbarCount struct {
+	Field  string `json:"field"`
+	Equals string `json:"equals"`
+}
+
+type ExtensionTopbarCurrent struct {
+	Field  string `json:"field"`
+	Equals string `json:"equals"`
+	Text   string `json:"text"`
+}
+
+// ExtensionTopbar 描述扩展挂到 TUI 顶部的状态条（对标网页端 app.topbar.add）。
+type ExtensionTopbar struct {
+	ID      string                  `json:"id"`
+	Tool    string                  `json:"tool"`
+	Items   string                  `json:"items,omitempty"`
+	Label   string                  `json:"label,omitempty"`
+	Count   *ExtensionTopbarCount   `json:"count,omitempty"`
+	Current *ExtensionTopbarCurrent `json:"current,omitempty"`
+}
+
 // ExtensionCommand 是扩展在 manifest.json 的 cli.commands 里声明的一条 CLI 命令：
-// CLI 不执行扩展代码，只按声明把一条斜杠命令接到 /admin 的一个 op 上。
+// CLI 不执行扩展代码，只按声明把斜杠命令/快捷键接到工具输出或 /admin 的动作上。
 type ExtensionCommand struct {
-	Name      string         `json:"name"`                // 命令名，挂成 /name；也是 agent extensions call 的命令名
-	Hint      string         `json:"hint"`                // 菜单里的一句说明（中文说明也能筛到）
-	Usage     string         `json:"usage"`               // 参数提示，/name 后补全提示用
-	Op        string         `json:"op"`                  // 转发到 POST /admin 的动作名
-	Args      map[string]any `json:"args,omitempty"`      // 固定请求体，和 --arg 键值合并（声明里的优先级低，用户写的覆盖它）
-	Input     string         `json:"input,omitempty"`     // 有值时把剩余参数整段放进这个字段（如 monitor.stop 的 id）
-	NoSession bool           `json:"noSession,omitempty"` // true 时不自动带 sessionId（清单类动作）
+	Name      string         `json:"name"`
+	Hint      string         `json:"hint"`
+	Usage     string         `json:"usage"`
+	Shortcut  string         `json:"shortcut,omitempty"`
+	Op        string         `json:"op,omitempty"`
+	Tool      string         `json:"tool,omitempty"`
+	Args      map[string]any `json:"args,omitempty"`
+	Params    []string       `json:"params,omitempty"`
+	Input     string         `json:"input,omitempty"`
+	NoSession bool           `json:"noSession,omitempty"`
+	Cwd       bool           `json:"cwd,omitempty"`
+	View      *ExtensionView `json:"view,omitempty"`
+}
+
+type ExtensionCli struct {
+	Topbar   []ExtensionTopbar  `json:"topbar,omitempty"`
+	Commands []ExtensionCommand `json:"commands,omitempty"`
 }
 
 type Extension struct {
-	Name        string   `json:"name"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Version     string   `json:"version"`
-	Source      string   `json:"source"`
-	Enabled     bool     `json:"enabled"`
-	Running     bool     `json:"running"`
-	Requires    []string `json:"requires"`
-	Dependents  []string `json:"dependents"`
-	HasFrontend bool     `json:"hasFrontend"`
-	Changed     bool     `json:"changed"`
-	Error       string   `json:"error"`
-	Cli         struct {
-		Commands []ExtensionCommand `json:"commands,omitempty"`
-	} `json:"cli"`
+	Name        string       `json:"name"`
+	Title       string       `json:"title"`
+	Description string       `json:"description"`
+	Version     string       `json:"version"`
+	Source      string       `json:"source"`
+	Enabled     bool         `json:"enabled"`
+	Running     bool         `json:"running"`
+	Requires    []string     `json:"requires"`
+	Dependents  []string     `json:"dependents"`
+	HasFrontend bool         `json:"hasFrontend"`
+	Changed     bool         `json:"changed"`
+	Error       string       `json:"error"`
+	Cli         ExtensionCli `json:"cli"`
 }
 
 type ExtensionState struct {

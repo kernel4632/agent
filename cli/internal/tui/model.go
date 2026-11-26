@@ -70,10 +70,13 @@ type model struct {
 	config                                                                            api.Config
 	steps                                                                             []liveStep
 	lastUsage                                                                         usageSnap
-	todos                                                                             []api.Todo
 	open, toolList                                                                    map[string]bool
+	toolOutputs                                                                       map[string]json.RawMessage
 	extensions                                                                        api.ExtensionState
 	extCommands                                                                       map[string]api.ExtensionCommand
+	extOwners                                                                         map[string]string
+	extShortcuts                                                                      map[string]api.ExtensionCommand
+	extTopbars                                                                        []extTopbarBinding
 	blocks                                                                            []block
 	selected                                                                          int
 	selectedID                                                                        string
@@ -191,8 +194,10 @@ func newModel(ctx context.Context, client *api.Client, session api.Session) *mod
 	m := &model{ctx: ctx, client: client, session: session, input: input, viewport: view,
 		updates: make(chan tea.Msg, 128), width: 80, height: 25, status: "就绪",
 		tools: map[string]api.Tool{}, open: map[string]bool{}, toolList: map[string]bool{},
-		extCommands: map[string]api.ExtensionCommand{}}
-	m.todos = parseTodos(session.Todos)
+		toolOutputs: map[string]json.RawMessage{},
+		extCommands: map[string]api.ExtensionCommand{}, extOwners: map[string]string{},
+		extShortcuts: map[string]api.ExtensionCommand{}}
+	m.syncToolOutputs(session.History)
 	m.lastUsage = usageFromHistory(session.History)
 	m.renderConversation(true)
 	return m
@@ -492,7 +497,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay.err = msg.err.Error()
 		} else {
 			m.mountExtensions(msg.state)
-			m.overlay.index = 0
+			m.clampOverlay()
 			m.notice = msg.name + (map[bool]string{true: " 已启用", false: " 已停用"})[msg.enabled]
 		}
 		m.renderConversation(true)
@@ -504,9 +509,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay.err = msg.err.Error()
 		} else {
 			m.mountExtensions(msg.state)
+			m.clampOverlay()
 			m.notice = msg.name + " 已重载"
 		}
 		m.renderConversation(true)
+		return m, nil
+	case extResultMsg:
+		m.busy = false
+		m.notice = ""
+		if msg.err != nil {
+			m.notice = msg.err.Error()
+			m.renderConversation(false)
+			return m, m.input.Focus()
+		}
+		m.openExtOverlay(msg.owner, msg.command, msg.data)
 		return m, nil
 	case sessionsMsg:
 		m.overlay.loading = false
@@ -585,9 +601,7 @@ func (m *model) adopt(session api.Session) {
 		return
 	}
 	m.session = session
-	if items := parseTodos(session.Todos); len(items) > 0 || len(session.Todos) > 0 {
-		m.todos = items
-	}
+	m.syncToolOutputs(session.History)
 	if usage := usageFromHistory(session.History); usage.Input+usage.Output > 0 {
 		m.lastUsage = usage
 	}
@@ -673,10 +687,8 @@ func (m *model) event(e api.Event) {
 				tool.duration = time.Since(tool.started)
 			}
 		}
-		if e.ToolName == "update_todo_list" {
-			if items := todosFromOutput(e.Output); len(items) > 0 {
-				m.todos = items
-			}
+		if e.ToolName != "" && len(e.Output) > 0 {
+			m.toolOutputs[e.ToolName] = e.Output
 		}
 	case "tool-output":
 		if tool := m.liveTool(e.ToolCallID, e.ToolName); tool != nil {

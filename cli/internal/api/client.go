@@ -20,8 +20,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // 压缩是一次真实的模型请求；服务端要等模型生成完才返回响应头，不能被普通
@@ -58,20 +60,140 @@ func (c *Client) Request(ctx context.Context, method, path string, body, result 
 // Admin 调管理总线：设置页和能力页的动作全部走 POST /admin，body 里带 op。
 type AdminArgs map[string]any
 
+// SplitArgs 按空白与可选的单/双引号切分命令参数，不经过 shell 转义。
+// `/model` 和扩展命令的位置参数共用这一份切分，保留路径斜杠与空格。
+func SplitArgs(argument string) ([]string, error) {
+	var fields []string
+	var word strings.Builder
+	var quote rune
+	started := false
+	for _, ch := range argument {
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			} else {
+				word.WriteRune(ch)
+			}
+		} else if ch == '"' || ch == '\'' {
+			quote, started = ch, true
+		} else if unicode.IsSpace(ch) {
+			if started {
+				fields = append(fields, word.String())
+				word.Reset()
+				started = false
+			}
+		} else {
+			word.WriteRune(ch)
+			started = true
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("名称引号未闭合")
+	}
+	if started {
+		fields = append(fields, word.String())
+	}
+	return fields, nil
+}
+
+// ParseBoolArg 把常见的开关文本转成布尔值。
+func ParseBoolArg(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "on", "true", "enable", "enabled", "1":
+		return true, nil
+	case "off", "false", "disable", "disabled", "0":
+		return false, nil
+	default:
+		return false, fmt.Errorf("必须是 on 或 off")
+	}
+}
+
+// ParseScalarArg 把 --arg 的字符串值尽可能还原为布尔、数字或 JSON 对象，避免布尔参数被当成非空字符串。
+func ParseScalarArg(value string) any {
+	trimmed := strings.TrimSpace(value)
+	switch trimmed {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		var decoded any
+		if json.Unmarshal([]byte(trimmed), &decoded) == nil {
+			return decoded
+		}
+	}
+	if trimmed != "" && !strings.HasPrefix(trimmed, "0") && !strings.HasPrefix(trimmed, "-0") {
+		if n, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+			return n
+		}
+	}
+	if strings.Contains(trimmed, ".") {
+		if f, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return f
+		}
+	}
+	return value
+}
+
 // ExtensionBody 按扩展声明拼一条命令的请求体：声明里的固定 args 打底，
-// 当前会话 ID 和整段输入参数按声明并入。脚本命令和 TUI 共用这一份拼装。
-func ExtensionBody(decl ExtensionCommand, sessionID, argument string) map[string]any {
+// 再并入 sessionId / cwd、位置参数（params）或整段输入（input）。
+func ExtensionBody(decl ExtensionCommand, sessionID, cwd, argument string) (map[string]any, error) {
 	body := map[string]any{}
 	for key, value := range decl.Args {
 		body[key] = value
 	}
-	if !decl.NoSession {
+	if !decl.NoSession && sessionID != "" {
 		body["sessionId"] = sessionID
+	}
+	if decl.Cwd && cwd != "" {
+		body["cwd"] = cwd
+	}
+	argument = strings.TrimSpace(argument)
+	if len(decl.Params) > 0 {
+		if argument == "" {
+			return body, nil
+		}
+		fields, err := SplitArgs(argument)
+		if err != nil {
+			return nil, err
+		}
+		if len(fields) > len(decl.Params) {
+			return nil, fmt.Errorf("参数过多，用法: %s", decl.Usage)
+		}
+		for i, raw := range fields {
+			field, kind, _ := strings.Cut(decl.Params[i], ":")
+			switch kind {
+			case "bool":
+				flag, err := ParseBoolArg(raw)
+				if err != nil {
+					return nil, fmt.Errorf("%s %w", field, err)
+				}
+				body[field] = flag
+			case "int":
+				n, err := strconv.Atoi(raw)
+				if err != nil {
+					return nil, fmt.Errorf("%s 必须是整数", field)
+				}
+				body[field] = n
+			case "number":
+				n, err := strconv.ParseFloat(raw, 64)
+				if err != nil {
+					return nil, fmt.Errorf("%s 必须是数字", field)
+				}
+				body[field] = n
+			default:
+				body[field] = raw
+			}
+		}
+		return body, nil
 	}
 	if argument != "" && decl.Input != "" {
 		body[decl.Input] = argument
+	} else if argument != "" {
+		return nil, fmt.Errorf("/%s 不接受参数", decl.Name)
 	}
-	return body
+	return body, nil
 }
 
 func (c *Client) Admin(ctx context.Context, op string, args AdminArgs, result any) error {

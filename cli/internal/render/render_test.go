@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/kernel4632/agent/cli/internal/api"
 )
 
 func TestSanitizeKeepsColorAndDropsScreenControl(t *testing.T) {
@@ -69,5 +71,54 @@ func TestClipReportsHiddenLines(t *testing.T) {
 	got := Clip("a\nb\nc", 2)
 	if !strings.Contains(got, "a\nb") || !strings.Contains(got, "1 行已截断") {
 		t.Fatal(got)
+	}
+}
+
+func TestExtensionTopbarAndViews(t *testing.T) {
+	raw := json.RawMessage(`{"type":"json","value":{"items":[{"text":"第一项","status":"completed"},{"text":"正在做","status":"in_progress"},{"text":"待办","status":"pending"}]}}`)
+	bar := api.ExtensionTopbar{
+		ID:      "todo",
+		Tool:    "update_todo_list",
+		Items:   "items",
+		Label:   "任务",
+		Count:   &api.ExtensionTopbarCount{Field: "status", Equals: "completed"},
+		Current: &api.ExtensionTopbarCurrent{Field: "status", Equals: "in_progress", Text: "text"},
+	}
+	if line := FormatExtensionTopbar(bar, raw); line != "任务 1/3 · 正在做" {
+		t.Fatalf("topbar = %q", line)
+	}
+	if line := FormatExtensionTopbar(bar, json.RawMessage(`{"items":[]}`)); line != "" {
+		t.Fatalf("empty topbar should hide: %q", line)
+	}
+
+	checklist := FormatExtensionView(&api.ExtensionView{
+		Kind: "checklist", Title: "任务清单", Progress: "进度", Items: "items", Text: "text", Status: "status",
+	}, raw)
+	for _, want := range []string{"任务清单", "进度 1/3", "✓ 第一项", "▸ 正在做", "· 待办"} {
+		if !strings.Contains(checklist, want) {
+			t.Fatalf("missing %q in:\n%s", want, checklist)
+		}
+	}
+
+	listView := FormatExtensionView(&api.ExtensionView{
+		Kind: "list", Title: "技能", Items: "skills",
+		Fields: []api.ExtensionViewField{
+			{Key: "name", Label: "名称"},
+			{Key: "enabled", Label: "状态", True: "启用", False: "停用"},
+		},
+	}, map[string]any{"skills": []any{map[string]any{"name": "review", "enabled": true}}})
+	if !strings.Contains(listView, "review") || !strings.Contains(listView, "启用") {
+		t.Fatalf("listView = \n%s", listView)
+	}
+
+	detail := FormatExtensionView(&api.ExtensionView{
+		Kind: "detail", Title: "技能正文", Meta: []string{"name"}, Text: "body",
+	}, map[string]any{"name": "review", "body": "正文内容\x1b[2J"})
+	if !strings.Contains(detail, "review") || !strings.Contains(detail, "正文内容") || strings.Contains(detail, "\x1b[2J") {
+		t.Fatalf("detail = %q", detail)
+	}
+
+	if got := ExtensionStatus(api.Extension{Enabled: true, Running: true, Changed: true}, false); got != "运行中 · 有更新" {
+		t.Fatalf("status = %q", got)
 	}
 }
