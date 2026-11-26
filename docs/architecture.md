@@ -68,10 +68,6 @@ graph TD
     n1qcy0uz --> ne4psym
     n1qcy0uz --> naobem8
     n2s7pfr --> ne4psym
-    n2s7pfr --> n3f77po
-    n2s7pfr --> n14sdej9
-    n2s7pfr --> naobem8
-    n2s7pfr --> n1qcy0uz
     n10ycygf -. patch Agents .-> nbxek49
     ndhwbyt -. patch Agents .-> nbxek49
     n1pd8dgu -. patch Agents .-> nbxek49
@@ -98,6 +94,7 @@ graph TD
     n19q3pg8 -. requires .-> n176bot2
     n19q3pg8 -. after .-> n1bwj4wr
     n1xk5nt7 -. after .-> n1bwj4wr
+    n2s7pfr == 装配 4 个组件表项 ==> n1qcy0uz
     classDef agent-core fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
     classDef backend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
     classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e
@@ -310,69 +307,35 @@ graph TD
     nlm1wpm["<b>ToolCall</b>"]:::webui
     nfh54tk["<b>UserMessage</b>"]:::webui
     end
-    ne4psym["<b>vue（npm）</b>"]:::route
     nqe4fzi["<b>markstream-vue（npm）</b>"]:::route
     n9necmj["<b>highlight.js（npm）</b>"]:::route
-    n14sdej9 --> ne4psym
     n14sdej9 --> naobem8
-    n3f77po --> ne4psym
     n3f77po --> n14sdej9
     n3f77po --> n1qcy0uz
-    nmdvte5 --> ne4psym
     nmdvte5 --> nqe4fzi
     nmdvte5 --> n1qcy0uz
-    n1x4hqj0 --> ne4psym
     n1x4hqj0 --> n1v8qy0t
-    n1eedbfs --> ne4psym
     n1eedbfs --> n1v8qy0t
-    n1fukcf8 --> ne4psym
     n1fukcf8 --> n14sdej9
     n1fukcf8 --> n1v8qy0t
     n1fukcf8 --> n1qcy0uz
-    n1p9n7s3 --> ne4psym
     n1p9n7s3 --> n1v8qy0t
     n1p9n7s3 --> n14sdej9
-    n18bqnpc --> ne4psym
     n18bqnpc --> n14sdej9
     n18bqnpc --> n1qcy0uz
-    n1v8qy0t --> ne4psym
-    n15uqdp7 --> ne4psym
     n15uqdp7 --> n1v8qy0t
     n15uqdp7 --> n1qcy0uz
-    n1txskb1 --> ne4psym
     n1txskb1 --> n1v8qy0t
-    ne2t5vv --> ne4psym
     ne2t5vv --> n1v8qy0t
     ne2t5vv --> n14sdej9
-    n13y2e7o --> ne4psym
     n13y2e7o --> nqe4fzi
     n13y2e7o --> n1v8qy0t
-    nlm1wpm --> ne4psym
     nlm1wpm --> n1v8qy0t
     nlm1wpm --> n1qcy0uz
-    nfh54tk --> ne4psym
     nfh54tk --> n1v8qy0t
     nfh54tk --> n14sdej9
-    n1qcy0uz --> ne4psym
     n1qcy0uz --> naobem8
-    n2s7pfr --> ne4psym
-    n2s7pfr --> n3f77po
-    n2s7pfr --> n14sdej9
-    n2s7pfr --> naobem8
-    n2s7pfr --> n1qcy0uz
-    n2s7pfr --> n18bqnpc
-    n2s7pfr --> nfh54tk
-    n2s7pfr --> nmdvte5
-    n2s7pfr --> n1x4hqj0
-    n2s7pfr --> n13y2e7o
-    n2s7pfr --> nlm1wpm
-    n2s7pfr --> n15uqdp7
-    n2s7pfr --> n1txskb1
-    n2s7pfr --> n1p9n7s3
-    n2s7pfr --> n1eedbfs
-    n2s7pfr --> n1fukcf8
-    n2s7pfr --> ne2t5vv
-    n2s7pfr --> n1v8qy0t
+    n2s7pfr == 装配 17 个组件表项 ==> n1qcy0uz
     classDef agent-core fill:#eef1f5,stroke:#9aa7b8,color:#5a6572
     classDef backend fill:#e8f0fe,stroke:#7a9bd4,color:#2c4a7c
     classDef store fill:#d8e7fa,stroke:#5a86c4,color:#1d3c6e

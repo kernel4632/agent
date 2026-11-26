@@ -8,7 +8,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { AiBrain01Icon, Alert02Icon, ArchiveIcon, ArrowDown02Icon, ArrowUp02Icon, Clock01Icon, Database01Icon, FlashIcon } from '@hugeicons/core-free-icons'
-import type { Step } from './History.vue'
+import type { Step } from '../history'
 
 const props = defineProps<{ step: Extract<Step, { kind: 'request' }> }>()
 const now = ref(Date.now())

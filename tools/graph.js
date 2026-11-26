@@ -61,6 +61,10 @@ export const nodes = new Map()        // 路径 -> { path, area, exports[], code
 export const edges = []               // { from, to, kind, label? }（to 可以是 external:vue）
 
 // ---------- 一、静态 import ----------
+// import type 是编译期类型引用，运行时不存在——画进依赖图是谎言。
+// typeOnly 存「from 文件 → import 说明符」：该模块在这个文件里的全部 import 都是 type。
+const typeOnly = new Set()
+
 async function scanFile(path, area) {
     const raw = await readFile(join(ROOT, path), 'utf8')
     const code = path.endsWith('.vue') ? scriptsOf(raw) : raw
@@ -75,6 +79,13 @@ async function scanFile(path, area) {
             else if (hit?.external) addEdge(path, `external:${hit.external.split('/')[0] === '@hugeicons' ? '@hugeicons' : hit.external}`, 'import')
         }
     }
+    // 同一模块既被值 import 又被 type import 的不算纯类型；只有 type import 的记入 typeOnly。
+    const imports = new Map()
+    for (const m of code.matchAll(/import\s+(type\s+)?([\s\S]*?)\s+from\s+['"]([^'"]+)['"]/g)) {
+        const prior = imports.get(m[3]) ?? false
+        imports.set(m[3], prior || !m[1])
+    }
+    for (const [spec, hasValue] of imports) if (!hasValue) typeOnly.add(`${path}→${spec}`)
 }
 
 function addEdge(from, to, kind, label) {
@@ -226,5 +237,18 @@ export async function build() {
         nodes.set(path, { path, area, exports: [], code: '', raw })
     }
     await runtimeEdges()
+    // 删纯类型 import 边：typeOnly 的 key 就是「文件→说明符」，resolveImport 归一后比对目标。
+    for (let i = edges.length - 1; i >= 0; i--) {
+        const edge = edges[i]
+        if (edge.kind !== 'import') continue
+        const raw = nodes.get(edge.from)?.raw ?? ''
+        let drop = false
+        for (const m of raw.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+            if (!typeOnly.has(`${edge.from}→${m[1]}`)) continue
+            const hit = resolveImport(m[1], edge.from)
+            if (hit?.file === edge.to || (hit?.external && `external:${hit.external}` === edge.to)) { drop = true; break }
+        }
+        if (drop) edges.splice(i, 1)
+    }
     return { nodes, edges, violations: RULES.flatMap(rule => rule.test()) }
 }

@@ -9,7 +9,7 @@ import { computed, ref } from 'vue'
 import Icon from './Icon.vue'
 import { ArrowRight01Icon, CancelCircleIcon, Clock01Icon, Idea01Icon, Wrench01Icon } from '@hugeicons/core-free-icons'
 import { Components } from '../Extension'
-import type { Step } from './History.vue'
+import type { Step } from '../history'
 
 const props = defineProps<{ steps: Step[]; live: boolean }>()
 const manual = ref<boolean | null>(null)

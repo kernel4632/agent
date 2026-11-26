@@ -68,6 +68,7 @@ function edgeLine(edge) {
 function render(direction, entries, groups) {
     const lines = [`graph ${direction}`]
     const used = new Set()
+    const folded = new Set()     // main.ts 的组件登记边折叠标记
     const draw = path => {
         if (used.has(path)) return
         used.add(path)
@@ -100,7 +101,16 @@ function render(direction, entries, groups) {
     }
     for (const edge of edges) {
         if (!used.has(edge.from) || !used.has(edge.to)) continue
+        // main.ts 是装配点：对组件表项的登记边折叠成一条「装配」粗线，逐条画是噪音
+        if (edge.from === 'web/src/main.ts' && edge.to.startsWith('web/src/') && edge.kind === 'import') {
+            folded.add(edge.to)
+            continue
+        }
         lines.push(edgeLine(edge))
+    }
+    // 组件表在图里时，装配汇总成一条粗线；不在（如纯 backend 图）就不画。
+    if (folded.size && used.has('web/src/Extension.ts')) {
+        lines.push(`    ${nodeId('web/src/main.ts')} == 装配 ${folded.size} 个组件表项 ==> ${nodeId('web/src/Extension.ts')}`)
     }
     for (const [name, style] of Object.entries(AREA_STYLE)) lines.push(`    classDef ${name} ${style}`)
     return lines.join('\n')
@@ -117,8 +127,8 @@ const macro = render('TD', ['external:vue', 'external:@hugeicons', 'external:mar
 // ---------- 图二：backend 四条运行链路（subgraph=链路、并排、主链顺连）----------
 const backDoc = back
 
-// ---------- 图三：web（状态层 / 展示层两个 subgraph；demo、dev 工具、类型声明不画）----------
-const webDoc = render('TD', ['external:vue', 'external:markstream-vue', 'external:highlight.js'], [
+// ---------- 图三：web（状态层 / 展示层两个 subgraph；demo、dev 工具、类型声明不画；vue 零信息量不画）----------
+const webDoc = render('TD', ['external:markstream-vue', 'external:highlight.js'], [
     { title: '状态层 —— Agent.ts（历史与实时状态）· api.ts（唯一请求出口）· Extension.ts（组件表与扩展加载）· main.ts（装配）', entries: ['web/src/Agent.ts', 'web/src/api.ts', 'web/src/Extension.ts', 'web/src/main.ts'] },
     { title: '展示层 —— App.vue + 13 个组件（全部从组件表取，可被扩展替换）', entries: ['web/src/App.vue', 'web/src/components/'] },
 ])

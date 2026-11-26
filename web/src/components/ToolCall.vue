@@ -9,7 +9,7 @@ import { computed, ref } from 'vue'
 import Icon from './Icon.vue'
 import { ArrowRight01Icon, BlockedIcon, CancelCircleIcon, Clock01Icon, MinusSignCircleIcon, PencilEdit01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { ToolViews } from '../Extension'
-import type { Step } from './History.vue'
+import type { Step } from '../history'
 
 const props = defineProps<{ step: Extract<Step, { kind: 'tool' }> }>()
 const manual = ref<boolean | null>(null)
