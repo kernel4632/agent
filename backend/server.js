@@ -63,6 +63,8 @@ export function create(options = {}) {
     return Bun.serve({
         port: options.port ?? (Number(process.env.PORT) || 3000),
         hostname: options.hostname ?? '127.0.0.1',
+        // SSE 长连接空闲不发数据是常态（等事件），默认 10 秒 idleTimeout 会把它掐断并连累服务退出。
+        idleTimeout: 255,                    // Bun 的单位是秒，255 是上限
         routes: {
             '/api/agent/:id/stream': request => stream(request.params.id, request).catch(fail),
             '/api/agent/:id/send': { POST: async request => { try { await Agents.send(request.params.id, await read(request)); return json({ ok: true }, 202) } catch (error) { return fail(error) } } },
