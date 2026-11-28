@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { dataDir, restoreHome, script } from './mock.js'
@@ -127,5 +127,25 @@ describe('内置扩展', () => {
         const mcp = await Extension.invoke('mcp.save', { mcp: [{ name: 'x', url: 'https://example.com', enabled: false }] })
         expect(mcp[0].name).toBe('x')
         expect((await Extension.invoke('mcp.list', {})).list[0].url).toBe('https://example.com')
+    })
+
+    test('todo 写入具备原子性且并发不丢失，损坏的 todos.json 不会静默返回空清单', async () => {
+        const { model } = script([{ text: 'ok' }])
+        const dir = await boot(model)
+        const { id } = await Extension.invoke('session.create', { title: '新会话' })
+        const { default: todoTool } = await import('../../extensions/todo/tools/todo.js')
+
+        await Promise.all([
+            todoTool.run({ agentId: id, action: 'add', content: '第一条' }),
+            todoTool.run({ agentId: id, action: 'add', content: '第二条' }),
+            todoTool.run({ agentId: id, action: 'add', content: '第三条' }),
+        ])
+        const { items } = await Extension.invoke('todo.list', { id })
+        expect(items.map(item => item.content)).toEqual(['第一条', '第二条', '第三条'])
+        expect(readdirSync(join(dir, 'agents', id)).some(name => name.endsWith('.tmp'))).toBe(false)
+
+        writeFileSync(join(dir, 'agents', id, 'todos.json'), '{bad json')
+        await expect(todoTool.run({ agentId: id, action: 'list' })).rejects.toThrow()
+        await expect(Extension.invoke('todo.list', { id })).rejects.toThrow()
     })
 })
