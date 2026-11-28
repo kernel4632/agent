@@ -12,7 +12,7 @@ const emit = defineEmits(['update', 'remove'])
 const ui = props.ui
 const Icon = ui.Icon
 const editing = ref(-1)
-const draft = ref({ id: '', name: '', context: undefined })
+const draft = ref({ id: '', name: '', context: undefined, textTools: false })
 
 const protocols = [
     { value: 'chat', label: 'Chat Completions（chat）' },
@@ -28,17 +28,17 @@ function set(key, value) { emit('update', { ...props.provider, [key]: typeof val
 function edit(index) {
     const model = props.provider.models?.[index] ?? {}
     editing.value = index
-    draft.value = { id: model.id ?? '', name: model.name ?? '', context: model.context }
+    draft.value = { id: model.id ?? '', name: model.name ?? '', context: model.context, textTools: Boolean(model.textTools) }
 }
 function addModel() {
     editing.value = props.provider.models?.length ?? 0
-    draft.value = { id: '', name: '', context: undefined }
+    draft.value = { id: '', name: '', context: undefined, textTools: false }
 }
 function done() {
     const models = [...(props.provider.models ?? [])]
     const id = draft.value.id.trim()
     if (id) {
-        const next = { ...models[editing.value], id, name: draft.value.name.trim() || undefined, context: draft.value.context || undefined }
+        const next = { ...models[editing.value], id, name: draft.value.name.trim() || undefined, context: draft.value.context || undefined, ...(draft.value.textTools ? { textTools: true } : { textTools: undefined }) }
         models.splice(editing.value, 1, JSON.parse(JSON.stringify(next)))
         set('models', models)
     }
@@ -66,9 +66,13 @@ const efforts = model => model.efforts ? Object.keys(model.efforts).length : 0
         <ui.Field v-model="draft.name" placeholder="显示名（可空）" label="显示名" />
         <ui.Field v-model="draft.context" type="number" placeholder="上下文 token" label="上下文" />
         <button type="button" class="ui-btn ui-btn--primary" @click="done"><Icon :icon="Tick02Icon" :size="16" />完成</button>
+        <label class="model__tools">
+          <input v-model="draft.textTools" type="checkbox" role="switch" aria-label="模拟工具" />
+          <span>模拟工具（模型不支持原生 tool_calls 时打开：工具说明写进提示词、从回复文本解析调用）</span>
+        </label>
       </div>
       <ui.Row v-else :icon="AiBrain01Icon" :title="model.name || model.id"
-        :description="[model.id, model.context ? `上下文 ${model.context}` : '', efforts(model) ? `思考强度 ${efforts(model)} 档` : ''].filter(Boolean).join(' · ')">
+        :description="[model.id, model.context ? `上下文 ${model.context}` : '', efforts(model) ? `思考强度 ${efforts(model)} 档` : '', model.textTools ? '模拟工具' : ''].filter(Boolean).join(' · ')">
         <button type="button" class="ui-round hit" aria-label="编辑模型" title="编辑" @click="edit(index)"><Icon :icon="PencilEdit02Icon" :size="17" /></button>
         <button type="button" class="ui-round hit" aria-label="删除模型" title="删除" @click="drop(index)"><Icon :icon="Delete02Icon" :size="17" /></button>
       </ui.Row>
@@ -84,6 +88,8 @@ const efforts = model => model.efforts ? Object.keys(model.efforts).length : 0
 <style scoped>
 .model__edit { display: grid; grid-template-columns: 1.4fr 1fr 120px auto; gap: 8px; }
 .model__edit .ui-field { width: 100%; }
+.model__tools { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.model__tools input { width: 18px; height: 18px; }
 .model__add { justify-content: center; gap: 6px; min-height: 52px; color: var(--muted); font-size: 14px; }
 @container pane (max-width: 560px) {
   .model__edit { grid-template-columns: 1fr; }

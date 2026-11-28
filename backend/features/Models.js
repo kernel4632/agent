@@ -24,6 +24,8 @@ export const Models = {
     /*
     把一个 `供应商/模型` 和可选的思考强度，翻译成 Agent.create / agent.config 能直接用的字段。
     找不到就抛错，让调用方知道是配置问题。
+    模型卡片写 textTools: true 表示这个模型没有原生工具调用（接口不解析 tool_calls），
+    core 会改用文字协议发工具说明、从回复文本里解析调用。
     */
     resolve(config, id, effort) {
         if (!id) throw new Error('未配置模型')
@@ -44,6 +46,7 @@ export const Models = {
             apiKey: provider.apiKey,
             protocol: provider.protocol,
             maxContextTokens: model.context,
+            ...(model.textTools ? { textTools: true } : {}),
             ...rest,
             ...(provider.provider || extraProvider ? { provider: { ...provider.provider, ...extraProvider } } : {}),
         }

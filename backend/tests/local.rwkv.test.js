@@ -18,6 +18,8 @@ const original = process.env.AGENT_HOME
 const LOCAL = process.env.RUN_LOCAL === '1'
 const builtins = join(import.meta.dir, '../../extensions')
 const BASE = 'http://127.0.0.1:46327/v1'
+// AI SDK 的传输层可能走系统代理（IE 代理设置），本地服务必须直连。
+if (LOCAL) { process.env.NO_PROXY = `${process.env.NO_PROXY ?? ''},127.0.0.1`.replace(/^,/, ''); delete process.env.HTTP_PROXY; delete process.env.HTTPS_PROXY }
 
 afterEach(async () => {
     try {
@@ -35,9 +37,8 @@ describe('本地 RWKV 工具调用', () => {
         dataDir()
         wire()
         await Store.configure({
-            providers: [{ name: 'local', baseURL: BASE, apiKey: 'sk-rwkv', protocol: 'chat', models: [{ id: 'rwkv-test', context: 32768 }] }],
+            providers: [{ name: 'local', baseURL: BASE, apiKey: 'sk-rwkv', protocol: 'chat', models: [{ id: 'rwkv-test', context: 32768, textTools: true }] }],
             models: { chat: 'local/rwkv-test' },
-            textTools: true,
             noToolRounds: 1,
             retryMaxTries: 0,
             requestTimeout: 120_000,
@@ -53,6 +54,8 @@ describe('本地 RWKV 工具调用', () => {
         const timer = setTimeout(() => void Agents.stop('main'), 150_000)
         try {
             await Agents.open('main')
+            const current = Agents.get('main')
+            console.log('agent.config baseURL:', current.agent.config.baseURL, '| textTools:', current.agent.config.textTools)
             await Agents.send('main', { input: '请调用 list_dir 工具列出当前目录，然后告诉我有几个文件。' })
             await Promise.race([Agents.done('main'), Bun.sleep(150_000).then(() => { throw new Error('整轮超过 150 秒') })])
             const history = Agents.get('main').agent.history

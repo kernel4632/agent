@@ -15,7 +15,7 @@ export interface AgentMeta { title?: string, group?: string, model?: string, eff
 
 /** config.json 的形状（扩展常用字段）。 */
 export interface AppConfig {
-    providers?: Array<Record<string, unknown>>
+    providers?: Array<Record<string, unknown> & { models?: Array<Record<string, unknown> & { id?: string, textTools?: boolean }> }>
     models?: { chat?: string, compact?: string, [key: string]: unknown }
     mcp?: Array<Record<string, unknown>>
     permission?: Record<string, unknown>

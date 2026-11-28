@@ -141,6 +141,7 @@ extensions/<name>/         manifest.json、backend.js、可选 frontend/
 ```
 
 - 模型 id 对外统一是 `供应商名/模型 id`；某一档思考强度的参数原样合进 core 的 config，代码不认识任何一家供应商。
+- 模型条目可写 `"textTools": true`（界面里是模型卡片上的「模拟工具」开关）：给没有原生 tool_calls 解析的模型用，工具说明写进提示词、调用从回复文本解析；core 刻意不做自动降级，同一个模型开不开互不影响。
 - `mcp` 只支持 `http` / `sse`；没有 `url` 的 stdio 条目新 core 接不了。
 - 权限规则按工具名匹配，值是 `allow` / `deny` / `ask`，也可以是一张"参数模式 → 动作"表。
 

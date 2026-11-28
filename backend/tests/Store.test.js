@@ -72,4 +72,10 @@ describe('Models', () => {
         expect(() => Models.resolve(config, 'relay/grok', 'mid')).toThrow('不支持思考强度 mid')
         expect(() => Models.resolve(config, 'nope/x')).toThrow('找不到供应商')
     })
+
+    test('模型卡片标 textTools 时 resolve 合入 textTools: true（模拟工具），没标就不带', () => {
+        const withText = { ...config, providers: [{ ...config.providers[0], models: [{ id: 'grok', name: 'Grok', context: 256000, textTools: true }] }] }
+        expect(Models.resolve(withText, 'relay/grok')).toMatchObject({ model: 'grok', textTools: true })
+        expect(Models.resolve(config, 'relay/grok')).not.toHaveProperty('textTools')
+    })
 })
