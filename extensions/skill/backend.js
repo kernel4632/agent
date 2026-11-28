@@ -62,6 +62,10 @@ export default ctx => {
             /** @param {unknown} info */
             async onInject(info) {
                 const prior = await onInject?.(info)
+                // 技能目录只在会话首轮注入：目录基本不变，每轮重发是上下文噪音，
+                // 弱模型（textTools）会被重复目录带偏（todo 扩展同款教训，见其注释）。
+                const started = ctx.Agents.get(id)?.agent.history.some(message => message.role === 'user') ?? false
+                if (started) return prior
                 const disabled = new Set((await ctx.Store.config()).skills?.disabled ?? [])
                 const items = (await scan()).filter(item => !disabled.has(item.name))
                 if (!items.length) return prior

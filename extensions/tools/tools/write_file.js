@@ -9,7 +9,7 @@ import { guard, resolvePath, snapshot } from './common.js'
 
 export default {
     name: 'write_file',
-    description: '把内容写入一个文件（覆盖）。已有文件会先做快照再写。不要用来写密钥或 .env。',
+    description: '把内容写入一个文件（覆盖）。相对路径落在框架准备的沙箱目录里；父目录不存在会自动创建。已有文件会先做快照再写。不要用来写密钥或 .env。',
     parameters: {
         type: 'object',
         properties: {

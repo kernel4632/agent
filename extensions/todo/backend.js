@@ -34,9 +34,16 @@ export default ctx => {
             async onInject(info) {
                 const prior = await onInject?.(info)
                 const items = await load(ctx.Store, id)
-                const lines = items.length ? items.map(item => `- [${item.status === 'done' ? 'x' : ' '}] ${item.id} ${item.content}`).join('\n') : '（空）'
-                const block = `当前会话 id 是 ${id}。维护任务清单时调用 todo 工具并带上 agentId="${id}"。\n当前清单：\n${lines}`
-                return prior ? `${prior}\n\n${block}` : block
+                // 会话 id 和 todo 用法只说一次：历史里还没有用户消息时注入完整说明。
+                // 之后不再每轮重复指令——弱模型会把重复注入当成最新任务执行，观察实录 todo(update) 循环 11 次就是它。
+                const started = ctx.Agents.get(id)?.agent.history.some(message => message.role === 'user') ?? false
+                const head = started ? '' : `当前会话 id 是 ${id}。维护任务清单时调用 todo 工具并带上 agentId="${id}"。\n`
+                // 空清单不注入；有清单只提一句有多少项（需要时模型自己调 todo 查看），不再全文下发。
+                const pending = items.filter(item => item.status !== 'done').length
+                const block = items.length
+                    ? `${head}任务清单里有 ${items.length} 项（未完成 ${pending}），用 todo 工具查看或更新。`
+                    : (head || '')
+                return [prior, block.trim()].filter(Boolean).join('\n\n')
             },
         }
     })

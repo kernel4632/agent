@@ -4,13 +4,24 @@
 */
 
 import { copyFile, mkdir, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
 const SKIP = new Set(['node_modules', '.git', 'vendor', '.venv', 'venv', '__pycache__', 'dist', 'build', 'coverage', '.next', '.nuxt', '.output'])
 
+/*
+工具的默认工作目录：系统临时目录下的 agent 沙箱（AGENT_SANDBOX，默认 %TEMP%/agent-sandbox）。
+框架给模型一个确定存在、可以随便写的沙箱：不猜用户盘符，也不落在 AGENT_HOME 里——
+敏感名单会拦 .agent 数据目录下的写操作，沙箱混在里面会自己打自己；系统临时目录天然隔离。
+绝对路径不受影响（模型仍可写用户指定的位置），相对路径全部落在沙箱里。
+*/
+export function sandboxRoot() {
+    return process.env.AGENT_SANDBOX || join(tmpdir(), 'agent-sandbox')
+}
+
 /** @param {string} [cwd] */
 export function root(cwd) {
-    return cwd && isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd || '.')
+    return cwd && isAbsolute(cwd) ? cwd : resolve(sandboxRoot(), cwd || '.')
 }
 
 /** @param {string | undefined} path @param {string} [cwd] @returns {string} */

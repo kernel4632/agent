@@ -4,7 +4,8 @@
 */
 
 import { spawn } from 'node:child_process'
-import { isAbsolute, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join, resolve } from 'node:path'
 import { truncate } from './common.js'
 
 const LIMIT = 20000
@@ -25,7 +26,7 @@ function run(command, cwd, timeout) {
 
 export default {
     name: 'shell',
-    description: '在工作目录执行一条 shell 命令，返回退出码和输出。不要用它读写密钥或 .env。',
+    description: '在宿主系统执行一条命令，返回退出码和输出。命令由宿主的系统 shell 解释（Windows 是 cmd.exe，Unix 是 /bin/sh）：注意平台差异——Windows 下目录用反斜杠、没有 mkdir -p / ls -la / pwd 等 Unix 命令。默认工作目录是框架准备的沙箱目录（返回值里的 cwd），写文件优先用 write_file 工具而不是命令。每次调用都会真实执行：不要用 echo / printf 之类的探测命令反复探路，信息拿一次就够。不要用它读写密钥或 .env。',
     parameters: {
         type: 'object',
         properties: {
@@ -38,7 +39,7 @@ export default {
     /** @param {{ command?: string, cwd?: string, timeout?: number }} [args] */
     async run({ command, cwd, timeout } = {}) {
         if (!command) throw new Error('command 不能为空')
-        const dir = cwd && isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd || '.')
+        const dir = cwd && isAbsolute(cwd) ? cwd : resolve(process.env.AGENT_SANDBOX || join(tmpdir(), 'agent-sandbox'), cwd || '.')
         const result = await run(command, dir, timeout || DEFAULT_MS)
         return { command, cwd: dir, code: result.code, stdout: truncate(result.stdout, LIMIT), stderr: truncate(result.stderr, LIMIT) }
     },

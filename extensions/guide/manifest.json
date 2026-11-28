@@ -1,0 +1,8 @@
+{
+  "name": "guide",
+  "version": "0.1.0",
+  "base": 1,
+  "after": ["permission", "skill", "todo"],
+  "description": "任务引导：给弱模型（textTools）注入干活导向的系统提示；检测原地打转（连续相同调用 / 原文复读），逐级注入纠偏语把它带回任务，极端情况放行收尾工具结束循环。",
+  "backend.js": ""
+}
